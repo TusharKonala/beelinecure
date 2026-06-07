@@ -9,7 +9,9 @@ export default defineConfig({
     path: "prisma/migrations",
     seed: "tsx prisma/seed.ts",
   },
+  // Prisma 7: CLI (migrate, studio) uses `url` here — must be the direct/session connection.
+  // Runtime app queries use DATABASE_URL (pooled) via lib/db.ts.
   datasource: {
-    url: process.env["DATABASE_URL"],
+    url: process.env["DIRECT_URL"],
   },
 });
