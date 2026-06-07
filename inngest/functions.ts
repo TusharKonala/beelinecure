@@ -6,6 +6,7 @@ import {
   resolveJobDescription,
 } from "@/lib/careers-interview";
 import { prisma } from "@/lib/db";
+import { getEmailFrom } from "@/lib/email-from";
 import {
   AppointmentStatus,
   ConsultationType,
@@ -122,7 +123,7 @@ export const sendAppointmentReminder = inngest.createFunction(
     )}&token=${encodeURIComponent(appointment.rescheduleToken)}`;
 
     const { error } = await resend.emails.send({
-      from: "Clinic Appointments <onboarding@resend.dev>",
+      from: getEmailFrom(),
       to: appointment.email,
       subject: "Appointment Reminder",
       react: EmailTemplate({
@@ -259,7 +260,7 @@ export const sendOnlineAppointmentT15Reminder = inngest.createFunction(
     const message = `This is a reminder that your online consultation starts in about 15 minutes. Use the Google Meet link below to join. ${RESCHEDULE_ONLY_MORE_THAN_24H} If you cannot attend, use Cancel below — then book a new appointment when you are ready.`;
 
     const patientSend = await resend.emails.send({
-      from: "Clinic Appointments <onboarding@resend.dev>",
+      from: getEmailFrom(),
       to: appointment.email,
       subject: "Your online consultation starts in 15 minutes",
       react: EmailTemplate({
@@ -291,7 +292,7 @@ export const sendOnlineAppointmentT15Reminder = inngest.createFunction(
     let doctorSendError: unknown = null;
     if (doctorEmail) {
       const doctorSend = await resend.emails.send({
-        from: "Clinic Appointments <onboarding@resend.dev>",
+        from: getEmailFrom(),
         to: doctorEmail,
         subject: `Online consultation with ${appointment.patientName} starts in 15 minutes`,
         react: EmailTemplate({
@@ -427,7 +428,7 @@ export const sendClinicAppointmentT120Reminder = inngest.createFunction(
     )}&token=${encodeURIComponent(appointment.cancelToken)}`;
 
     const { error } = await resend.emails.send({
-      from: "Clinic Appointments <onboarding@resend.dev>",
+      from: getEmailFrom(),
       to: appointment.email,
       subject: "Your clinic appointment is in 2 hours",
       react: EmailTemplate({
@@ -578,7 +579,7 @@ export const sendPrescriptionReminder = inngest.createFunction(
     const followUpUrl = `${origin}/book-appointment/${encodeURIComponent(appointment.doctorId)}`;
 
     const { error } = await resend.emails.send({
-      from: "Clinic Appointments <onboarding@resend.dev>",
+      from: getEmailFrom(),
       to: appointment.email,
       subject,
       react: MedicineReminderEmailTemplate({
@@ -726,7 +727,7 @@ export const processDoctorOverdueAppointments = inngest.createFunction(
       if (claimed.count === 0) continue;
 
       const { error } = await resend.emails.send({
-        from: "Clinic Appointments <onboarding@resend.dev>",
+        from: getEmailFrom(),
         to: doctorEmail,
         subject: "Action needed: appointment pending review",
         react: EmailTemplate({
@@ -872,7 +873,7 @@ async function sendInterviewReminderEmail(params: {
   }
 
   const from =
-    process.env.EMAIL_FROM ?? "BeelineCure <onboarding@resend.dev>";
+    getEmailFrom();
 
   const { error } = await resend.emails.send({
     from,
@@ -1114,7 +1115,7 @@ export const chatUnreadEmailNotify = inngest.createFunction(
         : `Unread message from ${senderName}`;
 
     const { error } = await resend.emails.send({
-      from: "Clinic Appointments <onboarding@resend.dev>",
+      from: getEmailFrom(),
       to: recipientEmail,
       subject,
       react: ChatUnreadMessageEmailTemplate({
@@ -1227,7 +1228,7 @@ export const doctorUnreadChatDigest = inngest.createFunction(
         doctor.user?.name?.trim() || doctor.name;
 
       const { error } = await resend.emails.send({
-        from: "Clinic Appointments <onboarding@resend.dev>",
+        from: getEmailFrom(),
         to: doctorEmail,
         subject: `Unread messages from ${shown.length === 1 ? shown[0] : `${shown.length} patients`}`,
         react: DoctorUnreadChatDigestEmailTemplate({

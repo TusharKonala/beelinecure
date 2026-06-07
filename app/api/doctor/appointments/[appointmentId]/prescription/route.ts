@@ -13,6 +13,7 @@ import { inngest } from "@/inngest/client";
 import { createAppointmentNotificationForEmail } from "@/lib/notifications";
 import { formatDoctorDisplayName } from "@/lib/doctor-name";
 import { enqueueChatConversationEnsure } from "@/lib/chat";
+import { getEmailFrom } from "@/lib/email-from";
 import { prescriptionReminderTsFromSavedAt } from "@/lib/reminder-time";
 import {
   isKnownLocalMedicine,
@@ -339,7 +340,7 @@ export async function PUT(
     )}/prescription`;
 
     const { error } = await resend.emails.send({
-      from: "Clinic Appointments <onboarding@resend.dev>",
+      from: getEmailFrom(),
       to: appointment.email,
       subject,
       react: MedicineReminderEmailTemplate({

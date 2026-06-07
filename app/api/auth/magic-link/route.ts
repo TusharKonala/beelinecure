@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { Resend } from "resend";
 import { prisma } from "@/lib/db";
+import { getEmailFrom } from "@/lib/email-from";
 import { MagicLinkEmailTemplate } from "@/components/magic-link-email-template";
 
 const bodySchema = z.object({
@@ -99,7 +100,7 @@ export async function POST(request: Request) {
 
   try {
     const resend = new Resend(process.env.RESEND_API_KEY);
-    const from = process.env.EMAIL_FROM ?? "BeelineCure <onboarding@resend.dev>";
+    const from = getEmailFrom();
 
     const { error } = await resend.emails.send({
       from,

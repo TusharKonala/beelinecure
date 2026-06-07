@@ -16,6 +16,7 @@ import {
 } from "@/generated/prisma/client";
 import { EmailTemplate } from "@/components/email-template";
 import { Resend } from "resend";
+import { getEmailFrom } from "@/lib/email-from";
 import { inngest } from "@/inngest/client";
 import {
   clinicT120ReminderAtMs,
@@ -230,7 +231,7 @@ export async function POST(request: NextRequest) {
     // Reuse existing confirmation email logic
     try {
       const { error } = await resend.emails.send({
-        from: "Clinic Appointments <onboarding@resend.dev>",
+        from: getEmailFrom(),
         to: appointment.email,
         subject: "Appointment Confirmation",
         react: EmailTemplate({
@@ -509,7 +510,7 @@ async function handleRefundEvent(event: Stripe.Event) {
     );
 
     const { error } = await resend.emails.send({
-      from: "Clinic Appointments <onboarding@resend.dev>",
+      from: getEmailFrom(),
       to: appointment.email,
       subject: "Refund Failed",
       react: EmailTemplate({

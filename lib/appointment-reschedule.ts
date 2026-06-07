@@ -21,6 +21,7 @@ import {
   formatTimeInPatientTz,
 } from "@/lib/timezone-display";
 import { Resend } from "resend";
+import { getEmailFrom } from "@/lib/email-from";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -208,7 +209,7 @@ export async function reschedulePatientAppointment(input: {
       });
 
       const { error } = await resend.emails.send({
-        from: "Clinic Appointments <onboarding@resend.dev>",
+        from: getEmailFrom(),
         to: updatedAppointment.email,
         subject: "Appointment Rescheduled",
         react: EmailTemplate({

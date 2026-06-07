@@ -10,6 +10,7 @@ import { inngest } from "@/inngest/client";
 import { NextRequest, NextResponse } from "next/server";
 import React from "react";
 import { Resend } from "resend";
+import { getEmailFrom } from "@/lib/email-from";
 import { z } from "zod";
 import { fromZonedTime } from "date-fns-tz";
 import {
@@ -326,7 +327,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { error } = await resend.emails.send({
-      from: "Clinic Appointments <onboarding@resend.dev>",
+      from: getEmailFrom(),
       to: appointment.email,
       subject: "Appointment Cancelled",
       react: EmailTemplate({

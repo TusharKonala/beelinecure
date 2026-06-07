@@ -2,12 +2,9 @@ import { Resend } from "resend";
 import { CareersApplicationRejectedEmailTemplate } from "@/components/careers-application-rejected-email-template";
 import { CareersApplicationShortlistedEmailTemplate } from "@/components/careers-application-shortlisted-email-template";
 import { ApplicationStatus } from "@/generated/prisma/client";
+import { getEmailFrom } from "@/lib/email-from";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
-
-function emailFrom() {
-  return process.env.EMAIL_FROM ?? "BeelineCure <onboarding@resend.dev>";
-}
 
 export async function sendApplicationStatusChangeEmail(params: {
   status: ApplicationStatus;
@@ -24,7 +21,7 @@ export async function sendApplicationStatusChangeEmail(params: {
 
   if (params.status === ApplicationStatus.SHORTLISTED) {
     await resend.emails.send({
-      from: emailFrom(),
+      from: getEmailFrom(),
       to: params.to,
       subject: `Application update — ${params.jobTitle}`,
       react: CareersApplicationShortlistedEmailTemplate({
@@ -37,7 +34,7 @@ export async function sendApplicationStatusChangeEmail(params: {
 
   if (params.status === ApplicationStatus.REJECTED) {
     await resend.emails.send({
-      from: emailFrom(),
+      from: getEmailFrom(),
       to: params.to,
       subject: `Application update — ${params.jobTitle}`,
       react: CareersApplicationRejectedEmailTemplate({

@@ -23,6 +23,7 @@ import { timeToMinutes } from "@/lib/time";
 import { getServerSession } from "next-auth/next";
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
+import { getEmailFrom } from "@/lib/email-from";
 import { z } from "zod";
 import {
   formatDateInDoctorTz,
@@ -824,7 +825,7 @@ export async function PUT(request: Request) {
         }
         const dateLabels = Object.keys(grouped).sort();
         const { error: emailError } = await resend.emails.send({
-          from: "Clinic Appointments <onboarding@resend.dev>",
+          from: getEmailFrom(),
           to: doctorEmail,
           subject: `Holiday cancellation summary — ${activeAppointments.length} appointment${activeAppointments.length === 1 ? "" : "s"}`,
           react: DoctorHolidaySummaryEmailTemplate({

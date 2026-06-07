@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { Resend } from "resend";
+import { getEmailFrom } from "@/lib/email-from";
 
 const demoRequestSchema = z.object({
   fullName: z.string().trim().min(1, "Full name is required").max(255),
@@ -58,7 +59,7 @@ export async function POST(request: Request) {
   try {
     const resend = new Resend(process.env.RESEND_API_KEY);
     const from =
-      process.env.EMAIL_FROM ?? "BeelineCure <onboarding@resend.dev>";
+      getEmailFrom();
 
     const { error } = await resend.emails.send({
       from,

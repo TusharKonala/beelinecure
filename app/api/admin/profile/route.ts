@@ -8,6 +8,7 @@ import { UserRole } from "@/generated/prisma/client";
 import { AdminEmailChangeTemplate } from "@/components/admin-email-change-template";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { getEmailFrom } from "@/lib/email-from";
 
 const updateSchema = z.object({
   name: z.string().min(1).max(255),
@@ -161,7 +162,7 @@ export async function PATCH(request: Request) {
 
   try {
     const resend = new Resend(process.env.RESEND_API_KEY);
-    const from = process.env.EMAIL_FROM ?? "BeelineCure <onboarding@resend.dev>";
+    const from = getEmailFrom();
 
     const { error } = await resend.emails.send({
       from,

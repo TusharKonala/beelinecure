@@ -5,6 +5,7 @@ import { randomBytes } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { Resend } from "resend";
+import { getEmailFrom } from "@/lib/email-from";
 import { z } from "zod";
 import {
   AppointmentStatus,
@@ -310,7 +311,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const { error } = await resend.emails.send({
-      from: "Clinic Appointments <onboarding@resend.dev>",
+      from: getEmailFrom(),
       to: email,
       subject: "Appointment Confirmation",
       react: EmailTemplate({

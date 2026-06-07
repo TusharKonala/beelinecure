@@ -15,6 +15,7 @@ import {
   updateMeetEventForInterviewRound,
 } from "@/lib/google-calendar-meet";
 import { prisma } from "@/lib/db";
+import { getEmailFrom } from "@/lib/email-from";
 import {
   interviewReminder24hAtMs,
   interviewReminder30mAtMs,
@@ -23,10 +24,6 @@ import {
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 const TOKEN_EXPIRY_MS = 48 * 60 * 60 * 1000;
-
-function emailFrom() {
-  return process.env.EMAIL_FROM ?? "BeelineCure <onboarding@resend.dev>";
-}
 
 export function resolveJobDescription(
   snapshot: string,
@@ -147,7 +144,7 @@ export async function sendInterviewInviteEmail(params: {
   }
 
   await resend.emails.send({
-    from: emailFrom(),
+    from: getEmailFrom(),
     to: params.to,
     subject: `Confirm your interview — ${params.jobTitle}`,
     react: CareersInterviewInviteEmailTemplate({
@@ -183,7 +180,7 @@ export async function sendInterviewConfirmedEmail(params: {
   }
 
   await resend.emails.send({
-    from: emailFrom(),
+    from: getEmailFrom(),
     to: params.to,
     subject: `Interview confirmed — ${params.jobTitle}`,
     react: CareersInterviewConfirmedEmailTemplate({
@@ -219,7 +216,7 @@ export async function sendInterviewAttendeeConfirmedEmail(params: {
   }
 
   await resend.emails.send({
-    from: emailFrom(),
+    from: getEmailFrom(),
     to: params.to,
     subject: `Interview scheduled — ${params.jobTitle} (Round ${params.roundNumber})`,
     react: CareersInterviewAttendeeConfirmedEmailTemplate({
@@ -258,7 +255,7 @@ async function sendInterviewCancelledEmails(round: {
   if (!process.env.RESEND_API_KEY?.trim()) return;
 
   await resend.emails.send({
-    from: emailFrom(),
+    from: getEmailFrom(),
     to: round.application.email,
     subject: `Interview cancelled — ${round.application.jobPosting.title}`,
     react: CareersInterviewCancelledCandidateEmailTemplate({
@@ -272,7 +269,7 @@ async function sendInterviewCancelledEmails(round: {
   const attendee = round.attendeeEmail?.trim();
   if (attendee) {
     await resend.emails.send({
-      from: emailFrom(),
+      from: getEmailFrom(),
       to: attendee,
       subject: `Interview cancelled — ${round.application.jobPosting.title}`,
       react: CareersInterviewCancelledAttendeeEmailTemplate({
@@ -331,7 +328,7 @@ async function sendInterviewRescheduledEmails(params: {
   if (!process.env.RESEND_API_KEY?.trim()) return;
 
   await resend.emails.send({
-    from: emailFrom(),
+    from: getEmailFrom(),
     to: application.email,
     subject: `Interview rescheduled — ${application.jobPosting.title}`,
     react: CareersInterviewRescheduledCandidateEmailTemplate({
@@ -347,7 +344,7 @@ async function sendInterviewRescheduledEmails(params: {
   const attendee = round.attendeeEmail?.trim();
   if (attendee) {
     await resend.emails.send({
-      from: emailFrom(),
+      from: getEmailFrom(),
       to: attendee,
       subject: `Interview rescheduled — ${application.jobPosting.title}`,
       react: CareersInterviewRescheduledAttendeeEmailTemplate({

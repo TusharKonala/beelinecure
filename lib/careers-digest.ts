@@ -2,6 +2,7 @@ import { NotificationType, UserRole } from "@/generated/prisma/client";
 import { Resend } from "resend";
 import { CareersDigestEmailTemplate } from "@/components/careers-digest-email-template";
 import { prisma } from "@/lib/db";
+import { getEmailFrom } from "@/lib/email-from";
 
 export type CareersDigestResult =
   | { skipped: true }
@@ -76,8 +77,7 @@ export async function runCareersApplicationDigest(origin: string) {
   if (adminEmails.length > 0 && process.env.RESEND_API_KEY) {
     try {
       const resend = new Resend(process.env.RESEND_API_KEY);
-      const adminFrom =
-        process.env.EMAIL_FROM ?? "BeelineCure <onboarding@resend.dev>";
+      const adminFrom = getEmailFrom();
       await resend.emails.send({
         from: adminFrom,
         to: adminEmails,

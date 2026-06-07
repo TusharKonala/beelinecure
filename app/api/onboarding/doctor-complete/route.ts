@@ -9,6 +9,7 @@ import { Resend } from "resend";
 import { formatDoctorStoredName } from "@/lib/doctor-name";
 import { DOCTOR_SPECIALIZATIONS } from "@/lib/doctor-specializations";
 import { currencyForTimezone } from "@/lib/currency";
+import { getEmailFrom } from "@/lib/email-from";
 
 const doctorCompleteSchema = z.object({
   name: z.string().min(1).max(255),
@@ -149,7 +150,7 @@ export async function POST(request: Request) {
   if (adminEmails.length > 0 && process.env.RESEND_API_KEY) {
     try {
       await resend.emails.send({
-        from: "BeelineCure <onboarding@resend.dev>",
+        from: getEmailFrom(),
         to: adminEmails,
         subject: "New doctor registration pending approval",
         text: [

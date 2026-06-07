@@ -10,6 +10,7 @@ import { EmailVerificationTemplate } from "@/components/email-verification-templ
 import { formatDoctorStoredName } from "@/lib/doctor-name";
 import { DOCTOR_SPECIALIZATIONS } from "@/lib/doctor-specializations";
 import { currencyForTimezone } from "@/lib/currency";
+import { getEmailFrom } from "@/lib/email-from";
 
 const doctorSignupSchema = z.object({
   phone: z
@@ -162,7 +163,7 @@ export async function POST(request: Request) {
   )}`;
 
   try {
-    const from = process.env.EMAIL_FROM ?? "BeelineCure <onboarding@resend.dev>";
+    const from = getEmailFrom();
 
     const { error } = await resend.emails.send({
       from,
@@ -223,7 +224,7 @@ export async function POST(request: Request) {
     if (adminEmails.length > 0 && process.env.RESEND_API_KEY) {
       try {
         const adminFrom =
-          process.env.EMAIL_FROM ?? "BeelineCure <onboarding@resend.dev>";
+          getEmailFrom();
         await resend.emails.send({
           from: adminFrom,
           to: adminEmails,
