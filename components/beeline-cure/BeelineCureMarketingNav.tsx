@@ -13,6 +13,8 @@ const navLinkClass =
 const navLinkMutedClass = navLinkClass;
 const navCtaClass =
   "rounded-lg bg-[#2555F3] px-4 py-2 font-montserrat text-sm font-semibold text-white transition-colors hover:bg-[#1E44C7]";
+const mobileNavItemClass = `${navLinkClass} flex min-h-11 w-full items-center py-3 text-left`;
+const mobileNavCtaClass = `${navCtaClass} flex min-h-11 w-full items-center justify-center py-3`;
 
 function handleSignOut() {
   void signOut({ callbackUrl: "/" });
@@ -129,20 +131,24 @@ export function BeelineCureMarketingNav() {
 
         {mobileMenuOpen && (
           <div className="border-t border-black/10 bg-white px-6 py-3 lg:hidden">
-            <div className="flex flex-col gap-4">
-              <NavLink href="/" className={navLinkClass} onClick={closeMobileMenu}>
+            <div className="flex flex-col gap-1">
+              <NavLink
+                href="/"
+                className={mobileNavItemClass}
+                onClick={closeMobileMenu}
+              >
                 Home
               </NavLink>
               <NavLink
                 href="/about"
-                className={navLinkClass}
+                className={mobileNavItemClass}
                 onClick={closeMobileMenu}
               >
                 About
               </NavLink>
               <NavLink
                 href="/careers"
-                className={navLinkClass}
+                className={mobileNavItemClass}
                 onClick={closeMobileMenu}
               >
                 Careers
@@ -150,12 +156,12 @@ export function BeelineCureMarketingNav() {
               <AuthNavLinks
                 isAuthenticated={isAuthenticated}
                 dashboardHref={dashboardHref}
-                linkClass={navLinkMutedClass}
+                linkClass={mobileNavItemClass}
                 onCloseMenu={closeMobileMenu}
               />
               <NavLink
                 href="/book-appointment"
-                className={`${navCtaClass} text-center`}
+                className={`${mobileNavCtaClass} mt-3`}
                 onClick={closeMobileMenu}
               >
                 Book Appointment
