@@ -272,10 +272,19 @@ async function main() {
   );
 
   console.log("Creating reviews…");
-  const reviewRows = [];
+  type ReviewSeedRow = {
+    doctorId: string;
+    patientId: string;
+    rating: number;
+    comment: string;
+    createdAt: Date;
+  };
+  const reviewRows: ReviewSeedRow[] = [];
+  let reviewIndex = 0;
   for (const doctorId of doctorIds) {
     for (let r = 0; r < REVIEWS_PER_DOCTOR; r += 1) {
-      const patient = reviewPatients[(reviewRows.length + r) % reviewPatients.length];
+      const patient = reviewPatients[reviewIndex % reviewPatients.length];
+      reviewIndex += 1;
       const createdAt = new Date();
       createdAt.setUTCDate(createdAt.getUTCDate() - randomInt(5, 180));
       reviewRows.push({
