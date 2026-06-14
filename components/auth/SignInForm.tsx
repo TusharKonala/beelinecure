@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { getSession, signIn } from "next-auth/react";
 import { Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DEMO_ACCOUNTS } from "@/lib/demo-credentials";
 import { getPostLoginPath } from "@/lib/post-login-redirect";
 
 export function SignInForm() {
@@ -159,6 +160,46 @@ export function SignInForm() {
           up again with updated details.
         </p>
       )}
+
+      <div className="rounded-xl border border-[#dbeafe] bg-[#eff6ff] px-3 py-3 font-montserrat text-sm text-[#1e3a8a]">
+        <p className="font-semibold text-[#1e40af]">Try the demo</p>
+        <p className="mt-1 text-xs leading-relaxed text-[#1e40af]/90">
+          Use these accounts to explore the app without signing up.
+        </p>
+        <ul className="mt-3 space-y-2">
+          {DEMO_ACCOUNTS.map((account) => (
+            <li
+              key={account.role}
+              className="rounded-lg border border-[#bfdbfe] bg-white/80 px-2.5 py-2"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wide text-[#1d4ed8]">
+                  {account.role}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 cursor-pointer rounded-lg border-[#93c5fd] px-2.5 text-xs font-medium text-[#1d4ed8] hover:bg-[#dbeafe]"
+                  onClick={() => {
+                    setEmail(account.email);
+                    setPassword(account.password);
+                    setError(null);
+                  }}
+                >
+                  Fill credentials
+                </Button>
+              </div>
+              <p className="mt-1 text-xs text-[#334155]">
+                <span className="font-medium">Email:</span> {account.email}
+              </p>
+              <p className="text-xs text-[#334155]">
+                <span className="font-medium">Password:</span> {account.password}
+              </p>
+            </li>
+          ))}
+        </ul>
+      </div>
 
       <Button
         type="button"

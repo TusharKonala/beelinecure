@@ -13,6 +13,7 @@
     "db:seed:admin": "tsx prisma/seed-admin.ts",
     "db:seed:careers": "tsx prisma/seed-careers.ts",
     "db:seed:demo-doctors": "tsx scripts/seed-demo-doctors.ts",
+    "db:seed:demo": "tsx prisma/seed-app-demo.ts",
     "db:backfill:slugs": "tsx scripts/backfill-doctor-slugs.ts"
   },
   "prisma": {
