@@ -1,11 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import useInfiniteScroll from "react-infinite-scroll-hook";
 
 import { Container } from "@/components/layout/Container";
+import { DoctorProfilePhoto } from "@/components/doctor/DoctorProfilePhoto";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ALLOWED_SLOT_DURATION_MINUTES,
@@ -528,11 +528,11 @@ export function DoctorSelectionSection() {
                   href={cardHref(doctor)}
                   className="relative aspect-4/3 w-full overflow-hidden rounded-t-2xl bg-[#f5f5f5] min-[450px]:h-72 min-[450px]:aspect-auto sm:h-64"
                 >
-                  <Image
+                  <DoctorProfilePhoto
                     src={doctor.profilePhotoUrl}
                     alt={formatDoctorDisplayName(doctor.name)}
+                    slug={doctor.slug}
                     fill
-                    className="object-cover object-top"
                     sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
                   />
                 </Link>

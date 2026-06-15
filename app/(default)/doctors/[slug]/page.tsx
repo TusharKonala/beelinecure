@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
@@ -7,6 +6,7 @@ import {
   type Prisma,
 } from "@/generated/prisma/client";
 import { Container } from "@/components/layout/Container";
+import { DoctorProfilePhoto } from "@/components/doctor/DoctorProfilePhoto";
 import { Button } from "@/components/ui/button";
 import { RatingStars } from "@/components/reviews/RatingStars";
 import {
@@ -155,12 +155,12 @@ export default async function DoctorPublicProfilePage(props: PageProps) {
         <div className="grid gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)] lg:items-start">
           <article className="overflow-hidden rounded-2xl border border-[#e5e5e5] bg-white shadow-sm lg:sticky lg:top-24">
             <div className="relative mx-auto aspect-4/3 w-full max-h-80 max-w-[425px] bg-[#f5f5f5] md:aspect-21/9 md:max-h-none md:min-h-[300px] lg:aspect-4/3 lg:min-h-0">
-              <Image
+              <DoctorProfilePhoto
                 src={doctor.profilePhotoUrl}
                 alt={displayName}
+                slug={slug}
                 fill
                 sizes="(min-width: 1024px) 420px, 100vw"
-                className="object-cover object-top"
                 priority
               />
             </div>

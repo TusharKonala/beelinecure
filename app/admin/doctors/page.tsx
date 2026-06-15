@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Image from "next/image";
 import { createPortal } from "react-dom";
 import useInfiniteScroll from "react-infinite-scroll-hook";
 import { Container } from "@/components/layout/Container";
+import { DoctorProfilePhoto } from "@/components/doctor/DoctorProfilePhoto";
 import { formatDoctorDisplayName } from "@/lib/doctor-name";
 
 type ApprovalTab = "PENDING" | "APPROVED" | "REJECTED";
@@ -432,12 +432,11 @@ export default function AdminDoctorsPage() {
                           <td className="px-3 py-3">
                             <div className="flex items-center gap-3">
                               <div className="relative h-10 w-10 overflow-hidden rounded-full border border-[#e5e5e5] bg-[#f5f5f5]">
-                                <Image
+                                <DoctorProfilePhoto
                                   src={doctor.profilePhotoUrl}
                                   alt={doctor.name}
                                   fill
                                   sizes="40px"
-                                  className="object-cover"
                                 />
                               </div>
                               <p className="font-montserrat text-sm font-medium text-[#333333]">
