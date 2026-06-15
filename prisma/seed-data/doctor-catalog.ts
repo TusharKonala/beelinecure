@@ -15,7 +15,7 @@ export type DoctorCatalogEntry = {
 
 export const DOCTOR_CATALOG: DoctorCatalogEntry[] = [
   {
-    name: "Dr. Aisha Mehta",
+    name: "Dr. Amara Eze",
     specialization: "Cardiologist",
     phone: "+15550101001",
     qualification: "MBBS, MD (Cardiology)",
@@ -27,7 +27,7 @@ export const DOCTOR_CATALOG: DoctorCatalogEntry[] = [
     price30Cents: 6000,
   },
   {
-    name: "Dr. Liam Carter",
+    name: "Dr. Charlotte Bennett",
     specialization: "Neurologist",
     phone: "+15550101002",
     qualification: "MD, DM (Neurology)",
@@ -39,7 +39,7 @@ export const DOCTOR_CATALOG: DoctorCatalogEntry[] = [
     price30Cents: 6500,
   },
   {
-    name: "Dr. Sofia Rossi",
+    name: "Dr. Andre Thompson",
     specialization: "Dermatologist",
     phone: "+15550101003",
     qualification: "MD (Dermatology)",
@@ -51,7 +51,7 @@ export const DOCTOR_CATALOG: DoctorCatalogEntry[] = [
     price30Cents: 5500,
   },
   {
-    name: "Dr. Noah Williams",
+    name: "Dr. Wei Zhang",
     specialization: "General Physician",
     phone: "+15550101004",
     qualification: "MD",
@@ -63,7 +63,7 @@ export const DOCTOR_CATALOG: DoctorCatalogEntry[] = [
     price30Cents: 3500,
   },
   {
-    name: "Dr. Priya Nair",
+    name: "Dr. Naledi Dlamini",
     specialization: "Gynecologist",
     phone: "+15550101005",
     qualification: "MBBS, MS (OBGYN)",
@@ -75,7 +75,7 @@ export const DOCTOR_CATALOG: DoctorCatalogEntry[] = [
     price30Cents: 300000,
   },
   {
-    name: "Dr. Ethan Brooks",
+    name: "Dr. Hana Kobayashi",
     specialization: "Pediatrician",
     phone: "+15550101006",
     qualification: "MD (Pediatrics)",
@@ -87,7 +87,7 @@ export const DOCTOR_CATALOG: DoctorCatalogEntry[] = [
     price30Cents: 4500,
   },
   {
-    name: "Dr. Maya Chen",
+    name: "Dr. Camila Fernández",
     specialization: "ENT (Otolaryngologist)",
     phone: "+15550101007",
     qualification: "MS (ENT)",
@@ -99,7 +99,7 @@ export const DOCTOR_CATALOG: DoctorCatalogEntry[] = [
     price30Cents: 7000,
   },
   {
-    name: "Dr. Omar Khalid",
+    name: "Dr. Layla Haddad",
     specialization: "Pulmonologist",
     phone: "+15550101008",
     qualification: "MD (Pulmonology)",
@@ -111,7 +111,7 @@ export const DOCTOR_CATALOG: DoctorCatalogEntry[] = [
     price30Cents: 55000,
   },
   {
-    name: "Dr. Emma Taylor",
+    name: "Dr. Ananya Joshi",
     specialization: "Endocrinologist",
     phone: "+15550101009",
     qualification: "MD (Endocrinology)",
@@ -123,7 +123,7 @@ export const DOCTOR_CATALOG: DoctorCatalogEntry[] = [
     price30Cents: 7000,
   },
   {
-    name: "Dr. Lucas Martin",
+    name: "Dr. Mai Nguyen",
     specialization: "Orthopedic Surgeon",
     phone: "+15550101010",
     qualification: "MS (Orthopedics)",
@@ -135,7 +135,7 @@ export const DOCTOR_CATALOG: DoctorCatalogEntry[] = [
     price30Cents: 8000,
   },
   {
-    name: "Dr. Hannah Kim",
+    name: "Dr. Karim Saleh",
     specialization: "Psychiatrist",
     phone: "+15550101011",
     qualification: "MD (Psychiatry)",
@@ -147,7 +147,7 @@ export const DOCTOR_CATALOG: DoctorCatalogEntry[] = [
     price30Cents: 7500,
   },
   {
-    name: "Dr. Daniel Green",
+    name: "Dr. Diego Morales",
     specialization: "Gastroenterologist",
     phone: "+15550101012",
     qualification: "MD, DM (Gastroenterology)",
@@ -159,7 +159,7 @@ export const DOCTOR_CATALOG: DoctorCatalogEntry[] = [
     price30Cents: 6800,
   },
   {
-    name: "Dr. Fatima Rahman",
+    name: "Dr. Kwame Asante",
     specialization: "Ophthalmologist",
     phone: "+15550101013",
     qualification: "MS (Ophthalmology)",
@@ -171,7 +171,7 @@ export const DOCTOR_CATALOG: DoctorCatalogEntry[] = [
     price30Cents: 50000,
   },
   {
-    name: "Dr. Arjun Kapoor",
+    name: "Dr. Giulia Romano",
     specialization: "Urologist",
     phone: "+15550101014",
     qualification: "MS, MCh (Urology)",
@@ -183,7 +183,7 @@ export const DOCTOR_CATALOG: DoctorCatalogEntry[] = [
     price30Cents: 350000,
   },
   {
-    name: "Dr. Olivia Brown",
+    name: "Dr. Daniela Reyes",
     specialization: "Rheumatologist",
     phone: "+15550101015",
     qualification: "MD (Rheumatology)",
@@ -195,7 +195,7 @@ export const DOCTOR_CATALOG: DoctorCatalogEntry[] = [
     price30Cents: 8500,
   },
   {
-    name: "Dr. James Wilson",
+    name: "Dr. Aditya Rao",
     specialization: "Nephrologist",
     phone: "+15550101016",
     qualification: "MD, DM (Nephrology)",
@@ -207,7 +207,7 @@ export const DOCTOR_CATALOG: DoctorCatalogEntry[] = [
     price30Cents: 7200,
   },
   {
-    name: "Dr. Isabel Torres",
+    name: "Dr. Rohan Verma",
     specialization: "Allergist & Immunologist",
     phone: "+15550101017",
     qualification: "MD (Allergy & Immunology)",
@@ -231,7 +231,7 @@ export const DOCTOR_CATALOG: DoctorCatalogEntry[] = [
     price30Cents: 9500,
   },
   {
-    name: "Dr. Yuki Tanaka",
+    name: "Dr. Klaus Fischer",
     specialization: "Infectious Disease Specialist",
     phone: "+15550101019",
     qualification: "MD (Infectious Diseases)",
