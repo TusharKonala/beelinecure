@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type SVGProps } from "react";
+import { useEffect, useRef, useState, type SVGProps } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getSession, signIn } from "next-auth/react";
@@ -27,6 +27,12 @@ export function SignInForm() {
   const [pending, setPending] = useState(false);
   const [magicLinkPending, setMagicLinkPending] = useState(false);
   const [magicLinkSent, setMagicLinkSent] = useState(false);
+  const errorRef = useRef<HTMLParagraphElement>(null);
+
+  useEffect(() => {
+    if (!error) return;
+    errorRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [error]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -144,7 +150,10 @@ export function SignInForm() {
       )}
 
       {error && (
-        <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 font-montserrat text-sm text-red-800">
+        <p
+          ref={errorRef}
+          className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 font-montserrat text-sm text-red-800"
+        >
           {error}
         </p>
       )}
