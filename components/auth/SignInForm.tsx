@@ -8,7 +8,6 @@ import { Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DEMO_ACCOUNTS } from "@/lib/demo-credentials";
 import { getPostLoginPath } from "@/lib/post-login-redirect";
-import { useNavigationStart } from "@/components/nav/NavigationIndicator";
 
 export function SignInForm() {
   const router = useRouter();
@@ -20,7 +19,6 @@ export function SignInForm() {
   const reset = searchParams.get("reset") === "1";
   const resetMode = searchParams.get("mode") === "set" ? "set" : "reset";
   const oauthError = searchParams.get("error");
-  const startNavigation = useNavigationStart();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -40,7 +38,6 @@ export function SignInForm() {
     e.preventDefault();
     setError(null);
     setPending(true);
-    let redirecting = false;
     try {
       const result = await signIn("credentials", {
         email,
@@ -70,12 +67,10 @@ export function SignInForm() {
         profileComplete: session?.user?.profileComplete ?? true,
       });
       const nextPath = callbackUrl === "/patient/overview" ? fallbackPath : callbackUrl;
-      redirecting = true;
-      startNavigation();
       router.push(nextPath);
       router.refresh();
     } finally {
-      if (!redirecting) setPending(false);
+      setPending(false);
     }
   }
 
