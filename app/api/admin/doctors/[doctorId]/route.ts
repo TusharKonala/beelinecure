@@ -1,6 +1,6 @@
 import { getServerSession } from "next-auth/next";
 import { NextRequest, NextResponse } from "next/server";
-import { UserRole } from "@/generated/prisma/client";
+import { DoctorApprovalStatus, UserRole } from "@/generated/prisma/client";
 import { authOptions } from "@/lib/auth";
 import {
   getFutureActiveAppointmentsForDoctor,
@@ -147,4 +147,50 @@ export async function DELETE(
     alreadyInactive: false,
     cancelledAppointments: 0,
   });
+}
+
+export async function PATCH(
+  _request: NextRequest,
+  context: { params: Promise<{ doctorId: string }> },
+) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (session.user.role !== UserRole.ADMIN) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const { doctorId } = await context.params;
+  if (!doctorId) {
+    return NextResponse.json({ error: "Invalid doctor id" }, { status: 400 });
+  }
+
+  const doctor = await prisma.doctor.findUnique({
+    where: { id: doctorId },
+    select: { id: true, isActive: true, approvalStatus: true },
+  });
+  if (!doctor) {
+    return NextResponse.json({ error: "Doctor not found" }, { status: 404 });
+  }
+  if (doctor.approvalStatus !== DoctorApprovalStatus.APPROVED) {
+    return NextResponse.json(
+      { error: "Only approved doctors can be reactivated." },
+      { status: 400 },
+    );
+  }
+  if (doctor.isActive) {
+    return NextResponse.json({ ok: true, alreadyActive: true });
+  }
+
+  await prisma.doctor.update({
+    where: { id: doctor.id },
+    data: {
+      isActive: true,
+      deactivatedAt: null,
+      deactivatedByUserId: null,
+    },
+  });
+
+  return NextResponse.json({ ok: true, alreadyActive: false });
 }

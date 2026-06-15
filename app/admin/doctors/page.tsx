@@ -245,6 +245,25 @@ export default function AdminDoctorsPage() {
     }
   };
 
+  const handleReactivate = async (doctor: AdminDoctor) => {
+    setBusyDoctorId(doctor.id);
+    setError(null);
+    try {
+      const response = await fetch(`/api/admin/doctors/${doctor.id}`, {
+        method: "PATCH",
+      });
+      if (!response.ok) {
+        setError("Failed to reactivate doctor. Please try again.");
+        return;
+      }
+      await loadDoctors(1, false);
+    } catch {
+      setError("Failed to reactivate doctor. Please try again.");
+    } finally {
+      setBusyDoctorId(null);
+    }
+  };
+
   const handleDeleteConfirm = async () => {
     if (!deleteTarget) return;
     setBusyDoctorId(deleteTarget.id);
@@ -463,15 +482,24 @@ export default function AdminDoctorsPage() {
                           </td>
                           <td className="px-3 py-3">
                             {activityTab === "inactive" ? (
-                              <span
-                                className={statusBadgeClass(doctor.approvalStatus)}
-                              >
-                                {doctor.approvalStatus === "APPROVED"
-                                  ? "Approved"
-                                  : doctor.approvalStatus === "REJECTED"
+                              doctor.approvalStatus === "APPROVED" ? (
+                                <button
+                                  type="button"
+                                  disabled={isBusy}
+                                  onClick={() => void handleReactivate(doctor)}
+                                  className="cursor-pointer rounded-lg bg-[#2555F3] px-3 py-1.5 font-montserrat text-xs font-medium text-white transition-colors hover:bg-[#1e44c7] disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  Reactivate
+                                </button>
+                              ) : (
+                                <span
+                                  className={statusBadgeClass(doctor.approvalStatus)}
+                                >
+                                  {doctor.approvalStatus === "REJECTED"
                                     ? "Rejected"
                                     : "Pending"}
-                              </span>
+                                </span>
+                              )
                             ) : activeTab === "PENDING" ? (
                               hasAccount ? (
                                 <div className="flex flex-wrap items-center gap-2">
