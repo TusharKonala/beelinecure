@@ -18,7 +18,11 @@ import {
   type AllowedSlotDurationMinutes,
 } from "@/lib/doctor-availability-slots";
 import { timeToMinutes } from "@/lib/time";
-import { addOneDayYmd, enumerateInclusiveYmd } from "@/lib/doctor-local-date";
+import {
+  addOneDayYmd,
+  enumerateInclusiveYmd,
+  MAX_DOCTOR_AVAILABILITY_RANGE_DAYS,
+} from "@/lib/doctor-local-date";
 import { isDoctorTimeInPast } from "@/lib/timezone-display";
 import { cn } from "@/lib/utils";
 import { ViewSchedulePanel } from "./ViewSchedulePanel";
@@ -41,6 +45,9 @@ type ScheduleWindow = {
   start: string;
   end: string;
 };
+
+const RANGE_DAYS_LIMIT_ERROR =
+  "You can set availability for up to 65 days at a time. For longer periods, save in smaller chunks.";
 
 function windowsOverlap(
   aStart: string,
@@ -539,6 +546,13 @@ export function MyScheduleClient() {
       existingAvailabilityDates.has(d),
     );
   }, [rangeStart, rangeEnd, existingAvailabilityDates]);
+  const rangeExceedsMaxDays = useMemo(() => {
+    if (!rangeStart || !rangeEnd || rangeStart > rangeEnd) return false;
+    return (
+      enumerateInclusiveYmd(rangeStart, rangeEnd).length >
+      MAX_DOCTOR_AVAILABILITY_RANGE_DAYS
+    );
+  }, [rangeStart, rangeEnd]);
 
   const selectableSlots = useMemo(() => {
     if (!meta) return displaySlots;
@@ -632,6 +646,11 @@ export function MyScheduleClient() {
         setSaveError(
           "Every day from start through end must have no saved availability yet. This range includes at least one day that is already configured — narrow the range or use Single day / View Schedule → Edit for those days.",
         );
+        setSaveOk(null);
+        return;
+      }
+      if (rangeExceedsMaxDays) {
+        setSaveError(RANGE_DAYS_LIMIT_ERROR);
         setSaveOk(null);
         return;
       }
@@ -1272,6 +1291,10 @@ export function MyScheduleClient() {
             </div>
           ) : (
             <>
+              <p className="mt-3 font-montserrat text-xs text-[#5E5E5E]">
+                You can set availability for up to 65 days (about 2 months) at a
+                time. For longer periods, save in smaller chunks.
+              </p>
               <div className="mt-6 flex flex-col gap-8 lg:flex-row lg:items-start lg:gap-10">
                 <div className="min-w-0 flex-1">
                   <p
@@ -1294,7 +1317,12 @@ export function MyScheduleClient() {
                         setSaveOk(null);
                         setRangeStart(nextStart);
                         setRangeEnd((prevEnd) =>
-                          prevEnd && nextStart > prevEnd ? "" : prevEnd,
+                          prevEnd &&
+                          (nextStart > prevEnd ||
+                            enumerateInclusiveYmd(nextStart, prevEnd).length >
+                              MAX_DOCTOR_AVAILABILITY_RANGE_DAYS)
+                            ? ""
+                            : prevEnd,
                         );
                       }}
                     />
@@ -1323,6 +1351,16 @@ export function MyScheduleClient() {
                       gridAriaLabel="Select range end date"
                       onSelect={(nextEnd) => {
                         setSaveOk(null);
+                        if (
+                          rangeStart &&
+                          rangeStart <= nextEnd &&
+                          enumerateInclusiveYmd(rangeStart, nextEnd).length >
+                            MAX_DOCTOR_AVAILABILITY_RANGE_DAYS
+                        ) {
+                          setSaveError(RANGE_DAYS_LIMIT_ERROR);
+                          return;
+                        }
+                        setSaveError(null);
                         setRangeEnd(nextEnd);
                       }}
                     />
@@ -1349,6 +1387,12 @@ export function MyScheduleClient() {
                   This range includes at least one day that already has
                   availability. Narrow the start or end date so the full span has
                   no grey days, or edit those days in Single day mode.
+                </p>
+              ) : null}
+              {rangeExceedsMaxDays ? (
+                <p className="mt-3 font-montserrat text-sm text-red-600">
+                  You can set availability for up to 65 days at a time. For
+                  longer periods, save in smaller chunks.
                 </p>
               ) : null}
               <p className="mt-3 font-montserrat text-xs text-[#5E5E5E]">
@@ -1579,7 +1623,9 @@ export function MyScheduleClient() {
                 saving ||
                 (mode === "single" && loadingSlots) ||
                 (mode === "range" &&
-                  (!rangeEnd || rangeIncludesAlreadyConfiguredDay))
+                  (!rangeEnd ||
+                    rangeIncludesAlreadyConfiguredDay ||
+                    rangeExceedsMaxDays))
               }
               onClick={() => void handleSave()}
             >

@@ -1,5 +1,7 @@
 import { formatInTimeZone } from "date-fns-tz";
 
+export const MAX_DOCTOR_AVAILABILITY_RANGE_DAYS = 65;
+
 /** Today as YYYY-MM-DD in the doctor's IANA timezone. */
 export function getDoctorLocalTodayIso(iana: string): string {
   return formatInTimeZone(new Date(), iana, "yyyy-MM-dd");

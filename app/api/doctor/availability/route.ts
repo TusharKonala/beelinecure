@@ -17,9 +17,11 @@ import {
 import {
   enumerateInclusiveYmd,
   getDoctorLocalTodayIso,
+  MAX_DOCTOR_AVAILABILITY_RANGE_DAYS,
   ymdToPrismaDate,
 } from "@/lib/doctor-local-date";
 import { timeToMinutes } from "@/lib/time";
+import { PrismaClientKnownRequestError } from "@prisma/client/runtime/client";
 import { getServerSession } from "next-auth/next";
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
@@ -36,6 +38,7 @@ import {
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+export const maxDuration = 30;
 
 const ymd = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
@@ -62,6 +65,16 @@ function slotsOverlap(
   durationB: number,
 ): boolean {
   return startA < startB + durationB && startB < startA + durationA;
+}
+
+function isAvailabilitySaveTimeoutError(error: unknown): boolean {
+  if (error instanceof PrismaClientKnownRequestError && error.code === "P2028") {
+    return true;
+  }
+  if (error instanceof Error && /timeout/i.test(error.message)) {
+    return true;
+  }
+  return false;
 }
 
 const putBodySchema = z.discriminatedUnion("mode", [
@@ -569,6 +582,18 @@ export async function PUT(request: Request) {
   if (affectedYmd.length === 0) {
     return NextResponse.json({ error: "No dates in range" }, { status: 400 });
   }
+  if (
+    parsed.mode === "range" &&
+    affectedYmd.length > MAX_DOCTOR_AVAILABILITY_RANGE_DAYS
+  ) {
+    return NextResponse.json(
+      {
+        error:
+          "You can set availability for up to 65 days at a time. For longer periods, save in smaller chunks.",
+      },
+      { status: 400 },
+    );
+  }
 
   for (const d of affectedYmd) {
     if (d < today) {
@@ -678,108 +703,131 @@ export async function PUT(request: Request) {
     }
   }
 
-  await prisma.$transaction(async (tx) => {
-    await tx.doctor.update({
-      where: { id: doctor.id },
-      data: { slotDurationMinutes: duration },
-    });
-    for (const ymdStr of affectedYmd) {
-      const date = ymdToPrismaDate(ymdStr);
-      if (clearDay) {
-        await tx.doctorAvailability.deleteMany({
-          where: { doctorId: doctor.id, date },
+  try {
+    await prisma.$transaction(
+      async (tx) => {
+        await tx.doctor.update({
+          where: { id: doctor.id },
+          data: { slotDurationMinutes: duration },
         });
-        continue;
-      }
-      const existingRows = await tx.doctorAvailability.findMany({
-        where: { doctorId: doctor.id, date },
-        select: {
-          startTime: true,
-          slotDurationMinutes: true,
-          consultationType: true,
-        },
-      });
-      const merged = new Map<
-        string,
-        {
-          startTime: string;
-          slotDurationMinutes: number;
-          consultationType: "CLINIC" | "ONLINE" | "BOTH";
-        }
-      >();
-      for (const row of existingRows) {
-        merged.set(row.startTime, {
-          startTime: row.startTime,
-          slotDurationMinutes: row.slotDurationMinutes,
-          consultationType: row.consultationType,
-        });
-      }
-      if (parsed.mode === "single" && (newSlots.length > 0 || removedSlots.length > 0)) {
-        for (const startTime of removedSlots) {
-          merged.delete(startTime);
-        }
-        for (const startTime of newSlots) {
-          merged.set(startTime, {
-            startTime,
-            slotDurationMinutes: perSlotDuration[startTime] ?? duration,
-            consultationType,
-          });
-        }
-      } else {
-        for (const startTime of slotStarts) {
-          merged.set(startTime, {
-            startTime,
-            slotDurationMinutes: perSlotDuration[startTime] ?? duration,
-            consultationType,
-          });
-        }
-      }
-
-      const newSlotSet = new Set(
-        parsed.mode === "single" && (newSlots.length > 0 || removedSlots.length > 0)
-          ? newSlots
-          : slotStarts,
-      );
-      const bookedTimesForDay = new Set(
-        (appointmentsByDate.get(ymdStr) ?? []).map((a) => a.time),
-      );
-      for (const newStart of newSlotSet) {
-        const newEntry = merged.get(newStart);
-        if (!newEntry) continue;
-        const newStartMin = timeToMinutes(newStart);
-        for (const [key, entry] of merged) {
-          if (key === newStart) continue;
-          if (newSlotSet.has(key)) continue;
-          if (bookedTimesForDay.has(key)) continue;
-          const existStartMin = timeToMinutes(key);
-          if (
-            slotsOverlap(
-              newStartMin,
-              newEntry.slotDurationMinutes,
-              existStartMin,
-              entry.slotDurationMinutes,
-            )
-          ) {
-            merged.delete(key);
+        for (const ymdStr of affectedYmd) {
+          const date = ymdToPrismaDate(ymdStr);
+          if (clearDay) {
+            await tx.doctorAvailability.deleteMany({
+              where: { doctorId: doctor.id, date },
+            });
+            continue;
           }
-        }
-      }
+          const existingRows = await tx.doctorAvailability.findMany({
+            where: { doctorId: doctor.id, date },
+            select: {
+              startTime: true,
+              slotDurationMinutes: true,
+              consultationType: true,
+            },
+          });
+          const merged = new Map<
+            string,
+            {
+              startTime: string;
+              slotDurationMinutes: number;
+              consultationType: "CLINIC" | "ONLINE" | "BOTH";
+            }
+          >();
+          for (const row of existingRows) {
+            merged.set(row.startTime, {
+              startTime: row.startTime,
+              slotDurationMinutes: row.slotDurationMinutes,
+              consultationType: row.consultationType,
+            });
+          }
+          if (
+            parsed.mode === "single" &&
+            (newSlots.length > 0 || removedSlots.length > 0)
+          ) {
+            for (const startTime of removedSlots) {
+              merged.delete(startTime);
+            }
+            for (const startTime of newSlots) {
+              merged.set(startTime, {
+                startTime,
+                slotDurationMinutes: perSlotDuration[startTime] ?? duration,
+                consultationType,
+              });
+            }
+          } else {
+            for (const startTime of slotStarts) {
+              merged.set(startTime, {
+                startTime,
+                slotDurationMinutes: perSlotDuration[startTime] ?? duration,
+                consultationType,
+              });
+            }
+          }
 
-      await tx.doctorAvailability.deleteMany({
-        where: { doctorId: doctor.id, date },
-      });
-      await tx.doctorAvailability.createMany({
-        data: [...merged.values()].map((row) => ({
-          doctorId: doctor.id,
-          date,
-          startTime: row.startTime,
-          endTime: slotEndFromStart(row.startTime, row.slotDurationMinutes),
-          slotDurationMinutes: row.slotDurationMinutes,
-          consultationType: row.consultationType,
-        })),
-      });
+          const newSlotSet = new Set(
+            parsed.mode === "single" && (newSlots.length > 0 || removedSlots.length > 0)
+              ? newSlots
+              : slotStarts,
+          );
+          const bookedTimesForDay = new Set(
+            (appointmentsByDate.get(ymdStr) ?? []).map((a) => a.time),
+          );
+          for (const newStart of newSlotSet) {
+            const newEntry = merged.get(newStart);
+            if (!newEntry) continue;
+            const newStartMin = timeToMinutes(newStart);
+            for (const [key, entry] of merged) {
+              if (key === newStart) continue;
+              if (newSlotSet.has(key)) continue;
+              if (bookedTimesForDay.has(key)) continue;
+              const existStartMin = timeToMinutes(key);
+              if (
+                slotsOverlap(
+                  newStartMin,
+                  newEntry.slotDurationMinutes,
+                  existStartMin,
+                  entry.slotDurationMinutes,
+                )
+              ) {
+                merged.delete(key);
+              }
+            }
+          }
+
+          await tx.doctorAvailability.deleteMany({
+            where: { doctorId: doctor.id, date },
+          });
+          await tx.doctorAvailability.createMany({
+            data: [...merged.values()].map((row) => ({
+              doctorId: doctor.id,
+              date,
+              startTime: row.startTime,
+              endTime: slotEndFromStart(row.startTime, row.slotDurationMinutes),
+              slotDurationMinutes: row.slotDurationMinutes,
+              consultationType: row.consultationType,
+            })),
+          });
+        }
+      },
+      { timeout: 30_000 },
+    );
+  } catch (error) {
+    if (isAvailabilitySaveTimeoutError(error)) {
+      return NextResponse.json(
+        {
+          error:
+            "Saving availability took too long. Try a shorter date range or save again.",
+        },
+        { status: 504 },
+      );
     }
-  });
+    console.error("[availability/save] Save failed:", error);
+    return NextResponse.json(
+      { error: "Could not save availability, please try again." },
+      { status: 500 },
+    );
+  }
 
   if (clearDay && activeAppointments.length > 0) {
     const requestOrigin = new URL(request.url).origin;
