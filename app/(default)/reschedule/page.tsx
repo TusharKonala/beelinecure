@@ -17,7 +17,7 @@ import { Container } from "@/components/layout/Container";
 import { PostAppointmentActions } from "@/components/PostAppointmentActions";
 import { MontagaCapitalN } from "@/components/ui/MontagaCapitalN";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ConsultationType, AppointmentStatus } from "@/generated/prisma/client";
+import { ConsultationType, AppointmentStatus } from "@/generated/prisma/enums";
 import {
   formatTimeInPatientTz,
   formatDateInPatientTz,
