@@ -33,6 +33,8 @@ import {
   formatDateInPatientTz,
   formatTimeInDoctorTz,
   formatTimeInPatientTz,
+  isDoctorSlotInPast,
+  PAST_OR_UNAVAILABLE_SLOT_MESSAGE,
 } from "@/lib/timezone-display";
 import {
   createAppointmentNotificationForEmail,
@@ -140,6 +142,15 @@ export async function POST(request: NextRequest) {
   if (slotMeta === null) {
     return NextResponse.json(
       { error: "This time slot is no longer available" },
+      { status: 409 },
+    );
+  }
+
+  // Hard server-side guard: reject slots that have already started in
+  // the doctor's timezone, even if the client is stale.
+  if (isDoctorSlotInPast(dateParam, time, doctorTimezone)) {
+    return NextResponse.json(
+      { error: PAST_OR_UNAVAILABLE_SLOT_MESSAGE },
       { status: 409 },
     );
   }

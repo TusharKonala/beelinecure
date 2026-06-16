@@ -177,3 +177,22 @@ export function isDoctorTimeInPast(
 ): boolean {
   return doctorLocalToUtc(dateStr, timeStr, doctorTimezone).getTime() <= Date.now();
 }
+
+/**
+ * Doctor-local slot start is in the past (inclusive of the exact start instant).
+ * This is the canonical server-side gate for "past slot" acceptance.
+ */
+export function isDoctorSlotInPast(
+  doctorDateYmd: string,
+  time: string,
+  doctorTimezone: string,
+): boolean {
+  return isDoctorTimeInPast(doctorDateYmd, time, doctorTimezone);
+}
+
+/**
+ * Shared error message returned when a slot is no longer bookable.
+ * Keep this string stable so client-side UIs don't need special casing.
+ */
+export const PAST_OR_UNAVAILABLE_SLOT_MESSAGE =
+  "This time slot is no longer available";

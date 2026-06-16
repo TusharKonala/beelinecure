@@ -15,6 +15,10 @@ import { coerceSupportedCurrency } from "@/lib/currency";
 import { authOptions } from "@/lib/auth";
 import { getServerSession } from "next-auth/next";
 import { z } from "zod";
+import {
+  isDoctorSlotInPast,
+  PAST_OR_UNAVAILABLE_SLOT_MESSAGE,
+} from "@/lib/timezone-display";
 
 const schema = z.object({
   bookingSessionId: z.string().min(1),
@@ -96,6 +100,26 @@ export async function POST(request: NextRequest) {
 
     if (!doctor) {
       return NextResponse.json({ error: "Doctor not found" }, { status: 404 });
+    }
+
+    // Hard server-side guard: reject slots that have already started in the
+    // doctor's timezone, even if the patient is on a stale review page.
+    const doctorDateYmd = bookingSession.date;
+    if (
+      isDoctorSlotInPast(
+        doctorDateYmd,
+        bookingSession.time,
+        bookingSession.timezone,
+      )
+    ) {
+      // Keep booking session state as-is; the patient can safely rebook.
+      return NextResponse.json(
+        {
+          error: PAST_OR_UNAVAILABLE_SLOT_MESSAGE,
+          code: "SLOT_NO_LONGER_AVAILABLE",
+        },
+        { status: 409 },
+      );
     }
 
     const headersList = await headers();

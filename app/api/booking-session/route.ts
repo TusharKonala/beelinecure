@@ -18,6 +18,10 @@ import { randomBytes } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { fromZonedTime } from "date-fns-tz";
+import {
+  isDoctorSlotInPast,
+  PAST_OR_UNAVAILABLE_SLOT_MESSAGE,
+} from "@/lib/timezone-display";
 
 const bookingSessionSchema = z.object({
   doctorId: z.string().min(1),
@@ -113,6 +117,15 @@ export async function POST(request: NextRequest) {
   if (slotMeta === null) {
     return NextResponse.json(
       { error: "This time slot is no longer available" },
+      { status: 409 },
+    );
+  }
+
+  // Hard server-side guard: reject slots that have already started in the
+  // doctor's timezone, even if the patient page is stale.
+  if (isDoctorSlotInPast(date, time, doctorTimezone)) {
+    return NextResponse.json(
+      { error: PAST_OR_UNAVAILABLE_SLOT_MESSAGE },
       { status: 409 },
     );
   }

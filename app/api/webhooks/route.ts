@@ -28,6 +28,7 @@ import {
   formatDateInPatientTz,
   formatTimeInDoctorTz,
   formatTimeInPatientTz,
+  isDoctorSlotInPast,
 } from "@/lib/timezone-display";
 import {
   createAppointmentNotificationForEmail,
@@ -116,6 +117,25 @@ export async function POST(request: NextRequest) {
         bookingSession.id,
         bookingSession.doctorId,
       );
+      return new NextResponse("OK", { status: 200 });
+    }
+
+    // Hard server-side guard: if the slot already started in the doctor's
+    // timezone, do not create an appointment (Stripe payment succeeded,
+    // but the slot is stale). Mark booking session as expired so future
+    // retries won't create duplicates.
+    const doctorDateYmd = bookingSession.date;
+    if (
+      isDoctorSlotInPast(
+        doctorDateYmd,
+        bookingSession.time,
+        bookingSession.timezone,
+      )
+    ) {
+      await prisma.bookingSession.update({
+        where: { id: bookingSession.id },
+        data: { status: BookingSessionStatus.EXPIRED },
+      });
       return new NextResponse("OK", { status: 200 });
     }
     const fallbackPriceCentsAtBooking = priceCentsForDuration(
