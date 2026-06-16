@@ -1,5 +1,53 @@
 import { fromZonedTime } from "date-fns-tz";
 
+const MS_PER_DAY = 86_400_000;
+
+/** Extract YYYY-MM-DD for an instant in an IANA timezone. */
+export function ymdInTimeZone(instant: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(instant);
+}
+
+/** Calendar "today" in an IANA timezone (YYYY-MM-DD). */
+export function todayYmdInTimeZone(timeZone: string): string {
+  return ymdInTimeZone(new Date(), timeZone);
+}
+
+/** Map a doctor-local slot to the patient's calendar day (YYYY-MM-DD). */
+export function doctorSlotToPatientLocalYmd(
+  doctorDate: string,
+  timeStr: string,
+  doctorTimezone: string,
+  patientTimezone: string,
+): string {
+  const utc = doctorLocalToUtc(doctorDate, timeStr, doctorTimezone);
+  return ymdInTimeZone(utc, patientTimezone);
+}
+
+/**
+ * Doctor-local date range that may contain slots falling on any patient-local
+ * day within [patientFrom, patientTo] (inclusive). Padded ±1 day for midnight crossings.
+ */
+export function doctorDateRangeCoveringPatientRange(
+  patientFrom: string,
+  patientTo: string,
+  patientTimezone: string,
+  doctorTimezone: string,
+): { min: string; max: string } {
+  const startUtc = fromZonedTime(`${patientFrom}T00:00:00`, patientTimezone);
+  const endUtc = fromZonedTime(`${patientTo}T23:59:59`, patientTimezone);
+  const paddedStart = new Date(startUtc.getTime() - MS_PER_DAY);
+  const paddedEnd = new Date(endUtc.getTime() + MS_PER_DAY);
+  return {
+    min: ymdInTimeZone(paddedStart, doctorTimezone),
+    max: ymdInTimeZone(paddedEnd, doctorTimezone),
+  };
+}
+
 /**
  * Convert a doctor-local date + time to the browser's local timezone.
  * Returns a UTC Date whose .getTime() is the true instant.
