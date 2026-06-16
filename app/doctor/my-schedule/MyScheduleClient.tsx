@@ -1115,7 +1115,7 @@ export function MyScheduleClient() {
                       </button>
                     </div>
                   </div>
-                  {!slotWindowOk && !windowOverlapError && (
+                  {!slotWindowOk && !windowOverlapError && !saveOk && (
                     <p className="mt-2 font-montserrat text-sm text-red-600">
                       End time must be after start time.
                     </p>
@@ -1382,7 +1382,7 @@ export function MyScheduleClient() {
                   the span).
                 </span>
               </div>
-              {rangeIncludesAlreadyConfiguredDay ? (
+              {rangeIncludesAlreadyConfiguredDay && !saveOk ? (
                 <p className="mt-3 font-montserrat text-sm text-red-600">
                   This range includes at least one day that already has
                   availability. Narrow the start or end date so the full span has
