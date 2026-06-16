@@ -552,13 +552,13 @@ export function DoctorSelectionSection() {
                   <div className="mt-auto flex flex-wrap gap-2 pt-2">
                     <Link
                       href={cardHref(doctor)}
-                      className="inline-flex items-center justify-center rounded-full bg-[#2555F3] px-4 py-2 font-montserrat text-xs font-medium text-white transition hover:bg-[#1e44c7] focus:outline-none focus:ring-2 focus:ring-[#2555F3]/30 focus:ring-offset-2"
+                      className="inline-flex items-center justify-center rounded-full bg-[#2555F3] px-4 py-2 font-montserrat text-xs font-medium text-white transition hover:bg-[#1e44c7] outline-none focus-visible:ring-2 focus-visible:ring-[#2555F3]/30 focus-visible:ring-offset-2"
                     >
                       View profile
                     </Link>
                     <Link
                       href={`/book-appointment/${doctor.id}`}
-                      className="inline-flex items-center justify-center rounded-full border border-[#d4d4d4] px-4 py-2 font-montserrat text-xs font-medium text-[#333333] transition hover:border-[#2555F3] hover:text-[#2555F3] focus:outline-none focus:ring-2 focus:ring-[#2555F3]/30 focus:ring-offset-2"
+                      className="inline-flex items-center justify-center rounded-full border border-[#d4d4d4] px-4 py-2 font-montserrat text-xs font-medium text-[#333333] transition hover:border-[#2555F3] hover:text-[#2555F3] outline-none focus-visible:ring-2 focus-visible:ring-[#2555F3]/30 focus-visible:ring-offset-2"
                     >
                       Book appointment
                     </Link>

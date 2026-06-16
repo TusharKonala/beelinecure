@@ -760,6 +760,13 @@ export function DoctorSettingsClient({
                     {disconnectError}
                   </p>
                 )}
+                {!isCalendarConnected && (
+                  <p className="mt-3 font-montserrat text-xs text-[#777777]">
+                    Our Google Cloud project is in testing mode, so only
+                    pre-approved test users can connect their calendar. New
+                    doctor accounts may not be able to connect yet.
+                  </p>
+                )}
                 <div className="mt-4 flex flex-wrap gap-2">
                   {isCalendarConnected ? (
                     <Button
