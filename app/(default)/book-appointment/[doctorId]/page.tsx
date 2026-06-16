@@ -24,8 +24,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   formatTimeInPatientTz,
   formatDateInPatientTz,
+  isDoctorTimeInPast,
   todayYmdInTimeZone,
 } from "@/lib/timezone-display";
+import { useSlotExpiryTick } from "@/lib/use-slot-expiry-tick";
 import {
   bookableSlotRefKey,
   type BookableSlotRef,
@@ -402,6 +404,15 @@ export default function BookAppointmentDoctorPage() {
       })),
     [slotsData?.slotDetails],
   );
+  const slotExpiryTick = useSlotExpiryTick(consultationType !== null);
+  const nonPastSlotRefs = useMemo(
+    () =>
+      bookableSlotRefs.filter(
+        (ref) =>
+          !isDoctorTimeInPast(ref.doctorDate, ref.startTime, doctorTz),
+      ),
+    [bookableSlotRefs, doctorTz, slotExpiryTick],
+  );
   const selectedSlotDetail = selectedSlot
     ? (slotDetailByRef.get(bookableSlotRefKey(selectedSlot)) ?? null)
     : null;
@@ -586,31 +597,31 @@ export default function BookAppointmentDoctorPage() {
   );
 
   const durationFilteredSlots = useMemo(() => {
-    if (selectedDurationMinutes === null) return bookableSlotRefs;
-    return bookableSlotRefs.filter((ref) => {
+    if (selectedDurationMinutes === null) return nonPastSlotRefs;
+    return nonPastSlotRefs.filter((ref) => {
       const detail = slotDetailByRef.get(bookableSlotRefKey(ref));
       const dur = detail?.slotDurationMinutes ?? slotDurationMinutes;
       return dur === selectedDurationMinutes;
     });
   }, [
-    bookableSlotRefs,
+    nonPastSlotRefs,
     selectedDurationMinutes,
     slotDetailByRef,
     slotDurationMinutes,
   ]);
   const uniqueSlotDurationsMinutes = useMemo(() => {
     const set = new Set<number>();
-    for (const ref of bookableSlotRefs) {
+    for (const ref of nonPastSlotRefs) {
       const detail = slotDetailByRef.get(bookableSlotRefKey(ref));
       const dur = detail?.slotDurationMinutes ?? slotDurationMinutes;
       set.add(dur);
     }
     return [...set].sort((a, b) => a - b);
-  }, [bookableSlotRefs, slotDetailByRef, slotDurationMinutes]);
+  }, [nonPastSlotRefs, slotDetailByRef, slotDurationMinutes]);
   const filteredDurationLabel = useMemo(() => {
     const durations = [
       ...new Set(
-        bookableSlotRefs
+        nonPastSlotRefs
           .map((ref) => slotDetailByRef.get(bookableSlotRefKey(ref))?.slotDurationMinutes)
           .filter(
             (duration): duration is number => typeof duration === "number",
@@ -618,12 +629,12 @@ export default function BookAppointmentDoctorPage() {
       ),
     ].sort((a, b) => a - b);
     const labelNoun =
-      bookableSlotRefs.length === 1 ? "appointment" : "appointments";
+      nonPastSlotRefs.length === 1 ? "appointment" : "appointments";
     if (durations.length === 0)
       return `${slotDurationMinutes}-minute ${labelNoun}`;
     if (durations.length === 1) return `${durations[0]}-minute ${labelNoun}`;
     return `${durations.join(" / ")}-minute ${labelNoun}`;
-  }, [bookableSlotRefs, slotDetailByRef, slotDurationMinutes]);
+  }, [nonPastSlotRefs, slotDetailByRef, slotDurationMinutes]);
 
   useEffect(() => {
     if (!selectedSlot) return;

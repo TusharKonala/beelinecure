@@ -29,6 +29,7 @@ import {
   filterReschedulableSlots,
   type BookableSlotRef,
 } from "@/lib/reschedule-slots";
+import { useSlotExpiryTick } from "@/lib/use-slot-expiry-tick";
 import type { PatientConsultationChoice } from "@/lib/doctor-availability-slots";
 
 type RescheduleUiState =
@@ -350,16 +351,27 @@ function RescheduleContent() {
   const slotDetails = slotsData?.slotDetails ?? [];
   const slotsLoadingOrFetching = slotsLoading || slotsFetching;
 
-  const filteredSlots =
-    appointment && selectedDate
-      ? filterReschedulableSlots({
-          slotDetails,
-          bookedDurationMinutes: appointment.durationMinutes,
-          bookedConsultationType: appointment.consultationType,
-          selectedDate,
-          doctorTimezone: doctorTz,
-        })
-      : [];
+  const slotExpiryTick = useSlotExpiryTick(state === "idle" && !!appointment);
+
+  const filteredSlots = useMemo(
+    () =>
+      appointment && selectedDate
+        ? filterReschedulableSlots({
+            slotDetails,
+            bookedDurationMinutes: appointment.durationMinutes,
+            bookedConsultationType: appointment.consultationType,
+            selectedDate,
+            doctorTimezone: doctorTz,
+          })
+        : [],
+    [
+      appointment,
+      selectedDate,
+      slotDetails,
+      doctorTz,
+      slotExpiryTick,
+    ],
+  );
   const hasSelectableSlots = filteredSlots.some(
     (ref) =>
       !(
@@ -368,6 +380,17 @@ function RescheduleContent() {
         ref.doctorDate === appointment.date
       ),
   );
+
+  useEffect(() => {
+    if (!selectedSlot) return;
+    const key = bookableSlotRefKey(selectedSlot);
+    const stillAvailable = filteredSlots.some(
+      (ref) => bookableSlotRefKey(ref) === key,
+    );
+    if (!stillAvailable) {
+      setSelectedSlot(null);
+    }
+  }, [selectedSlot, filteredSlots]);
 
   const onCalendarSelect = useCallback((ymd: string) => {
     setHasSelectionInteraction(true);
