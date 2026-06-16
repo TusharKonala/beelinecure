@@ -49,6 +49,8 @@ const durationSchema = z.union([
   z.literal(60),
 ]);
 
+const consultationTypeSchema = z.enum(["CLINIC", "ONLINE", "BOTH"]);
+
 function parseYmdOrNull(s: string | null): string | null {
   if (!s?.trim()) return null;
   const t = s.trim();
@@ -94,8 +96,9 @@ function mergeAvailabilitySlotsForDay(args: {
   newSlots: string[];
   removedSlots: string[];
   perSlotDuration: Record<string, number>;
+  perSlotConsultation: Record<string, "CLINIC" | "ONLINE" | "BOTH">;
   duration: number;
-  consultationType: "CLINIC" | "ONLINE" | "BOTH";
+  defaultConsultationType: "CLINIC" | "ONLINE" | "BOTH";
   bookedTimesForDay: Set<string>;
 }): MergedAvailabilitySlot[] {
   const {
@@ -105,8 +108,9 @@ function mergeAvailabilitySlotsForDay(args: {
     newSlots,
     removedSlots,
     perSlotDuration,
+    perSlotConsultation,
     duration,
-    consultationType,
+    defaultConsultationType,
     bookedTimesForDay,
   } = args;
 
@@ -130,7 +134,8 @@ function mergeAvailabilitySlotsForDay(args: {
       merged.set(startTime, {
         startTime,
         slotDurationMinutes: perSlotDuration[startTime] ?? duration,
-        consultationType,
+        consultationType:
+          perSlotConsultation[startTime] ?? defaultConsultationType,
       });
     }
   } else {
@@ -138,7 +143,8 @@ function mergeAvailabilitySlotsForDay(args: {
       merged.set(startTime, {
         startTime,
         slotDurationMinutes: perSlotDuration[startTime] ?? duration,
-        consultationType,
+        consultationType:
+          perSlotConsultation[startTime] ?? defaultConsultationType,
       });
     }
   }
@@ -211,7 +217,10 @@ const putBodySchema = z.discriminatedUnion("mode", [
     removedSlots: z.array(z.string()).optional(),
     slotDurationMinutes: durationSchema.optional(),
     slotDurationMap: z.record(z.string(), durationSchema).optional(),
-    consultationType: z.enum(["CLINIC", "ONLINE", "BOTH"]).optional(),
+    consultationType: consultationTypeSchema.optional(),
+    consultationTypeMap: z
+      .record(z.string(), consultationTypeSchema)
+      .optional(),
     /**
      * Explicitly clear the day(s) — delete all availability rows and cancel any
      * active appointments. Required to wipe a day; an empty `slotStarts` array
@@ -228,7 +237,10 @@ const putBodySchema = z.discriminatedUnion("mode", [
     removedSlots: z.array(z.string()).optional(),
     slotDurationMinutes: durationSchema.optional(),
     slotDurationMap: z.record(z.string(), durationSchema).optional(),
-    consultationType: z.enum(["CLINIC", "ONLINE", "BOTH"]).optional(),
+    consultationType: consultationTypeSchema.optional(),
+    consultationTypeMap: z
+      .record(z.string(), consultationTypeSchema)
+      .optional(),
     clearDay: z.boolean().optional().default(false),
   }),
 ]);
@@ -642,7 +654,9 @@ export async function PUT(request: Request) {
     parsed.slotDurationMinutes ??
     coerceAllowedSlotDurationMinutes(doctor.slotDurationMinutes);
   const perSlotDuration: Record<string, number> = parsed.slotDurationMap ?? {};
-  const consultationType = parsed.consultationType ?? "BOTH";
+  const perSlotConsultation: Record<string, "CLINIC" | "ONLINE" | "BOTH"> =
+    parsed.consultationTypeMap ?? {};
+  const defaultConsultationType = parsed.consultationType ?? "BOTH";
   const clearDay = parsed.clearDay ?? false;
 
   const slotStarts = [...new Set(parsed.slotStarts)];
@@ -839,7 +853,8 @@ export async function PUT(request: Request) {
             startTime,
             endTime: slotEndFromStart(startTime, slotDurationMinutes),
             slotDurationMinutes,
-            consultationType,
+            consultationType:
+              perSlotConsultation[startTime] ?? defaultConsultationType,
           };
         });
       });
@@ -903,8 +918,9 @@ export async function PUT(request: Request) {
               newSlots,
               removedSlots,
               perSlotDuration,
+              perSlotConsultation,
               duration,
-              consultationType,
+              defaultConsultationType,
               bookedTimesForDay,
             });
 

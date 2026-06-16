@@ -39,11 +39,20 @@ type Meta = {
   slotDurationMinutes: AllowedSlotDurationMinutes;
 };
 
+type WindowConsultationType = "CLINIC" | "ONLINE" | "BOTH";
+
 type ScheduleWindow = {
   id: string;
   duration: AllowedSlotDurationMinutes;
   start: string;
   end: string;
+  consultationType: WindowConsultationType;
+};
+
+const WINDOW_CONSULTATION_LABEL: Record<WindowConsultationType, string> = {
+  CLINIC: "Clinic",
+  ONLINE: "Online",
+  BOTH: "Both",
 };
 
 const RANGE_DAYS_LIMIT_ERROR =
@@ -56,6 +65,51 @@ function windowsOverlap(
   bEnd: string,
 ) {
   return aStart < bEnd && bStart < aEnd;
+}
+
+function consultationTypeForSlot(
+  startTime: string,
+  windows: ScheduleWindow[],
+): WindowConsultationType {
+  for (const w of windows) {
+    if (generateSlots(w.start, w.end, w.duration).includes(startTime)) {
+      return w.consultationType;
+    }
+  }
+  return "BOTH";
+}
+
+function WindowConsultationTypePicker({
+  value,
+  onChange,
+  ariaLabel = "Consultation mode for window",
+  compact = false,
+}: {
+  value: WindowConsultationType;
+  onChange: (value: WindowConsultationType) => void;
+  ariaLabel?: string;
+  compact?: boolean;
+}) {
+  return (
+    <div role="group" aria-label={ariaLabel} className="inline-flex flex-wrap gap-1">
+      {(["CLINIC", "ONLINE", "BOTH"] as const).map((modeValue) => (
+        <button
+          key={modeValue}
+          type="button"
+          className={cn(
+            "cursor-pointer rounded-lg border font-montserrat transition-colors",
+            compact ? "px-2 py-1 text-[11px]" : "px-2.5 py-1.5 text-xs",
+            value === modeValue
+              ? "border-[#2555F3] bg-[#2555F3] text-white"
+              : "border-[#e5e5e5] bg-white text-[#333333] hover:bg-[#f5f5f5]",
+          )}
+          onClick={() => onChange(modeValue)}
+        >
+          {WINDOW_CONSULTATION_LABEL[modeValue]}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 function CurrentSchedulePanelSkeleton() {
@@ -104,9 +158,8 @@ export function MyScheduleClient() {
     () => new Set(),
   );
   const [bookedSlots, setBookedSlots] = useState<Set<string>>(() => new Set());
-  const [consultationType, setConsultationType] = useState<
-    "CLINIC" | "ONLINE" | "BOTH"
-  >("BOTH");
+  const [draftWindowConsultationType, setDraftWindowConsultationType] =
+    useState<WindowConsultationType>("BOTH");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveOk, setSaveOk] = useState<string | null>(null);
@@ -348,9 +401,9 @@ export function MyScheduleClient() {
       );
       setBookedSlots(new Set(normalizedBooked));
       if (data.consultationType) {
-        setConsultationType(data.consultationType);
+        setDraftWindowConsultationType(data.consultationType);
       } else {
-        setConsultationType("BOTH");
+        setDraftWindowConsultationType("BOTH");
       }
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : "Failed to load");
@@ -448,6 +501,7 @@ export function MyScheduleClient() {
       duration: slotDurationMinutes,
       start: slotWindowStart,
       end: slotWindowEnd,
+      consultationType: draftWindowConsultationType,
     };
     setWindows((prev) => [...prev, w]);
     const nextSelected = new Set(selected);
@@ -462,6 +516,16 @@ export function MyScheduleClient() {
     setBuilderPhase("done");
     setSlotWindowStart("");
     setSlotWindowEnd("");
+  }
+
+  function updateWindowConsultationType(
+    windowId: string,
+    consultationType: WindowConsultationType,
+  ) {
+    setSaveOk(null);
+    setWindows((prev) =>
+      prev.map((w) => (w.id === windowId ? { ...w, consultationType } : w)),
+    );
   }
 
   function removeWindow(windowId: string) {
@@ -718,6 +782,13 @@ export function MyScheduleClient() {
       }
       const hasPerSlotDurations = Object.keys(durMap).length > 0;
 
+      const consultationTypeMap: Record<string, WindowConsultationType> = {};
+      for (const s of slotStarts) {
+        consultationTypeMap[s] = consultationTypeForSlot(s, windows);
+      }
+      const hasPerSlotConsultationTypes =
+        Object.keys(consultationTypeMap).length > 0;
+
       const body =
         mode === "range"
           ? {
@@ -726,9 +797,11 @@ export function MyScheduleClient() {
               endDate: rangeEnd,
               slotStarts,
               slotDurationMinutes,
-              consultationType,
               clearDay: false,
               ...(hasPerSlotDurations ? { slotDurationMap: durMap } : {}),
+              ...(hasPerSlotConsultationTypes
+                ? { consultationTypeMap }
+                : {}),
             }
           : {
               mode: "single" as const,
@@ -737,9 +810,11 @@ export function MyScheduleClient() {
               newSlots: newlyAdded.sort(),
               removedSlots: [...new Set(removed)].sort(),
               slotDurationMinutes,
-              consultationType,
               clearDay: false,
               ...(hasPerSlotDurations ? { slotDurationMap: durMap } : {}),
+              ...(hasPerSlotConsultationTypes
+                ? { consultationTypeMap }
+                : {}),
             };
       const res = await fetch("/api/doctor/availability", {
         method: "PUT",
@@ -1000,33 +1075,6 @@ export function MyScheduleClient() {
                 </select>
               </div>
 
-              <div className="mt-5">
-                <p className="font-montserrat text-sm font-medium text-[#333333]">
-                  Consultation mode
-                </p>
-                <div className="mt-2 grid max-w-md grid-cols-1 gap-2 sm:grid-cols-3">
-                  {(["CLINIC", "ONLINE", "BOTH"] as const).map((modeValue) => (
-                    <button
-                      key={modeValue}
-                      type="button"
-                      className={cn(
-                        "cursor-pointer rounded-xl border px-3 py-2 font-montserrat text-sm transition-colors",
-                        consultationType === modeValue
-                          ? "border-[#2555F3] bg-[#2555F3] text-white"
-                          : "border-[#e5e5e5] bg-white text-[#333333] hover:bg-[#f5f5f5]",
-                      )}
-                      onClick={() => setConsultationType(modeValue)}
-                    >
-                      {modeValue === "CLINIC"
-                        ? "Clinic only"
-                        : modeValue === "ONLINE"
-                          ? "Online only"
-                          : "Both"}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
               {builderPhase !== "done" && (
                 <>
                   {builderPhase === "adding" && (
@@ -1101,6 +1149,21 @@ export function MyScheduleClient() {
                           }}
                           className={cn(dateInputClassName, "w-full select-none")}
                           aria-label="End of booking window (exclusive)"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <p className="font-montserrat text-sm font-medium text-[#333333]">
+                        Mode
+                      </p>
+                      <div className="mt-2">
+                        <WindowConsultationTypePicker
+                          value={draftWindowConsultationType}
+                          onChange={(next) => {
+                            setSaveOk(null);
+                            setDraftWindowConsultationType(next);
+                          }}
+                          ariaLabel="Consultation mode for new window"
                         />
                       </div>
                     </div>
@@ -1189,19 +1252,29 @@ export function MyScheduleClient() {
                     {windows.map((w) => (
                       <li
                         key={w.id}
-                        className="flex items-center justify-between rounded-lg border border-[#e5e5e5] bg-white px-3 py-2"
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#e5e5e5] bg-white px-3 py-2"
                       >
                         <span className="font-montserrat text-sm text-[#333333]">
                           {w.start}–{w.end} → {w.duration} min
                         </span>
-                        <button
-                          type="button"
-                          onClick={() => removeWindow(w.id)}
-                          className="ml-3 cursor-pointer font-montserrat text-sm text-red-500 hover:text-red-700"
-                          aria-label={`Remove window ${w.start}–${w.end}`}
-                        >
-                          Remove
-                        </button>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <WindowConsultationTypePicker
+                            value={w.consultationType}
+                            onChange={(next) =>
+                              updateWindowConsultationType(w.id, next)
+                            }
+                            ariaLabel={`Consultation mode for window ${w.start} to ${w.end}`}
+                            compact
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeWindow(w.id)}
+                            className="cursor-pointer font-montserrat text-sm text-red-500 hover:text-red-700"
+                            aria-label={`Remove window ${w.start}–${w.end}`}
+                          >
+                            Remove
+                          </button>
+                        </div>
                       </li>
                     ))}
                   </ul>
