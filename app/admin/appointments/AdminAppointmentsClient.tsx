@@ -321,11 +321,11 @@ export default function AdminAppointmentsClient() {
         })
       : [];
   const hasSelectableSlots = filteredSlots.some(
-    (time) =>
+    (ref) =>
       !(
         rescheduleTarget &&
-        time === rescheduleTarget.time &&
-        selectedDate === rescheduleTarget.date
+        ref.startTime === rescheduleTarget.time &&
+        ref.doctorDate === rescheduleTarget.date
       ),
   );
 
@@ -954,15 +954,19 @@ export default function AdminAppointmentsClient() {
                     )}
                     {!slotsLoadingOrFetching && filteredSlots.length > 0 && (
                       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                        {filteredSlots.map((time) => {
+                        {filteredSlots.map((ref) => {
                           const isCurrent =
-                            time === rescheduleTarget.time &&
-                            selectedDate === rescheduleTarget.date;
+                            ref.startTime === rescheduleTarget.time &&
+                            ref.doctorDate === rescheduleTarget.date;
                           return (
                             <Button
-                              key={time}
+                              key={`${ref.doctorDate}:${ref.startTime}`}
                               type="button"
-                              variant={selectedSlot === time ? "default" : "outline"}
+                              variant={
+                                selectedSlot === ref.startTime
+                                  ? "default"
+                                  : "outline"
+                              }
                               disabled={isCurrent}
                               aria-disabled={isCurrent}
                               title={isCurrent ? "Current Slot" : undefined}
@@ -974,7 +978,7 @@ export default function AdminAppointmentsClient() {
                               onClick={() => {
                                 if (isCurrent) return;
                                 setHasSelectionInteraction(true);
-                                setSelectedSlot(time);
+                                setSelectedSlot(ref.startTime);
                                 setRescheduleError(null);
                               }}
                             >
@@ -982,12 +986,16 @@ export default function AdminAppointmentsClient() {
                                 <span>
                                   {slotTzView === "patient"
                                     ? formatTimeInPatientTz(
-                                        selectedDate,
-                                        time,
+                                        ref.doctorDate,
+                                        ref.startTime,
                                         doctorTz,
                                         rescheduleTarget.patientTimezone,
                                       )
-                                    : formatTimeInDoctorTz(selectedDate, time, doctorTz)}
+                                    : formatTimeInDoctorTz(
+                                        ref.doctorDate,
+                                        ref.startTime,
+                                        doctorTz,
+                                      )}
                                 </span>
                                 {isCurrent ? (
                                   <span className="text-[10px] uppercase tracking-wide">

@@ -1,8 +1,17 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { useQueries, useQuery } from "@tanstack/react-query";
+import { SetAvailabilityCalendar } from "@/app/doctor/my-schedule/SetAvailabilityCalendar";
 import { Button } from "@/components/ui/button";
 import { Container } from "@/components/layout/Container";
 import { PostAppointmentActions } from "@/components/PostAppointmentActions";
@@ -12,8 +21,15 @@ import { ConsultationType, AppointmentStatus } from "@/generated/prisma/client";
 import {
   formatTimeInPatientTz,
   formatDateInPatientTz,
+  doctorSlotToPatientLocalYmd,
+  todayYmdInTimeZone,
 } from "@/lib/timezone-display";
-import { filterReschedulableSlots } from "@/lib/reschedule-slots";
+import {
+  bookableSlotRefKey,
+  filterReschedulableSlots,
+  type BookableSlotRef,
+} from "@/lib/reschedule-slots";
+import type { PatientConsultationChoice } from "@/lib/doctor-availability-slots";
 
 type RescheduleUiState =
   | "idle"
@@ -27,17 +43,44 @@ type RescheduleUiState =
 type AppointmentDetails = {
   id: string;
   doctorId: string;
-  date: string; // YYYY-MM-DD
-  time: string; // HH:MM
+  date: string;
+  time: string;
   timezone: string;
   consultationType: ConsultationType;
   status: AppointmentStatus;
   durationMinutes: number;
 };
 
-function todayISO(): string {
-  const d = new Date();
-  return d.toISOString().slice(0, 10);
+/** Must match `DEFAULT_HORIZON_DAYS` in `available-dates` API (inclusive span = this + 1). */
+const AVAILABILITY_RANGE_DAY_OFFSET = 60;
+
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+function addDaysToYmd(ymd: string, deltaDays: number): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + deltaDays));
+  return `${dt.getUTCFullYear()}-${pad2(dt.getUTCMonth() + 1)}-${pad2(dt.getUTCDate())}`;
+}
+
+function daysInMonthUtc(year: number, month0: number): number {
+  return new Date(Date.UTC(year, month0 + 1, 0)).getUTCDate();
+}
+
+function lastYmdOfMonthUtc(year: number, month0: number): string {
+  const dim = daysInMonthUtc(year, month0);
+  return `${year}-${pad2(month0 + 1)}-${pad2(dim)}`;
+}
+
+function minYmd(a: string, b: string): string {
+  return a <= b ? a : b;
+}
+
+function consultationChoiceFromAppointment(
+  type: ConsultationType,
+): PatientConsultationChoice {
+  return type === ConsultationType.ONLINE ? "ONLINE" : "CLINIC";
 }
 
 async function fetchAppointmentDetails(
@@ -59,13 +102,36 @@ async function fetchAppointmentDetails(
   return json;
 }
 
+async function getAvailableDatesChunk(
+  doctorId: string,
+  consultationType: PatientConsultationChoice,
+  from: string,
+  to: string,
+  patientTimezone: string,
+): Promise<{ dates: string[] }> {
+  const params = new URLSearchParams({
+    consultationType,
+    from,
+    to,
+    patientTimezone,
+  });
+  const res = await fetch(
+    `/api/doctors/${doctorId}/available-dates?${params.toString()}`,
+    { cache: "no-store" },
+  );
+  if (!res.ok) throw new Error("Failed to fetch available dates");
+  return res.json();
+}
+
 async function getSlots(
   doctorId: string,
-  date: string,
+  patientDate: string,
+  patientTimezone: string,
   excludeAppointmentId: string,
 ): Promise<{
   slots: string[];
   slotDetails: {
+    doctorDate: string;
     startTime: string;
     slotDurationMinutes: number;
     consultationType?: "CLINIC" | "ONLINE" | "BOTH";
@@ -73,10 +139,13 @@ async function getSlots(
   doctorTimezone: string;
   slotDurationMinutes: number;
 }> {
+  const params = new URLSearchParams({
+    patientDate,
+    patientTimezone,
+    excludeAppointmentId,
+  });
   const res = await fetch(
-    `/api/doctors/${doctorId}/slots?date=${encodeURIComponent(
-      date,
-    )}&excludeAppointmentId=${encodeURIComponent(excludeAppointmentId)}`,
+    `/api/doctors/${doctorId}/slots?${params.toString()}`,
   );
   if (!res.ok) throw new Error("Failed to fetch slots");
   return res.json();
@@ -97,6 +166,11 @@ function RescheduleContent() {
     [],
   );
 
+  const minDate = useMemo(
+    () => todayYmdInTimeZone(patientTimezone),
+    [patientTimezone],
+  );
+
   const [state, setState] = useState<RescheduleUiState>("idle");
   const [isLoadingAppointment, setIsLoadingAppointment] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -106,8 +180,19 @@ function RescheduleContent() {
     null,
   );
   const [selectedDate, setSelectedDate] = useState<string>("");
-  const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
+  const [selectedSlot, setSelectedSlot] = useState<BookableSlotRef | null>(
+    null,
+  );
+  const [confirmedSlot, setConfirmedSlot] = useState<BookableSlotRef | null>(
+    null,
+  );
   const [hasSelectionInteraction, setHasSelectionInteraction] = useState(false);
+
+  type AvailabilityDateChunk = { from: string; to: string };
+  const [availabilityDateChunks, setAvailabilityDateChunks] = useState<
+    AvailabilityDateChunk[]
+  >([]);
+  const prevDoctorScopeRef = useRef<string>("");
 
   useEffect(() => {
     if (!canLoad) return;
@@ -118,9 +203,19 @@ function RescheduleContent() {
     fetchAppointmentDetails(appointmentId, token)
       .then((json) => {
         if (json.status === "success") {
-          setAppointment(json.appointment);
-          setSelectedDate(json.appointment.date);
-          setSelectedSlot(json.appointment.time);
+          const appt = json.appointment;
+          setAppointment(appt);
+          const patientDate = doctorSlotToPatientLocalYmd(
+            appt.date,
+            appt.time,
+            appt.timezone,
+            patientTimezone,
+          );
+          setSelectedDate(patientDate);
+          setSelectedSlot({
+            doctorDate: appt.date,
+            startTime: appt.time,
+          });
           setHasSelectionInteraction(false);
           setState("idle");
           return;
@@ -131,17 +226,101 @@ function RescheduleContent() {
       })
       .catch(() => setState("error"))
       .finally(() => setIsLoadingAppointment(false));
-  }, [appointmentId, token, canLoad]);
+  }, [appointmentId, token, canLoad, patientTimezone]);
+
+  const consultationType = appointment
+    ? consultationChoiceFromAppointment(appointment.consultationType)
+    : null;
+
+  useLayoutEffect(() => {
+    if (!appointment) {
+      setAvailabilityDateChunks([]);
+      prevDoctorScopeRef.current = "";
+      return;
+    }
+    const scope = appointment.doctorId;
+    if (prevDoctorScopeRef.current === scope) return;
+    prevDoctorScopeRef.current = scope;
+    const from = todayYmdInTimeZone(patientTimezone);
+    setAvailabilityDateChunks([
+      { from, to: addDaysToYmd(from, AVAILABILITY_RANGE_DAY_OFFSET) },
+    ]);
+  }, [appointment, patientTimezone]);
+
+  const availabilityDateQueries = useQueries({
+    queries:
+      appointment && consultationType && availabilityDateChunks.length > 0
+        ? availabilityDateChunks.map(({ from, to }) => ({
+            queryKey: [
+              "reschedule-available-dates",
+              appointment.doctorId,
+              consultationType,
+              from,
+              to,
+              patientTimezone,
+            ] as const,
+            queryFn: () =>
+              getAvailableDatesChunk(
+                appointment.doctorId,
+                consultationType,
+                from,
+                to,
+                patientTimezone,
+              ),
+            enabled: Boolean(appointment.doctorId),
+            staleTime: 5 * 60 * 1000,
+            refetchOnWindowFocus: false,
+          }))
+        : [],
+  });
+
+  const enabledDateSet = useMemo(() => {
+    const next = new Set<string>();
+    for (const q of availabilityDateQueries) {
+      for (const d of q.data?.dates ?? []) next.add(d);
+    }
+    return next;
+  }, [availabilityDateQueries]);
+
+  const availabilityCalendarFetching = useMemo(
+    () => availabilityDateQueries.some((q) => q.isPending),
+    [availabilityDateQueries],
+  );
+  const availabilityCalendarInitialLoading = useMemo(
+    () => availabilityCalendarFetching && enabledDateSet.size === 0,
+    [availabilityCalendarFetching, enabledDateSet.size],
+  );
+  const availabilityCalendarExtending = useMemo(
+    () => availabilityCalendarFetching && enabledDateSet.size > 0,
+    [availabilityCalendarFetching, enabledDateSet.size],
+  );
+
+  useEffect(() => {
+    if (availabilityCalendarFetching) return;
+    if (enabledDateSet.size === 0) return;
+    if (!selectedDate) return;
+    if (enabledDateSet.has(selectedDate)) return;
+    const sorted = [...enabledDateSet].sort();
+    const next =
+      sorted.find((d) => d >= minDate) ?? sorted[sorted.length - 1] ?? minDate;
+    setSelectedDate(next);
+    setSelectedSlot(null);
+  }, [
+    availabilityCalendarFetching,
+    enabledDateSet,
+    selectedDate,
+    minDate,
+  ]);
 
   const selectedDoctorId = appointment?.doctorId ?? "";
-  const slotsEnabled = state === "idle" && !!selectedDoctorId && !!selectedDate;
+  const slotsEnabled =
+    state === "idle" && !!selectedDoctorId && !!selectedDate && !!appointment;
 
   const isCurrentAppointmentSlot =
     !!appointment &&
-    !!selectedDate &&
     !!selectedSlot &&
-    selectedDate === appointment.date &&
-    selectedSlot === appointment.time;
+    selectedSlot.doctorDate === appointment.date &&
+    selectedSlot.startTime === appointment.time;
   const shouldBlockCurrentAppointmentSlot =
     hasSelectionInteraction && isCurrentAppointmentSlot;
 
@@ -150,10 +329,21 @@ function RescheduleContent() {
     isLoading: slotsLoading,
     isFetching: slotsFetching,
   } = useQuery({
-    queryKey: ["reschedule-slots", selectedDoctorId, selectedDate],
+    queryKey: [
+      "reschedule-slots",
+      selectedDoctorId,
+      selectedDate,
+      patientTimezone,
+      appointment?.id,
+    ],
     enabled: slotsEnabled,
     queryFn: () =>
-      getSlots(selectedDoctorId, selectedDate, appointment?.id ?? ""),
+      getSlots(
+        selectedDoctorId,
+        selectedDate,
+        patientTimezone,
+        appointment?.id ?? "",
+      ),
   });
 
   const doctorTz = slotsData?.doctorTimezone ?? appointment?.timezone ?? "UTC";
@@ -171,24 +361,58 @@ function RescheduleContent() {
         })
       : [];
   const hasSelectableSlots = filteredSlots.some(
-    (time) =>
+    (ref) =>
       !(
         appointment &&
-        time === appointment.time &&
-        selectedDate === appointment.date
+        ref.startTime === appointment.time &&
+        ref.doctorDate === appointment.date
       ),
   );
 
-  const onDateChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const onCalendarSelect = useCallback((ymd: string) => {
     setHasSelectionInteraction(true);
-    setSelectedDate(e.target.value);
+    setSelectedDate(ymd);
     setSelectedSlot(null);
     setSubmitError(null);
   }, []);
 
+  const onCalendarViewingMonthChange = useCallback(
+    (year: number, month0: number) => {
+      setAvailabilityDateChunks((prev) => {
+        if (prev.length === 0) return prev;
+        const coverageTo = prev.reduce(
+          (max, c) => (c.to > max ? c.to : max),
+          prev[0]!.to,
+        );
+        const lastDay = lastYmdOfMonthUtc(year, month0);
+        if (lastDay <= coverageTo) return prev;
+        const fromNext = addDaysToYmd(coverageTo, 1);
+        const toNext = lastDay;
+        if (fromNext > toNext) return prev;
+
+        const additions: AvailabilityDateChunk[] = [];
+        let cursor = fromNext;
+        while (cursor <= toNext) {
+          const tentativeEnd = addDaysToYmd(
+            cursor,
+            AVAILABILITY_RANGE_DAY_OFFSET,
+          );
+          const chunkTo = minYmd(tentativeEnd, toNext);
+          if (!prev.some((c) => c.from === cursor && c.to === chunkTo)) {
+            additions.push({ from: cursor, to: chunkTo });
+          }
+          cursor = addDaysToYmd(chunkTo, 1);
+        }
+        if (additions.length === 0) return prev;
+        return [...prev, ...additions];
+      });
+    },
+    [],
+  );
+
   const onConfirmReschedule = async () => {
     if (!canLoad || state !== "idle") return;
-    if (!selectedDate || !selectedSlot || isSubmitting) return;
+    if (!selectedSlot || isSubmitting) return;
     if (isCurrentAppointmentSlot) return;
 
     setIsSubmitting(true);
@@ -200,8 +424,8 @@ function RescheduleContent() {
         body: JSON.stringify({
           appointmentId,
           token,
-          date: selectedDate,
-          time: selectedSlot,
+          date: selectedSlot.doctorDate,
+          time: selectedSlot.startTime,
           patientTimezone,
         }),
       });
@@ -212,6 +436,7 @@ function RescheduleContent() {
 
       const nextState = json?.status;
       if (nextState === "success") {
+        setConfirmedSlot(selectedSlot);
         setState("success");
         return;
       }
@@ -279,6 +504,8 @@ function RescheduleContent() {
     }
   })();
 
+  const successSlot = confirmedSlot ?? selectedSlot;
+
   return (
     <div className="w-full bg-[#fafafa] py-10 md:py-14 lg:py-16">
       <Container>
@@ -295,18 +522,28 @@ function RescheduleContent() {
               {message}
             </p>
 
-            {state === "success" && selectedDate && selectedSlot && (
+            {state === "success" && successSlot && (
               <div className="mt-6 flex flex-col gap-2 rounded-lg bg-[#fafafa] p-4 font-montserrat text-sm text-[#111111]">
                 <p>
                   <span className="font-medium text-[#111111]">New date:</span>{" "}
                   <span className="text-[#333333]">
-                    {formatDateInPatientTz(selectedDate, selectedSlot, doctorTz)}
+                    {formatDateInPatientTz(
+                      successSlot.doctorDate,
+                      successSlot.startTime,
+                      doctorTz,
+                      patientTimezone,
+                    )}
                   </span>
                 </p>
                 <p>
                   <span className="font-medium text-[#111111]">New time:</span>{" "}
                   <span className="text-[#333333]">
-                    {formatTimeInPatientTz(selectedDate, selectedSlot, doctorTz)}
+                    {formatTimeInPatientTz(
+                      successSlot.doctorDate,
+                      successSlot.startTime,
+                      doctorTz,
+                      patientTimezone,
+                    )}
                   </span>
                 </p>
                 <p className="mt-1 text-[#5E5E5E]">
@@ -345,16 +582,33 @@ function RescheduleContent() {
                         <h2 className="font-montaga text-xl font-semibold leading-tight text-[#333333]">
                           Select date
                         </h2>
-                        <div className="mt-4 inline-block">
-                          <input
-                            type="date"
-                            value={selectedDate}
-                            min={todayISO()}
-                            onChange={onDateChange}
-                            className="cursor-pointer rounded-xl border border-[#e5e5e5] bg-white px-4 py-3 font-montserrat text-sm text-[#111111] shadow-sm focus:border-[#2555F3] focus:outline-none focus:ring-2 focus:ring-[#2555F3]/30 md:py-2.5"
-                            aria-label="Select appointment date"
-                          />
-                        </div>
+                        {availabilityCalendarInitialLoading ? (
+                          <div className="mt-4">
+                            <Skeleton className="h-[340px] w-full max-w-sm rounded-xl bg-[#e5e5e5]" />
+                          </div>
+                        ) : enabledDateSet.size === 0 ? (
+                          <p className="mt-4 font-montserrat text-sm text-[#5E5E5E]">
+                            No upcoming slots are available to reschedule to yet.
+                          </p>
+                        ) : (
+                          <div className="mt-4">
+                            <SetAvailabilityCalendar
+                              value={selectedDate}
+                              minDate={minDate}
+                              disabledDates={new Set()}
+                              enabledDates={enabledDateSet}
+                              loadingDisabledDates={false}
+                              gridAriaLabel="Select reschedule date"
+                              onViewingMonthChange={onCalendarViewingMonthChange}
+                              onSelect={onCalendarSelect}
+                            />
+                            {availabilityCalendarExtending ? (
+                              <p className="mt-2 font-montserrat text-xs text-[#5E5E5E]">
+                                Loading more dates…
+                              </p>
+                            ) : null}
+                          </div>
+                        )}
                       </section>
 
                       <section>
@@ -387,17 +641,19 @@ function RescheduleContent() {
 
                         {!slotsLoadingOrFetching && filteredSlots.length > 0 && (
                           <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:gap-4">
-                            {filteredSlots.map((time) => {
+                            {filteredSlots.map((ref) => {
+                              const refKey = bookableSlotRefKey(ref);
                               const isCurrent =
                                 !!appointment &&
-                                time === appointment.time &&
-                                selectedDate === appointment.date;
+                                ref.startTime === appointment.time &&
+                                ref.doctorDate === appointment.date;
+                              const isSelected =
+                                selectedSlot !== null &&
+                                bookableSlotRefKey(selectedSlot) === refKey;
                               return (
                                 <Button
-                                  key={time}
-                                  variant={
-                                    selectedSlot === time ? "default" : "outline"
-                                  }
+                                  key={refKey}
+                                  variant={isSelected ? "default" : "outline"}
                                   disabled={isCurrent}
                                   aria-disabled={isCurrent}
                                   title={isCurrent ? "Current Slot" : undefined}
@@ -409,12 +665,19 @@ function RescheduleContent() {
                                   onClick={() => {
                                     if (isCurrent) return;
                                     setHasSelectionInteraction(true);
-                                    setSelectedSlot(time);
+                                    setSelectedSlot(ref);
                                     setSubmitError(null);
                                   }}
                                 >
                                   <span className="inline-flex flex-col items-center leading-tight">
-                                    <span>{formatTimeInPatientTz(selectedDate, time, doctorTz)}</span>
+                                    <span>
+                                      {formatTimeInPatientTz(
+                                        ref.doctorDate,
+                                        ref.startTime,
+                                        doctorTz,
+                                        patientTimezone,
+                                      )}
+                                    </span>
                                     {isCurrent ? (
                                       <span className="text-[10px] uppercase tracking-wide">
                                         Current
@@ -441,7 +704,6 @@ function RescheduleContent() {
                         )}
                         <Button
                           disabled={
-                            !selectedDate ||
                             !selectedSlot ||
                             isSubmitting ||
                             isCurrentAppointmentSlot

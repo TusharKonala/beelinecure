@@ -6,7 +6,12 @@ import {
   slotSupportsPatientConsultationChoice,
   type PatientConsultationChoice,
 } from "@/lib/doctor-availability-slots";
-import { isDoctorTimeInPast } from "@/lib/timezone-display";
+import {
+  doctorDateRangeCoveringPatientRange,
+  doctorSlotToPatientLocalYmd,
+  isDoctorTimeInPast,
+  isValidIanaTimeZone,
+} from "@/lib/timezone-display";
 import { AppointmentStatus } from "@/generated/prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -36,6 +41,13 @@ function inclusiveDaySpan(from: Date, to: Date): number {
   return Math.floor((to.getTime() - from.getTime()) / 86_400_000) + 1;
 }
 
+function inclusiveYmdSpan(fromYmd: string, toYmd: string): number {
+  const from = parseYmdUtc(fromYmd);
+  const to = parseYmdUtc(toYmd);
+  if (!from || !to) return 0;
+  return inclusiveDaySpan(from, to);
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ doctorId: string }> },
@@ -52,6 +64,18 @@ export async function GET(
       );
     }
     consultationFilter = choiceParam;
+  }
+
+  const patientTimezoneParam = request.nextUrl.searchParams.get("patientTimezone");
+  const patientTimezone =
+    patientTimezoneParam !== null && patientTimezoneParam.trim() !== ""
+      ? patientTimezoneParam.trim()
+      : null;
+  if (patientTimezone && !isValidIanaTimeZone(patientTimezone)) {
+    return NextResponse.json(
+      { error: "Invalid patientTimezone" },
+      { status: 400 },
+    );
   }
 
   const fromParam = request.nextUrl.searchParams.get("from");
@@ -71,27 +95,29 @@ export async function GET(
 
   let rangeStart: Date;
   let rangeEnd: Date;
+  let patientFromYmd: string | null = null;
+  let patientToYmd: string | null = null;
 
   if (!hasFrom && !hasTo) {
     rangeStart = new Date(today);
     rangeEnd = new Date(today);
     rangeEnd.setUTCDate(rangeEnd.getUTCDate() + DEFAULT_HORIZON_DAYS);
   } else {
-    const parsedFrom = parseYmdUtc(fromParam);
-    const parsedTo = parseYmdUtc(toParam);
-    if (!parsedFrom || !parsedTo) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(fromParam!) || !/^\d{4}-\d{2}-\d{2}$/.test(toParam!)) {
       return NextResponse.json(
         { error: "from and to must be valid YYYY-MM-DD dates" },
         { status: 400 },
       );
     }
-    if (parsedFrom.getTime() > parsedTo.getTime()) {
+    if (fromParam! > toParam!) {
       return NextResponse.json(
         { error: "from must be on or before to" },
         { status: 400 },
       );
     }
-    const span = inclusiveDaySpan(parsedFrom, parsedTo);
+    const span = patientTimezone
+      ? inclusiveYmdSpan(fromParam!, toParam!)
+      : inclusiveDaySpan(parseYmdUtc(fromParam!)!, parseYmdUtc(toParam!)!);
     if (span > MAX_RANGE_INCLUSIVE_DAYS) {
       return NextResponse.json(
         {
@@ -100,8 +126,24 @@ export async function GET(
         { status: 400 },
       );
     }
-    rangeStart = parsedFrom;
-    rangeEnd = parsedTo;
+    patientFromYmd = fromParam!;
+    patientToYmd = toParam!;
+    if (patientTimezone) {
+      // Placeholder; expanded after doctor lookup.
+      rangeStart = today;
+      rangeEnd = today;
+    } else {
+      const parsedFrom = parseYmdUtc(fromParam);
+      const parsedTo = parseYmdUtc(toParam);
+      if (!parsedFrom || !parsedTo) {
+        return NextResponse.json(
+          { error: "from and to must be valid YYYY-MM-DD dates" },
+          { status: 400 },
+        );
+      }
+      rangeStart = parsedFrom;
+      rangeEnd = parsedTo;
+    }
   }
 
   const doctor = await prisma.doctor.findFirst({
@@ -111,6 +153,39 @@ export async function GET(
 
   if (!doctor) {
     return NextResponse.json({ error: "Doctor not found" }, { status: 404 });
+  }
+
+  if (patientTimezone && patientFromYmd && patientToYmd) {
+    const doctorRange = doctorDateRangeCoveringPatientRange(
+      patientFromYmd,
+      patientToYmd,
+      patientTimezone,
+      doctor.timezone,
+    );
+    const parsedFrom = parseYmdUtc(doctorRange.min);
+    const parsedTo = parseYmdUtc(doctorRange.max);
+    if (!parsedFrom || !parsedTo) {
+      return NextResponse.json({ error: "Invalid date range" }, { status: 400 });
+    }
+    rangeStart = parsedFrom;
+    rangeEnd = parsedTo;
+  } else if (patientTimezone && !hasFrom && !hasTo) {
+    // Default horizon: use UTC today through +60 days as patient window approximation
+    // when client omits from/to (not used by current booking UI).
+    const fromYmd = today.toISOString().slice(0, 10);
+    const end = new Date(today);
+    end.setUTCDate(end.getUTCDate() + DEFAULT_HORIZON_DAYS);
+    const toYmd = end.toISOString().slice(0, 10);
+    const doctorRange = doctorDateRangeCoveringPatientRange(
+      fromYmd,
+      toYmd,
+      patientTimezone,
+      doctor.timezone,
+    );
+    rangeStart = parseYmdUtc(doctorRange.min)!;
+    rangeEnd = parseYmdUtc(doctorRange.max)!;
+    patientFromYmd = fromYmd;
+    patientToYmd = toYmd;
   }
 
   const [availabilities, appointments] = await Promise.all([
@@ -172,6 +247,49 @@ export async function GET(
 
   const fallback = coerceAllowedSlotDurationMinutes(doctor.slotDurationMinutes);
   const tz = doctor.timezone;
+
+  if (patientTimezone) {
+    const patientDates = new Set<string>();
+    const fromBound = patientFromYmd ?? today.toISOString().slice(0, 10);
+    const toBound =
+      patientToYmd ??
+      (() => {
+        const end = new Date(today);
+        end.setUTCDate(end.getUTCDate() + DEFAULT_HORIZON_DAYS);
+        return end.toISOString().slice(0, 10);
+      })();
+
+    for (const [dayKey, rows] of rowsByDay) {
+      let slotDetails = expandAvailabilityRowsDetailed(rows, fallback);
+      if (consultationFilter) {
+        slotDetails = slotDetails.filter((d) =>
+          slotSupportsPatientConsultationChoice(
+            d.consultationType,
+            consultationFilter,
+          ),
+        );
+      }
+      const slots = [...new Set(slotDetails.map((s) => s.startTime))].sort();
+      const booked = bookedByDay.get(dayKey) ?? new Set<string>();
+      const available = slots.filter((s) => !booked.has(s));
+      for (const start of available) {
+        if (isDoctorTimeInPast(dayKey, start, tz)) continue;
+        const patientYmd = doctorSlotToPatientLocalYmd(
+          dayKey,
+          start,
+          tz,
+          patientTimezone,
+        );
+        if (patientYmd >= fromBound && patientYmd <= toBound) {
+          patientDates.add(patientYmd);
+        }
+      }
+    }
+
+    const datesWithSlots = [...patientDates].sort();
+    return NextResponse.json({ dates: datesWithSlots });
+  }
+
   const datesWithSlots: string[] = [];
 
   for (const [dayKey, rows] of rowsByDay) {
