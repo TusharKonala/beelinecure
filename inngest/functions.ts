@@ -26,6 +26,8 @@ import {
   createDoctorNotificationForDoctorId,
 } from "@/lib/notifications";
 import { formatDoctorDisplayName } from "@/lib/doctor-name";
+import { cancelAppointmentByDoctor } from "@/lib/doctor-cancellations";
+import { sendDoctorHolidaySummaryEmail } from "@/lib/doctor-holiday-summary-email";
 import {
   APPOINTMENT_REMINDER_EMAIL_BODY_26H,
   RESCHEDULE_ONLY_MORE_THAN_24H,
@@ -1272,6 +1274,69 @@ export const sendInterviewReminder30m = inngest.createFunction(
       interviewRoundId,
       recipient,
       reminderLabel: "30 minutes",
+    });
+  },
+);
+
+export const cancelHolidayAppointments = inngest.createFunction(
+  {
+    id: "cancel-holiday-appointments",
+    retries: 2,
+    triggers: [{ event: "doctor/holiday.cancel-appointments" }],
+  },
+  async ({ event, step }) => {
+    const { doctorId, appointmentIds, requestOrigin, actorUserId } =
+      event.data as {
+        doctorId: string;
+        appointmentIds: string[];
+        requestOrigin: string;
+        actorUserId: string | null;
+      };
+
+    for (const appointmentId of appointmentIds) {
+      await step.run(`cancel-${appointmentId}`, () =>
+        cancelAppointmentByDoctor({
+          appointmentId,
+          doctorId,
+          reason: "doctor_holiday",
+          requestOrigin,
+          actorUserId,
+        }),
+      );
+    }
+
+    await step.run("doctor-summary-email", async () => {
+      const doctor = await prisma.doctor.findUnique({
+        where: { id: doctorId },
+        select: {
+          name: true,
+          timezone: true,
+          user: { select: { email: true } },
+        },
+      });
+      const doctorEmail = doctor?.user?.email?.trim();
+      if (!doctor || !doctorEmail) return;
+
+      const appointments = await prisma.appointment.findMany({
+        where: { id: { in: appointmentIds }, doctorId },
+        select: {
+          date: true,
+          time: true,
+          patientName: true,
+          email: true,
+          phone: true,
+          consultationType: true,
+        },
+      });
+
+      await sendDoctorHolidaySummaryEmail({
+        doctor: {
+          name: doctor.name,
+          timezone: doctor.timezone,
+          email: doctorEmail,
+        },
+        appointments,
+      });
     });
   },
 );

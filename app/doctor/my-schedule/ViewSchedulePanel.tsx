@@ -546,8 +546,20 @@ export function ViewSchedulePanel({
           clearDay: true,
         }),
       });
+      const text = await res.text();
+      let data: { error?: string } = {};
+      if (text) {
+        try {
+          data = JSON.parse(text) as { error?: string };
+        } catch {
+          throw new Error(
+            res.status === 504
+              ? "Request timed out. Refresh your schedule to check status."
+              : "Could not update",
+          );
+        }
+      }
       if (!res.ok) {
-        const data = (await res.json()) as { error?: string };
         throw new Error(data.error ?? "Could not update");
       }
       await loadList(1, false, selectedMonth, bookedOnly, selectedDateFilter);

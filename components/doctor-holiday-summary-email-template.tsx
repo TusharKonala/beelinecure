@@ -20,8 +20,8 @@ export interface DoctorHolidaySummaryEmailProps {
 
 /**
  * Email sent to the doctor summarising appointments cancelled because the
- * doctor marked the day(s) as a holiday. Sent from the holiday flow in
- * `app/api/doctor/availability/route.ts` after each appointment has been
+ * doctor marked the day(s) as a holiday. Sent from
+ * `lib/doctor-holiday-summary-email.ts` after each appointment has been
  * cancelled (which already emails the affected patients individually).
  */
 export function DoctorHolidaySummaryEmailTemplate({

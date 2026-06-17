@@ -1,6 +1,7 @@
 import { serve } from "inngest/next";
 import { inngest } from "@/inngest/client";
 import {
+  cancelHolidayAppointments,
   chatUnreadEmailNotify,
   doctorUnreadChatDigest,
   ensureChatConversationJob,
@@ -19,6 +20,7 @@ import {
 export const { GET, POST, PUT } = serve({
   client: inngest,
   functions: [
+    cancelHolidayAppointments,
     sendAppointmentReminder,
     sendOnlineAppointmentT15Reminder,
     sendClinicAppointmentT120Reminder,

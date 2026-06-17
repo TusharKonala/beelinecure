@@ -4,7 +4,6 @@ import {
   UserRole,
 } from "@/generated/prisma/client";
 import { authOptions } from "@/lib/auth";
-import { cancelAppointmentByDoctor } from "@/lib/doctor-cancellations";
 import { prisma } from "@/lib/db";
 import {
   coerceAllowedSlotDurationMinutes,
@@ -24,17 +23,8 @@ import { timeToMinutes } from "@/lib/time";
 import { PrismaClientKnownRequestError } from "@prisma/client/runtime/client";
 import { getServerSession } from "next-auth/next";
 import { NextRequest, NextResponse } from "next/server";
-import { Resend } from "resend";
-import { getEmailFrom } from "@/lib/email-from";
 import { z } from "zod";
-import {
-  formatDateInDoctorTz,
-  formatTimeInDoctorTz,
-} from "@/lib/timezone-display";
-import {
-  DoctorHolidaySummaryEmailTemplate,
-  type DoctorHolidaySummaryItem,
-} from "@/components/doctor-holiday-summary-email-template";
+import { inngest } from "@/inngest/client";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -621,15 +611,9 @@ export async function PUT(request: Request) {
     where: { userId: session.user.id },
     select: {
       id: true,
-      name: true,
       timezone: true,
       slotDurationMinutes: true,
       isActive: true,
-      user: {
-        select: {
-          email: true,
-        },
-      },
     },
   });
   if (!doctor) {
@@ -965,68 +949,28 @@ export async function PUT(request: Request) {
   }
 
   if (clearDay && activeAppointments.length > 0) {
-    const requestOrigin = new URL(request.url).origin;
-    for (const appointment of activeAppointments) {
-      await cancelAppointmentByDoctor({
-        appointmentId: appointment.id,
-        doctorId: doctor.id,
-        reason: "doctor_holiday",
-        requestOrigin,
-        actorUserId: session.user.id,
+    try {
+      await inngest.send({
+        name: "doctor/holiday.cancel-appointments",
+        data: {
+          doctorId: doctor.id,
+          appointmentIds: activeAppointments.map((a) => a.id),
+          requestOrigin: new URL(request.url).origin,
+          actorUserId: session.user.id,
+        },
       });
-    }
-
-    // Send the doctor a single summary email of everything that was
-    // cancelled. Best-effort — failures are logged but don't fail the
-    // availability update.
-    const doctorEmail = doctor.user?.email?.trim();
-    if (doctorEmail && process.env.RESEND_API_KEY) {
-      try {
-        const resend = new Resend(process.env.RESEND_API_KEY);
-        const grouped: Record<string, DoctorHolidaySummaryItem[]> = {};
-        for (const appt of activeAppointments) {
-          const ymdStr = appt.date.toISOString().slice(0, 10);
-          const dateLabel = formatDateInDoctorTz(
-            ymdStr,
-            appt.time,
-            doctor.timezone,
-          );
-          const timeLabel = formatTimeInDoctorTz(
-            ymdStr,
-            appt.time,
-            doctor.timezone,
-          );
-          const list = grouped[dateLabel] ?? (grouped[dateLabel] = []);
-          list.push({
-            patientName: appt.patientName,
-            appointmentTime: timeLabel,
-            consultationLabel:
-              appt.consultationType === "ONLINE" ? "Online" : "In-clinic",
-            patientEmail: appt.email,
-            patientPhone: appt.phone,
-          });
-        }
-        const dateLabels = Object.keys(grouped).sort();
-        const { error: emailError } = await resend.emails.send({
-          from: getEmailFrom(),
-          to: doctorEmail,
-          subject: `Holiday cancellation summary — ${activeAppointments.length} appointment${activeAppointments.length === 1 ? "" : "s"}`,
-          react: DoctorHolidaySummaryEmailTemplate({
-            doctorName: doctor.name,
-            dateLabels,
-            doctorTimezone: doctor.timezone,
-            appointmentsByDate: grouped,
-          }),
-        });
-        if (emailError) {
-          console.error(
-            "[availability/holiday] Summary email failed:",
-            emailError,
-          );
-        }
-      } catch (err) {
-        console.error("[availability/holiday] Summary email threw:", err);
-      }
+    } catch (err) {
+      console.error(
+        "[availability/holiday] Failed to queue cancellations:",
+        err,
+      );
+      return NextResponse.json(
+        {
+          error:
+            "Holiday was saved but appointment cancellations could not be started. Please try marking the holiday again or contact support.",
+        },
+        { status: 503 },
+      );
     }
   }
 
