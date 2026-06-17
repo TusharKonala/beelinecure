@@ -39,6 +39,7 @@ import {
   type SupportedCurrency,
 } from "@/lib/currency";
 import {
+  doctorPriceRangeCents,
   parsePriceMap,
   priceCentsForDuration,
   type ConsultationPriceCentsByDuration,
@@ -416,8 +417,6 @@ export default function BookAppointmentDoctorPage() {
   const selectedSlotDetail = selectedSlot
     ? (slotDetailByRef.get(bookableSlotRefKey(selectedSlot)) ?? null)
     : null;
-  // Default displayed online fee should be the base 15-minute consultation fee
-  // until a slot is explicitly selected.
   const selectedSlotDuration = selectedSlotDetail?.slotDurationMinutes ?? 15;
   const selectedSlotPriceCents = useMemo(
     () => priceCentsForDuration(doctorPriceMap, selectedSlotDuration),
@@ -427,6 +426,16 @@ export default function BookAppointmentDoctorPage() {
     () => formatPrice(selectedSlotPriceCents, doctorCurrency),
     [selectedSlotPriceCents, doctorCurrency],
   );
+  const consultationPriceRangeLabel = useMemo(() => {
+    const { minCents, maxCents } = doctorPriceRangeCents(doctorPriceMap);
+    if (minCents === maxCents) {
+      return formatPrice(minCents, doctorCurrency);
+    }
+    return `${formatPrice(minCents, doctorCurrency)} – ${formatPrice(maxCents, doctorCurrency)}`;
+  }, [doctorPriceMap, doctorCurrency]);
+  const displayedConsultationPriceLabel = selectedSlot
+    ? consultationPriceLabel
+    : consultationPriceRangeLabel;
   const patientCurrency = useMemo(() => patientCurrencyFromTimezone(), []);
   const shouldShowApproxEquivalent =
     !!selectedSlot && patientCurrency !== doctorCurrency;
@@ -933,9 +942,9 @@ export default function BookAppointmentDoctorPage() {
                 <p className="mt-2 font-montserrat text-sm text-[#5E5E5E]">
                   {consultationType === "CLINIC"
                     ? clinicPaymentMode === "payAtClinic"
-                      ? `Consultation fee (payable at clinic): ${consultationPriceLabel}${shouldShowApproxEquivalent && approxEquivalentLabel ? ` ${approxEquivalentLabel}` : ""}`
-                      : `Consultation fee (pay online): ${consultationPriceLabel}${shouldShowApproxEquivalent && approxEquivalentLabel ? ` ${approxEquivalentLabel}` : ""}`
-                    : `Online consultation fee: ${consultationPriceLabel}${shouldShowApproxEquivalent && approxEquivalentLabel ? ` ${approxEquivalentLabel}` : ""}`}
+                      ? `Consultation fee (payable at clinic): ${displayedConsultationPriceLabel}${shouldShowApproxEquivalent && approxEquivalentLabel ? ` ${approxEquivalentLabel}` : ""}`
+                      : `Consultation fee (pay online): ${displayedConsultationPriceLabel}${shouldShowApproxEquivalent && approxEquivalentLabel ? ` ${approxEquivalentLabel}` : ""}`
+                    : `Online consultation fee: ${displayedConsultationPriceLabel}${shouldShowApproxEquivalent && approxEquivalentLabel ? ` ${approxEquivalentLabel}` : ""}`}
                 </p>
               )}
             </section>

@@ -83,5 +83,18 @@ export function priceCentsForDuration(
   return map[key];
 }
 
+/** Lowest and highest consultation fee across all allowed slot durations. */
+export function doctorPriceRangeCents(
+  map: ConsultationPriceCentsByDuration,
+): { minCents: number; maxCents: number } {
+  const prices = ALLOWED_SLOT_DURATION_MINUTES.map((mins) =>
+    priceCentsForDuration(map, mins),
+  );
+  return {
+    minCents: Math.min(...prices),
+    maxCents: Math.max(...prices),
+  };
+}
+
 /** Zod schema for use in API request validation. */
 export const consultationPriceCentsByDurationSchema = priceMapSchema;
