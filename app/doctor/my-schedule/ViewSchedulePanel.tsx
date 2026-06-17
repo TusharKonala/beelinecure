@@ -73,76 +73,111 @@ function scheduleFilterSelectClassName(className?: string) {
 const quickCheckDateInputClassName =
   "block w-full min-w-0 cursor-pointer rounded-xl border border-[#e5e5e5] bg-white px-4 py-3 font-montserrat text-sm text-[#111111] shadow-sm [color-scheme:light] focus:border-[#2555F3] focus:outline-none focus:ring-2 focus:ring-[#2555F3]/30 md:py-2.5";
 
-function ViewScheduleQuickCheck({
+function ViewScheduleQuickCheckField({
   minDate,
   inputRef,
   quickCheckDate,
   setQuickCheckDate,
-  quickCheckSlotDetails,
-  quickCheckLoading,
-  quickCheckError,
 }: {
   minDate: string;
   inputRef: RefObject<HTMLInputElement | null>;
   quickCheckDate: string;
   setQuickCheckDate: (v: string) => void;
+}) {
+  const d = quickCheckDate.trim();
+  return (
+    <div className="w-full max-w-[min(100%,14rem)]">
+      <div className="flex items-center justify-between gap-2">
+        <label
+          htmlFor="view-schedule-quick-check"
+          className="block font-montserrat text-xs font-medium text-[#5E5E5E]"
+        >
+          Quick check
+        </label>
+        {d ? (
+          <button
+            type="button"
+            className="cursor-pointer shrink-0 font-montserrat text-xs font-medium text-[#2555F3] underline-offset-2 hover:underline"
+            onClick={() => setQuickCheckDate("")}
+          >
+            Clear
+          </button>
+        ) : null}
+      </div>
+      <div
+        className="mt-1.5 w-full cursor-pointer"
+        onClick={() => inputRef.current?.showPicker?.()}
+      >
+        <input
+          ref={inputRef}
+          id="view-schedule-quick-check"
+          type="date"
+          min={minDate}
+          value={quickCheckDate}
+          onChange={(e) => setQuickCheckDate(e.target.value)}
+          className={cn(quickCheckDateInputClassName, "mt-0")}
+          aria-label="Pick a date to view saved slots"
+        />
+      </div>
+    </div>
+  );
+}
+
+function ViewScheduleQuickCheckResults({
+  quickCheckDate,
+  quickCheckSlotDetails,
+  quickCheckLoading,
+  quickCheckError,
+}: {
+  quickCheckDate: string;
   quickCheckSlotDetails: SlotDetail[] | null;
   quickCheckLoading: boolean;
   quickCheckError: string | null;
 }) {
   const d = quickCheckDate.trim();
+  if (!d) return null;
   return (
-    <>
-      <div className="w-full max-w-[min(100%,14rem)]">
-        <div className="flex items-center justify-between gap-2">
-          <label
-            htmlFor="view-schedule-quick-check"
-            className="block font-montserrat text-xs font-medium text-[#5E5E5E]"
-          >
-            Quick check
-          </label>
-          {d ? (
-            <button
-              type="button"
-              className="cursor-pointer shrink-0 font-montserrat text-xs font-medium text-[#2555F3] underline-offset-2 hover:underline"
-              onClick={() => setQuickCheckDate("")}
-            >
-              Clear
-            </button>
-          ) : null}
-        </div>
-        <div
-          className="mt-1.5 w-full cursor-pointer"
-          onClick={() => inputRef.current?.showPicker?.()}
+    <div className="w-full rounded-xl border border-[#e5e5e5] bg-[#fafafa] px-3 py-2.5 font-montserrat text-sm text-[#333333]">
+      {quickCheckLoading ? (
+        <Skeleton className="h-4 w-full max-w-md" />
+      ) : quickCheckError ? (
+        <span className="text-red-600">{quickCheckError}</span>
+      ) : quickCheckSlotDetails && quickCheckSlotDetails.length > 0 ? (
+        <SlotSummaryFromDetails slots={quickCheckSlotDetails} />
+      ) : (
+        <span className="text-[#5E5E5E]">
+          No availability set for {formatScheduleDayHeading(d)}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function ViewScheduleFilterHeader({
+  timezone,
+  hasActiveFilters,
+  onClearAllFilters,
+}: {
+  timezone: string;
+  hasActiveFilters: boolean;
+  onClearAllFilters: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <p className="font-montserrat text-xs text-[#5E5E5E]">
+        Times shown in your clinic timezone ({timezone}). Only dates with at
+        least one slot are listed.
+      </p>
+      {hasActiveFilters ? (
+        <button
+          type="button"
+          onClick={onClearAllFilters}
+          className="cursor-pointer font-montserrat text-xs text-[#777777] underline underline-offset-4 transition hover:text-[#2555F3]"
         >
-          <input
-            ref={inputRef}
-            id="view-schedule-quick-check"
-            type="date"
-            min={minDate}
-            value={quickCheckDate}
-            onChange={(e) => setQuickCheckDate(e.target.value)}
-            className={cn(quickCheckDateInputClassName, "mt-0")}
-            aria-label="Pick a date to view saved slots"
-          />
-        </div>
-      </div>
-      {d ? (
-        <div className="w-full basis-full rounded-xl border border-[#e5e5e5] bg-[#fafafa] px-3 py-2.5 font-montserrat text-sm text-[#333333]">
-          {quickCheckLoading ? (
-            <Skeleton className="h-4 w-full max-w-md" />
-          ) : quickCheckError ? (
-            <span className="text-red-600">{quickCheckError}</span>
-          ) : quickCheckSlotDetails && quickCheckSlotDetails.length > 0 ? (
-            <SlotSummaryFromDetails slots={quickCheckSlotDetails} />
-          ) : (
-            <span className="text-[#5E5E5E]">
-              No availability set for {formatScheduleDayHeading(d)}
-            </span>
-          )}
-        </div>
+          Clear all filters
+        </button>
       ) : null}
-    </>
+    </div>
   );
 }
 
@@ -390,6 +425,19 @@ export function ViewSchedulePanel({
   }, [scheduleMonthsWithAvailability, selectedMonth]);
 
   const hasUpcomingAvailability = scheduleMonthsWithAvailability.length > 0;
+
+  const hasActiveFilters =
+    selectedMonth !== ALL_MONTHS_VALUE ||
+    selectedDateFilter !== "all" ||
+    bookedOnly ||
+    quickCheckDate.trim() !== "";
+
+  const clearAllFilters = useCallback(() => {
+    setSelectedMonth(ALL_MONTHS_VALUE);
+    setSelectedDateFilter("all");
+    setBookedOnly(false);
+    setQuickCheckDate("");
+  }, []);
 
   const monthOptions = useMemo(() => {
     if (scheduleMonthsWithAvailability.length > 0) {
@@ -666,12 +714,22 @@ export function ViewSchedulePanel({
           </p>
         </div>
         {todayFromApi ? (
-          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
-            <ViewScheduleQuickCheck
-              minDate={todayFromApi}
-              inputRef={quickCheckInputRef}
+          <div className="space-y-3">
+            <ViewScheduleFilterHeader
+              timezone={timezone}
+              hasActiveFilters={hasActiveFilters}
+              onClearAllFilters={clearAllFilters}
+            />
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+              <ViewScheduleQuickCheckField
+                minDate={todayFromApi}
+                inputRef={quickCheckInputRef}
+                quickCheckDate={quickCheckDate}
+                setQuickCheckDate={setQuickCheckDate}
+              />
+            </div>
+            <ViewScheduleQuickCheckResults
               quickCheckDate={quickCheckDate}
-              setQuickCheckDate={setQuickCheckDate}
               quickCheckSlotDetails={quickCheckSlotDetails}
               quickCheckLoading={quickCheckLoading}
               quickCheckError={quickCheckError}
@@ -684,91 +742,96 @@ export function ViewSchedulePanel({
 
   return (
     <div className="mt-6 space-y-4">
-      <p className="font-montserrat text-xs text-[#5E5E5E]">
-        Times shown in your clinic timezone ({timezone}). Only dates with at
-        least one slot are listed.
-      </p>
-
       {todayFromApi ? (
-        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
-          {monthOptions.length > 0 ? (
-            <>
-              <div className="w-full max-w-[min(100%,14rem)]">
-                <label
-                  htmlFor="view-schedule-month"
-                  className="block font-montserrat text-xs font-medium text-[#5E5E5E]"
-                >
-                  Month
-                </label>
-                <select
-                  id="view-schedule-month"
-                  value={selectedMonth}
-                  onChange={(e) => {
-                    setSelectedMonth(e.target.value);
-                    setSelectedDateFilter("all");
-                  }}
-                  className={scheduleFilterSelectClassName("mt-1.5")}
-                >
-                  <option value={ALL_MONTHS_VALUE}>All months</option>
-                  {monthOptions.map((ym) => (
-                    <option key={ym} value={ym}>
-                      {formatMonthOptionLabel(ym)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="w-full max-w-[min(100%,14rem)]">
-                <label
-                  htmlFor="view-schedule-date"
-                  className="block font-montserrat text-xs font-medium text-[#5E5E5E]"
-                >
-                  Date
-                </label>
-                <select
-                  id="view-schedule-date"
-                  value={selectedDateFilter}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    setSelectedDateFilter(v === "all" ? "all" : v);
-                  }}
-                  className={scheduleFilterSelectClassName("mt-1.5")}
-                >
-                  <option value="all">All dates</option>
-                  {dateOptionsInMonth.map((iso) => (
-                    <option key={iso} value={iso}>
-                      {formatScheduleDayHeading(iso)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </>
-          ) : null}
-          <ViewScheduleQuickCheck
-            minDate={todayFromApi}
-            inputRef={quickCheckInputRef}
+        <div className="space-y-3">
+          <ViewScheduleFilterHeader
+            timezone={timezone}
+            hasActiveFilters={hasActiveFilters}
+            onClearAllFilters={clearAllFilters}
+          />
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+            {monthOptions.length > 0 ? (
+              <>
+                <div className="w-full max-w-[min(100%,14rem)]">
+                  <label
+                    htmlFor="view-schedule-month"
+                    className="block font-montserrat text-xs font-medium text-[#5E5E5E]"
+                  >
+                    Month
+                  </label>
+                  <select
+                    id="view-schedule-month"
+                    value={selectedMonth}
+                    onChange={(e) => {
+                      setSelectedMonth(e.target.value);
+                      setSelectedDateFilter("all");
+                    }}
+                    className={scheduleFilterSelectClassName("mt-1.5")}
+                  >
+                    <option value={ALL_MONTHS_VALUE}>All months</option>
+                    {monthOptions.map((ym) => (
+                      <option key={ym} value={ym}>
+                        {formatMonthOptionLabel(ym)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="w-full max-w-[min(100%,14rem)]">
+                  <label
+                    htmlFor="view-schedule-date"
+                    className="block font-montserrat text-xs font-medium text-[#5E5E5E]"
+                  >
+                    Date
+                  </label>
+                  <select
+                    id="view-schedule-date"
+                    value={selectedDateFilter}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setSelectedDateFilter(v === "all" ? "all" : v);
+                    }}
+                    className={scheduleFilterSelectClassName("mt-1.5")}
+                  >
+                    <option value="all">All dates</option>
+                    {dateOptionsInMonth.map((iso) => (
+                      <option key={iso} value={iso}>
+                        {formatScheduleDayHeading(iso)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            ) : null}
+            <ViewScheduleQuickCheckField
+              minDate={todayFromApi}
+              inputRef={quickCheckInputRef}
+              quickCheckDate={quickCheckDate}
+              setQuickCheckDate={setQuickCheckDate}
+            />
+            <div className="flex items-end">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={bookedOnly}
+                onClick={() => setBookedOnly((v) => !v)}
+                className={cn(
+                  "cursor-pointer rounded-xl border px-4 py-2.5 font-montserrat text-sm font-medium transition-colors",
+                  bookedOnly
+                    ? "border-[#2555F3] bg-[#2555F3] text-white hover:bg-[#1e44c7]"
+                    : "border-[#e5e5e5] bg-white text-[#333333] hover:bg-[#f5f5f5]",
+                )}
+                title="Show only days with booked slots, scoped to the selected month/date."
+              >
+                Booked only
+              </button>
+            </div>
+          </div>
+          <ViewScheduleQuickCheckResults
             quickCheckDate={quickCheckDate}
-            setQuickCheckDate={setQuickCheckDate}
             quickCheckSlotDetails={quickCheckSlotDetails}
             quickCheckLoading={quickCheckLoading}
             quickCheckError={quickCheckError}
           />
-          <div className="flex items-end">
-            <button
-              type="button"
-              role="switch"
-              aria-checked={bookedOnly}
-              onClick={() => setBookedOnly((v) => !v)}
-              className={cn(
-                "cursor-pointer rounded-xl border px-4 py-2.5 font-montserrat text-sm font-medium transition-colors",
-                bookedOnly
-                  ? "border-[#2555F3] bg-[#2555F3] text-white hover:bg-[#1e44c7]"
-                  : "border-[#e5e5e5] bg-white text-[#333333] hover:bg-[#f5f5f5]",
-              )}
-              title="Show only days with booked slots, scoped to the selected month/date."
-            >
-              Booked only
-            </button>
-          </div>
         </div>
       ) : null}
 
