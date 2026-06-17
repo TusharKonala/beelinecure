@@ -9,7 +9,10 @@ import {
 } from "@/lib/currency";
 import { prisma } from "@/lib/db";
 import { convertCentsAmount } from "@/lib/fx-rates";
-import { getRefundPreviewForAppointment } from "@/lib/refund-preview";
+import {
+  getStaffRefundPreviewForAppointment,
+  type StaffCancelReason,
+} from "@/lib/refund-preview";
 
 export async function GET(request: NextRequest) {
   const requestedCurrency = request.nextUrl.searchParams
@@ -72,7 +75,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const refundPreview = await getRefundPreviewForAppointment(appointment);
+  const reasonParam = request.nextUrl.searchParams.get("reason")?.trim();
+  const staffReason: StaffCancelReason =
+    reasonParam === "patient_no_show" || reasonParam === "doctor_unavailable"
+      ? reasonParam
+      : null;
+
+  const refundPreview = await getStaffRefundPreviewForAppointment(
+    appointment,
+    staffReason,
+  );
   if (
     refundPreview &&
     targetCurrency &&

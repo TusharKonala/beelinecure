@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import useInfiniteScroll from "react-infinite-scroll-hook";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { StaffCancelRefundPreview } from "@/components/appointments/StaffCancelRefundPreview";
 import { MontagaCapitalN } from "@/components/ui/MontagaCapitalN";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -178,12 +179,16 @@ export default function AdminAppointmentsClient() {
     let cancelled = false;
     setRefundPreviewLoading(true);
     setRefundPreview(null);
-    void fetch(
-      `/api/appointments/refund-preview?appointmentId=${encodeURIComponent(
-        cancelTarget.id,
-      )}&targetCurrency=${encodeURIComponent(browserCurrency)}`,
-      { cache: "no-store" },
-    )
+    const previewParams = new URLSearchParams({
+      appointmentId: cancelTarget.id,
+      targetCurrency: browserCurrency,
+    });
+    if (cancelReason) {
+      previewParams.set("reason", cancelReason);
+    }
+    void fetch(`/api/appointments/refund-preview?${previewParams.toString()}`, {
+      cache: "no-store",
+    })
       .then(async (res) => {
         if (!res.ok) return null;
         const data = (await res.json().catch(() => null)) as
@@ -207,7 +212,7 @@ export default function AdminAppointmentsClient() {
     return () => {
       cancelled = true;
     };
-  }, [cancelTarget, browserCurrency]);
+  }, [cancelTarget, cancelReason, browserCurrency]);
 
   const loadAppointments = useCallback(
     async (nextPage: number, append: boolean) => {
@@ -711,106 +716,14 @@ export default function AdminAppointmentsClient() {
                     : "."}
               </p>
               <div className="mt-4 rounded-lg border border-[#e5e5e5] bg-[#fafafa] p-3">
-                {refundPreviewLoading ? (
-                  <p className="font-montserrat text-sm text-[#5E5E5E]">
-                    Checking refund eligibility…
-                  </p>
-                ) : refundPreview ? (
-                  cancelReason === "patient_no_show" ? (
-                    <p className="font-montserrat text-sm text-[#333333]">
-                      No refund: cancelled as patient no-show.
-                    </p>
-                  ) : (
-                    <>
-                      <p className="font-montserrat text-sm font-semibold text-[#111111]">
-                        Refund eligibility: {tab === "upcoming" ? "Full refund" : refundPreview.title}
-                      </p>
-                      <p className="mt-1 font-montserrat text-sm text-[#5E5E5E]">
-                        {tab === "upcoming"
-                          ? "Admin-initiated cancellation is eligible for a full refund."
-                          : refundPreview.description}
-                      </p>
-                      {typeof refundPreview.originalPaidAmountCents ===
-                        "number" &&
-                        typeof refundPreview.eligibleRefundAmountCents ===
-                          "number" &&
-                        (tab === "upcoming" ? (
-                          <p className="mt-1 font-montserrat text-sm text-[#333333]">
-                            Patient paid{" "}
-                            {formatRefundCents(
-                              refundPreview.originalPaidAmountCents,
-                              refundPreview.currency,
-                            )}
-                            . Eligible refund:{" "}
-                            {formatRefundCents(
-                              refundPreview.originalPaidAmountCents,
-                              refundPreview.currency,
-                            )}{" "}
-                            {typeof refundPreview.equivalentAmountCents ===
-                              "number" &&
-                            refundPreview.equivalentCurrency &&
-                            normaliseCurrencyCode(refundPreview.currency) !==
-                              normaliseCurrencyCode(
-                                refundPreview.equivalentCurrency,
-                              ) ? (
-                              <>
-                                (
-                                {formatRefundCents(
-                                  refundPreview.originalPaidAmountCents,
-                                  refundPreview.equivalentCurrency,
-                                )}
-                                )
-                              </>
-                            ) : null}{" "}
-                            (100%).
-                          </p>
-                        ) : refundPreview.percentage === 0 ? (
-                          <p className="mt-1 font-montserrat text-sm text-[#333333]">
-                            Patient paid{" "}
-                            {formatRefundCents(
-                              refundPreview.originalPaidAmountCents,
-                              refundPreview.currency,
-                            )}
-                            . No refund will be issued.
-                          </p>
-                        ) : (
-                          <p className="mt-1 font-montserrat text-sm text-[#333333]">
-                            Patient paid{" "}
-                            {formatRefundCents(
-                              refundPreview.originalPaidAmountCents,
-                              refundPreview.currency,
-                            )}
-                            . Eligible refund:{" "}
-                            {formatRefundCents(
-                              refundPreview.eligibleRefundAmountCents,
-                              refundPreview.currency,
-                            )}{" "}
-                            {typeof refundPreview.equivalentAmountCents ===
-                              "number" &&
-                            refundPreview.equivalentCurrency &&
-                            normaliseCurrencyCode(refundPreview.currency) !==
-                              normaliseCurrencyCode(
-                                refundPreview.equivalentCurrency,
-                              ) ? (
-                              <>
-                                (
-                                {formatRefundCents(
-                                  refundPreview.equivalentAmountCents,
-                                  refundPreview.equivalentCurrency,
-                                )}
-                                )
-                              </>
-                            ) : null}{" "}
-                            ({refundPreview.percentage}%).
-                          </p>
-                        ))}
-                    </>
-                  )
-                ) : (
-                  <p className="font-montserrat text-sm text-[#5E5E5E]">
-                    No refund applies (appointment was not paid).
-                  </p>
-                )}
+                <StaffCancelRefundPreview
+                  loading={refundPreviewLoading}
+                  refundPreview={refundPreview}
+                  cancelReason={cancelReason}
+                  formatRefundCents={formatRefundCents}
+                  showEquivalentCurrency
+                  normaliseCurrencyCode={normaliseCurrencyCode}
+                />
               </div>
               <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
                 <button

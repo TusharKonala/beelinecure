@@ -28,6 +28,74 @@ type AppointmentForRefundPreview = RefundableAppointment & {
   currencyAtBooking: string | null;
 };
 
+export type StaffCancelReason = "patient_no_show" | "doctor_unavailable" | null;
+
+async function resolvePaidAmounts(
+  appointment: AppointmentForRefundPreview,
+  percentage: CancellationRefundPolicy["percentage"],
+): Promise<{
+  originalPaidAmountCents: number | null;
+  eligibleRefundAmountCents: number | null;
+}> {
+  let originalPaidAmountCents: number | null = null;
+  let eligibleRefundAmountCents: number | null = null;
+  const paymentIntentId = await resolvePaymentIntentId(appointment);
+  if (paymentIntentId) {
+    originalPaidAmountCents = await getChargeAmountCents(paymentIntentId);
+    if (originalPaidAmountCents) {
+      eligibleRefundAmountCents = Math.floor(
+        (originalPaidAmountCents * percentage) / 100,
+      );
+    }
+  }
+  return { originalPaidAmountCents, eligibleRefundAmountCents };
+}
+
+/**
+ * Refund preview for doctor/admin cancellations. Matches
+ * `cancelAppointmentByStaff`: full refund unless reason is patient_no_show.
+ */
+export async function getStaffRefundPreviewForAppointment(
+  appointment: AppointmentForRefundPreview,
+  reason: StaffCancelReason,
+): Promise<RefundPreview | null> {
+  if (appointment.paymentStatus !== PaymentStatus.PAID) {
+    return null;
+  }
+
+  if (reason === "patient_no_show") {
+    const { originalPaidAmountCents, eligibleRefundAmountCents } =
+      await resolvePaidAmounts(appointment, 0);
+    return {
+      tier: "no_refund_no_show",
+      percentage: 0,
+      title: "No refund",
+      description: "Cancelled as patient no-show — not eligible for a refund.",
+      originalPaidAmountCents,
+      eligibleRefundAmountCents,
+      currency: appointment.currencyAtBooking ?? null,
+    };
+  }
+
+  const { originalPaidAmountCents, eligibleRefundAmountCents } =
+    await resolvePaidAmounts(appointment, 100);
+
+  const description =
+    reason === "doctor_unavailable"
+      ? "Doctor was unavailable — patient receives a full refund."
+      : "Staff-initiated cancellation — patient receives a full refund.";
+
+  return {
+    tier: "full_refund",
+    percentage: 100,
+    title: "Full refund",
+    description,
+    originalPaidAmountCents,
+    eligibleRefundAmountCents,
+    currency: appointment.currencyAtBooking ?? null,
+  };
+}
+
 /**
  * Computes the refund preview for an appointment: tier, percentage, original
  * paid amount, and eligible refund amount. Returns null when the appointment
@@ -51,17 +119,8 @@ export async function getRefundPreviewForAppointment(
 
   const policy = cancellationRefundPolicy(appointmentStartMs, nowMs);
 
-  let originalPaidAmountCents: number | null = null;
-  let eligibleRefundAmountCents: number | null = null;
-  const paymentIntentId = await resolvePaymentIntentId(appointment);
-  if (paymentIntentId) {
-    originalPaidAmountCents = await getChargeAmountCents(paymentIntentId);
-    if (originalPaidAmountCents) {
-      eligibleRefundAmountCents = Math.floor(
-        (originalPaidAmountCents * policy.percentage) / 100,
-      );
-    }
-  }
+  const { originalPaidAmountCents, eligibleRefundAmountCents } =
+    await resolvePaidAmounts(appointment, policy.percentage);
 
   return {
     tier: policy.tier,

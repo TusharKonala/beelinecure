@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import useInfiniteScroll from "react-infinite-scroll-hook";
 import { Button } from "@/components/ui/button";
+import { StaffCancelRefundPreview } from "@/components/appointments/StaffCancelRefundPreview";
 import { MontagaCapitalN } from "@/components/ui/MontagaCapitalN";
 import { formatDateInDoctorTz, formatTimeInDoctorTz } from "@/lib/timezone-display";
 
@@ -133,12 +134,15 @@ export default function DoctorAppointmentsClient() {
     let cancelled = false;
     setRefundPreviewLoading(true);
     setRefundPreview(null);
-    void fetch(
-      `/api/appointments/refund-preview?appointmentId=${encodeURIComponent(
-        cancelTarget.id,
-      )}`,
-      { cache: "no-store" },
-    )
+    const previewParams = new URLSearchParams({
+      appointmentId: cancelTarget.id,
+    });
+    if (cancelReason) {
+      previewParams.set("reason", cancelReason);
+    }
+    void fetch(`/api/appointments/refund-preview?${previewParams.toString()}`, {
+      cache: "no-store",
+    })
       .then(async (res) => {
         if (!res.ok) return null;
         const data = (await res.json().catch(() => null)) as
@@ -162,7 +166,7 @@ export default function DoctorAppointmentsClient() {
     return () => {
       cancelled = true;
     };
-  }, [cancelTarget]);
+  }, [cancelTarget, cancelReason]);
 
   const loadAppointments = useCallback(async (nextPage: number, append: boolean) => {
     const requestId = ++latestRequestIdRef.current;
@@ -579,75 +583,20 @@ export default function DoctorAppointmentsClient() {
               </h2>
               <p className="mt-3 font-montserrat text-sm leading-relaxed text-[#5E5E5E]">
                 This will cancel the appointment for{" "}
-                <span className="font-medium text-[#333333]">{cancelTarget.patientName}</span>.
+                <span className="font-medium text-[#333333]">{cancelTarget.patientName}</span>
+                {cancelReason === "patient_no_show"
+                  ? " (patient did not show up — no refund)."
+                  : cancelReason === "doctor_unavailable"
+                    ? " (doctor unavailable — patient will be notified and refunded if applicable)."
+                    : "."}
               </p>
               <div className="mt-4 rounded-lg border border-[#e5e5e5] bg-[#fafafa] p-3">
-                {refundPreviewLoading ? (
-                  <p className="font-montserrat text-sm text-[#5E5E5E]">
-                    Checking refund eligibility…
-                  </p>
-                ) : refundPreview ? (
-                  cancelReason === "patient_no_show" ? (
-                    <p className="font-montserrat text-sm text-[#333333]">
-                      No refund: cancelled as patient no-show.
-                    </p>
-                  ) : (
-                    <>
-                      <p className="font-montserrat text-sm font-semibold text-[#111111]">
-                        Refund eligibility: {tab === "upcoming" ? "Full refund" : refundPreview.title}
-                      </p>
-                      <p className="mt-1 font-montserrat text-sm text-[#5E5E5E]">
-                        {tab === "upcoming"
-                          ? "Doctor-initiated cancellation is eligible for a full refund."
-                          : refundPreview.description}
-                      </p>
-                      {typeof refundPreview.originalPaidAmountCents === "number" &&
-                        typeof refundPreview.eligibleRefundAmountCents === "number" &&
-                        (tab === "upcoming" ? (
-                          <p className="mt-1 font-montserrat text-sm text-[#333333]">
-                            Patient paid{" "}
-                            {formatRefundCents(
-                              refundPreview.originalPaidAmountCents,
-                              refundPreview.currency,
-                            )}
-                            . Eligible refund:{" "}
-                            {formatRefundCents(
-                              refundPreview.originalPaidAmountCents,
-                              refundPreview.currency,
-                            )}{" "}
-                            (100%).
-                          </p>
-                        ) : refundPreview.percentage === 0 ? (
-                          <p className="mt-1 font-montserrat text-sm text-[#333333]">
-                            Patient paid{" "}
-                            {formatRefundCents(
-                              refundPreview.originalPaidAmountCents,
-                              refundPreview.currency,
-                            )}
-                            . No refund will be issued.
-                          </p>
-                        ) : (
-                          <p className="mt-1 font-montserrat text-sm text-[#333333]">
-                            Patient paid{" "}
-                            {formatRefundCents(
-                              refundPreview.originalPaidAmountCents,
-                              refundPreview.currency,
-                            )}
-                            . Eligible refund:{" "}
-                            {formatRefundCents(
-                              refundPreview.eligibleRefundAmountCents,
-                              refundPreview.currency,
-                            )}{" "}
-                            ({refundPreview.percentage}%).
-                          </p>
-                        ))}
-                    </>
-                  )
-                ) : (
-                  <p className="font-montserrat text-sm text-[#5E5E5E]">
-                    No refund applies (appointment was not paid).
-                  </p>
-                )}
+                <StaffCancelRefundPreview
+                  loading={refundPreviewLoading}
+                  refundPreview={refundPreview}
+                  cancelReason={cancelReason}
+                  formatRefundCents={formatRefundCents}
+                />
               </div>
               <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
                 <button
