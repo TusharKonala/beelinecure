@@ -287,6 +287,9 @@ export function ViewSchedulePanel({
     ) => {
       const requestId = ++latestListRequestIdRef.current;
       setIsListLoading(true);
+      if (!append) {
+        setDays((current) => (current !== null ? [] : current));
+      }
       const params = new URLSearchParams({
         view: "list",
         page: String(nextPage),
@@ -787,7 +790,11 @@ export function ViewSchedulePanel({
         <p className="font-montserrat text-sm text-red-600">{holidayError}</p>
       )}
 
-      {filteredDays.length === 0 ? (
+      {isListLoading && filteredDays.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-[#e5e5e5] bg-[#fafafa] px-4 py-6 text-center">
+          <p className="font-montserrat text-sm text-[#5E5E5E]">Loading...</p>
+        </div>
+      ) : filteredDays.length === 0 ? (
         <div className="rounded-xl border border-dashed border-[#e5e5e5] bg-[#fafafa] px-4 py-6 text-center">
           <p className="font-montserrat text-sm text-[#5E5E5E]">
             {bookedOnly
@@ -851,7 +858,8 @@ export function ViewSchedulePanel({
           ))}
         </ul>
       )}
-      {(hasMore || isListLoading) && allowScheduleListPagination && (
+      {(hasMore || (isListLoading && filteredDays.length > 0)) &&
+        allowScheduleListPagination && (
         <div
           ref={sentryRef}
           className="py-2 text-center font-montserrat text-sm text-[#5E5E5E]"
