@@ -105,10 +105,7 @@ function ViewScheduleQuickCheckField({
           </button>
         ) : null}
       </div>
-      <div
-        className="mt-1.5 w-full cursor-pointer"
-        onClick={() => inputRef.current?.showPicker?.()}
-      >
+      <div className="mt-1.5 w-full cursor-pointer select-none">
         <input
           ref={inputRef}
           id="view-schedule-quick-check"
@@ -116,6 +113,8 @@ function ViewScheduleQuickCheckField({
           min={minDate}
           value={quickCheckDate}
           onChange={(e) => setQuickCheckDate(e.target.value)}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={(e) => e.currentTarget.showPicker?.()}
           className={cn(quickCheckDateInputClassName, "mt-0 select-none")}
           aria-label="Pick a date to view saved slots"
         />
