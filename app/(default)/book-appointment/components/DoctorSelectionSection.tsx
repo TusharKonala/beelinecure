@@ -288,9 +288,9 @@ export function DoctorSelectionSection() {
   }, []);
 
   return (
-    <section className="w-full bg-[#fafafa] py-6 md:py-10 lg:py-12">
+    <section className="w-full bg-[#fafafa] py-3 md:py-4">
       <Container>
-        <div className="border-b border-[#2555F3]/10 bg-linear-to-br from-[#F0F7FF] to-[#E6F2FF] px-6 py-3">
+        <div className="rounded-xl border border-[#2555F3]/10 bg-linear-to-br from-[#F0F7FF] to-[#E6F2FF] px-4 py-2">
           <p className="mx-auto max-w-4xl text-center font-montserrat text-xs leading-relaxed text-[#2555F3] md:text-sm">
             Book appointment from{" "}
             <Link
@@ -304,13 +304,13 @@ export function DoctorSelectionSection() {
           </p>
         </div>
 
-        <div className="mt-6 flex flex-col gap-2 text-left md:text-left">
+        <div className="mt-3 flex flex-col gap-1 text-left md:text-left">
           <h2 className="font-montaga text-2xl font-semibold leading-tight text-[#333333] md:text-3xl">
             Select a Doctor
           </h2>
         </div>
 
-        <div className="mt-6 flex flex-col gap-4 border-b border-[#e5e5e5] pb-6">
+        <div className="mt-4 flex flex-col gap-4 border-b border-[#e5e5e5] pb-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="font-montserrat text-xs text-[#777777]">
               Filter by symptom, specialty, mode, and fee.

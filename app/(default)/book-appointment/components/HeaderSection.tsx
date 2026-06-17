@@ -2,7 +2,7 @@ import { Container } from "@/components/layout/Container";
 
 export function HeaderSection() {
   return (
-    <section className="w-full bg-white py-6 md:py-8 lg:py-10">
+    <section className="w-full bg-white py-4 md:py-5">
       <Container>
         <div className="flex flex-col items-center text-center">
           <h1 className="font-montaga text-3xl leading-tight tracking-tight text-[#111111] md:text-4xl">
