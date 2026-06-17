@@ -116,7 +116,7 @@ function ViewScheduleQuickCheckField({
           min={minDate}
           value={quickCheckDate}
           onChange={(e) => setQuickCheckDate(e.target.value)}
-          className={cn(quickCheckDateInputClassName, "mt-0")}
+          className={cn(quickCheckDateInputClassName, "mt-0 select-none")}
           aria-label="Pick a date to view saved slots"
         />
       </div>
