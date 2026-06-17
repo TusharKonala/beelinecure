@@ -99,8 +99,9 @@ function ViewScheduleQuickCheckField({
             type="button"
             className="cursor-pointer shrink-0 font-montserrat text-xs font-medium text-[#2555F3] underline-offset-2 hover:underline"
             onClick={() => setQuickCheckDate("")}
+            aria-label="Clear quick check only"
           >
-            Clear
+            Clear quick check
           </button>
         ) : null}
       </div>
