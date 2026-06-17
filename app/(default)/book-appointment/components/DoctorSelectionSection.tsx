@@ -290,7 +290,21 @@ export function DoctorSelectionSection() {
   return (
     <section className="w-full bg-[#fafafa] py-6 md:py-10 lg:py-12">
       <Container>
-        <div className="flex flex-col gap-2 text-left md:text-left">
+        <div className="border-b border-[#2555F3]/10 bg-linear-to-br from-[#F0F7FF] to-[#E6F2FF] px-6 py-3">
+          <p className="mx-auto max-w-4xl text-center font-montserrat text-xs leading-relaxed text-[#2555F3] md:text-sm">
+            Book appointment from{" "}
+            <Link
+              href="/book-appointment/cmqf2kphh000104jpk3ixd9am"
+              className="font-medium underline underline-offset-2 transition hover:text-[#1e44c7]"
+            >
+              Dr Anuj
+            </Link>{" "}
+            for online consultation links (Since Anuj has been added as a test user
+            and his calendar is connected)
+          </p>
+        </div>
+
+        <div className="mt-6 flex flex-col gap-2 text-left md:text-left">
           <h2 className="font-montaga text-2xl font-semibold leading-tight text-[#333333] md:text-3xl">
             Select a Doctor
           </h2>
