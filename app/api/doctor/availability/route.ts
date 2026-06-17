@@ -311,6 +311,11 @@ export async function GET(request: NextRequest) {
      */
     const bookedOnly =
       request.nextUrl.searchParams.get("bookedOnly") === "true";
+    const dateFilterRaw = request.nextUrl.searchParams.get("date");
+    const dateFilterYmd = parseYmdOrNull(dateFilterRaw);
+    if (dateFilterRaw && dateFilterYmd === null) {
+      return NextResponse.json({ error: "Invalid date" }, { status: 400 });
+    }
     const page = Math.max(
       1,
       Number(request.nextUrl.searchParams.get("page") ?? "1") || 1,
@@ -426,6 +431,9 @@ export async function GET(request: NextRequest) {
       daysWindow = daysWindow.filter((d) =>
         d.slotDetails.some((slot) => slot.booked),
       );
+    }
+    if (dateFilterYmd) {
+      daysWindow = daysWindow.filter((d) => d.date === dateFilterYmd);
     }
 
     const start = (page - 1) * limit;

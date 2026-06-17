@@ -284,6 +284,7 @@ export function ViewSchedulePanel({
       append: boolean,
       monthFilter: typeof ALL_MONTHS_VALUE | string,
       bookedOnlyFilter: boolean,
+      dateFilter: "all" | string,
     ) => {
       const requestId = ++latestListRequestIdRef.current;
       setIsListLoading(true);
@@ -301,6 +302,9 @@ export function ViewSchedulePanel({
       }
       if (bookedOnlyFilter) {
         params.set("bookedOnly", "true");
+      }
+      if (dateFilter !== "all") {
+        params.set("date", dateFilter);
       }
       const res = await fetch(`/api/doctor/availability?${params.toString()}`, {
         cache: "no-store",
@@ -347,7 +351,7 @@ export function ViewSchedulePanel({
     let cancelled = false;
     void (async () => {
       try {
-        await loadList(1, false, selectedMonth, bookedOnly);
+        await loadList(1, false, selectedMonth, bookedOnly, selectedDateFilter);
       } catch (e) {
         if (!cancelled) {
           setError(e instanceof Error ? e.message : "Failed to load");
@@ -357,7 +361,7 @@ export function ViewSchedulePanel({
     return () => {
       cancelled = true;
     };
-  }, [loadList, listRefreshVersion, selectedMonth, bookedOnly]);
+  }, [loadList, listRefreshVersion, selectedMonth, bookedOnly, selectedDateFilter]);
 
   /** Single-date view is short; the sentinel stays in view and would page until `hasMore` is false. */
   const allowScheduleListPagination = selectedDateFilter === "all";
@@ -365,23 +369,25 @@ export function ViewSchedulePanel({
   const [sentryRef] = useInfiniteScroll({
     loading: isListLoading,
     hasNextPage: hasMore && allowScheduleListPagination,
-    onLoadMore: () => void loadList(page + 1, true, selectedMonth, bookedOnly),
+    onLoadMore: () =>
+      void loadList(
+        page + 1,
+        true,
+        selectedMonth,
+        bookedOnly,
+        selectedDateFilter,
+      ),
     disabled: false,
     rootMargin: "0px 0px 300px 0px",
   });
 
   useEffect(() => {
     if (scheduleMonthsWithAvailability.length === 0) return;
-    setSelectedMonth((prev) => {
-      if (prev === ALL_MONTHS_VALUE) return prev;
-      if (scheduleMonthsWithAvailability.includes(prev)) return prev;
-      return ALL_MONTHS_VALUE;
-    });
-  }, [scheduleMonthsWithAvailability]);
-
-  useEffect(() => {
+    if (selectedMonth === ALL_MONTHS_VALUE) return;
+    if (scheduleMonthsWithAvailability.includes(selectedMonth)) return;
+    setSelectedMonth(ALL_MONTHS_VALUE);
     setSelectedDateFilter("all");
-  }, [selectedMonth]);
+  }, [scheduleMonthsWithAvailability, selectedMonth]);
 
   const hasUpcomingAvailability = scheduleMonthsWithAvailability.length > 0;
 
@@ -409,18 +415,7 @@ export function ViewSchedulePanel({
     return sortedDatesInMonth(days ?? [], selectedMonth);
   }, [days, selectedMonth, scheduleDatesByMonth]);
 
-  const filteredDays = useMemo(() => {
-    if (!days?.length) return [];
-    // bookedOnly is applied server-side (so `hasMore` stays accurate for
-    // infinite scroll), and `selectedMonth` is also a server param. Only the
-    // single-date narrowing happens locally — it's a cheap UI-only refinement
-    // that doesn't interact with pagination.
-    let out = [...days];
-    if (selectedDateFilter !== "all") {
-      out = out.filter((d) => d.date === selectedDateFilter);
-    }
-    return out;
-  }, [days, selectedDateFilter]);
+  const filteredDays = days ?? [];
 
   useEffect(() => {
     if (!holidayConfirmDate) return;
@@ -507,7 +502,7 @@ export function ViewSchedulePanel({
         const data = (await res.json()) as { error?: string };
         throw new Error(data.error ?? "Could not update");
       }
-      await loadList(1, false, selectedMonth, bookedOnly);
+      await loadList(1, false, selectedMonth, bookedOnly, selectedDateFilter);
       onAvailabilityChanged?.(isoDate);
     } catch (e) {
       setHolidayError(
@@ -710,6 +705,7 @@ export function ViewSchedulePanel({
                   value={selectedMonth}
                   onChange={(e) => {
                     setSelectedMonth(e.target.value);
+                    setSelectedDateFilter("all");
                   }}
                   className={scheduleFilterSelectClassName("mt-1.5")}
                 >
