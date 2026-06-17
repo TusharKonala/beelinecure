@@ -289,6 +289,7 @@ export function ViewSchedulePanel({
       setIsListLoading(true);
       if (!append) {
         setDays((current) => (current !== null ? [] : current));
+        setHasMore(false);
       }
       const params = new URLSearchParams({
         view: "list",
@@ -858,7 +859,8 @@ export function ViewSchedulePanel({
           ))}
         </ul>
       )}
-      {(hasMore || (isListLoading && filteredDays.length > 0)) &&
+      {((hasMore && !isListLoading) ||
+        (isListLoading && filteredDays.length > 0)) &&
         allowScheduleListPagination && (
         <div
           ref={sentryRef}
