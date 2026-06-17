@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Check } from "lucide-react";
 
 export const metadata: Metadata = {
   title: "About BeelineCure",
@@ -135,12 +134,9 @@ export default function AboutPage() {
             {features.map((feature) => (
               <div
                 key={feature}
-                className="flex items-start gap-3 rounded-lg bg-[#2D3748] p-4 font-montserrat text-sm text-white"
+                className="rounded-lg border border-white/10 bg-[#2D3748] p-5 font-montserrat text-base leading-7 text-white md:text-[17px]"
               >
-                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#2555F3]">
-                  <Check className="h-3 w-3 text-white" />
-                </span>
-                <span>{feature}</span>
+                {feature}
               </div>
             ))}
           </div>
