@@ -379,6 +379,8 @@ export function ViewSchedulePanel({
     setSelectedDateFilter("all");
   }, [selectedMonth]);
 
+  const hasUpcomingAvailability = scheduleMonthsWithAvailability.length > 0;
+
   const monthOptions = useMemo(() => {
     if (scheduleMonthsWithAvailability.length > 0) {
       return scheduleMonthsWithAvailability;
@@ -654,7 +656,7 @@ export function ViewSchedulePanel({
     );
   }
 
-  if (days.length === 0) {
+  if (days.length === 0 && !hasUpcomingAvailability) {
     return (
       <div className="mt-6 space-y-4">
         <div className="rounded-xl border border-dashed border-[#e5e5e5] bg-[#fafafa] px-4 py-8 text-center">
