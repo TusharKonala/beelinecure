@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Users, Stethoscope, TrendingUp, X, Check, Play } from "lucide-react";
+import { Users, Stethoscope, TrendingUp, X, Check, Play, type LucideIcon } from "lucide-react";
 
 const comparisonRows = [
   {
@@ -292,9 +292,41 @@ export default function BeelineCureHomepage() {
             Built for the people who make your clinic work
           </p>
           <div className="mt-12 grid grid-cols-1 gap-8 md:mt-16 md:grid-cols-2 lg:grid-cols-3 [&>*:nth-child(3)]:md:col-span-2 [&>*:nth-child(3)]:md:mx-auto [&>*:nth-child(3)]:md:max-w-[calc((100%-2rem)/2)] [&>*:nth-child(3)]:lg:col-span-1 [&>*:nth-child(3)]:lg:mx-0 [&>*:nth-child(3)]:lg:max-w-none">
-            <FeatureCardTeal />
-            <FeatureCardSage />
-            <FeatureCardTaupe />
+            <FeatureCard
+              icon={Users}
+              title="For Patients"
+              items={[
+                "Browse doctors and book in minutes",
+                "Choose clinic visit or video consultation",
+                "Pay online or at the clinic",
+                "Automatic reminders before every appointment",
+                "Access prescriptions from their account",
+                "Message their doctor after a visit",
+                "Cancel or reschedule with one click",
+              ]}
+            />
+            <FeatureCard
+              icon={Stethoscope}
+              title="For Doctors"
+              items={[
+                "Manage schedule and availability easily",
+                "View appointments and write prescriptions",
+                "Message patients directly",
+                "Google Calendar sync",
+                "Video consultations via Google Meet",
+              ]}
+            />
+            <FeatureCard
+              icon={TrendingUp}
+              title="For Clinic Owners"
+              items={[
+                "Live dashboard: bookings, revenue, doctor activity",
+                "Approve doctors before they go live",
+                "Manage and moderate patient reviews",
+                "Post jobs and screen candidates with AI",
+                "Everything in one place",
+              ]}
+            />
           </div>
         </div>
       </section>
@@ -403,99 +435,30 @@ export default function BeelineCureHomepage() {
   );
 }
 
-function FeatureCardTeal() {
+function FeatureCard({
+  icon: Icon,
+  title,
+  items,
+}: {
+  icon: LucideIcon;
+  title: string;
+  items: string[];
+}) {
   return (
-    <article className="group overflow-hidden rounded-xl border border-[#60A5B8]/30 bg-gradient-to-br from-[#1e1e1e] via-[#1a2528] to-[#1e1e1e] transition-all hover:shadow-xl hover:shadow-[#60A5B8]/20">
-      <div className="h-[1.5px] bg-gradient-to-r from-[#60A5B8] to-[#4A8A9F]" />
+    <article className="overflow-hidden rounded-xl border border-white/10 bg-white/4 transition-colors hover:border-white/20 hover:bg-white/6">
       <div className="p-6">
-        <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-[#60A5B8]/20 to-[#4A8A9F]/15">
-          <Users className="h-7 w-7 text-[#60A5B8]" />
+        <div className="mb-4 flex h-14 w-14 items-center justify-center">
+          <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#2555F3]/15">
+            <Icon className="h-5 w-5 text-[#2555F3]" />
+          </div>
         </div>
-        <h3 className="border-b border-[#60A5B8]/20 pb-4 font-montaga text-xl font-semibold leading-tight text-white">
-          For Patients
+        <h3 className="border-b border-white/10 pb-4 font-montaga text-xl font-semibold leading-tight text-white">
+          {title}
         </h3>
-        <ul className="mt-4 space-y-3 font-montserrat">
-          {[
-            "Browse doctors and book in minutes",
-            "Choose clinic visit or video consultation",
-            "Pay online or at the clinic",
-            "Automatic reminders before every appointment",
-            "Access prescriptions from their account",
-            "Message their doctor after a visit",
-            "Cancel or reschedule with one click",
-          ].map((item) => (
-            <li
-              key={item}
-              className="flex items-start gap-3 text-sm text-white/80"
-            >
-              <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#60A5B8]" />
-              <span>{item}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </article>
-  );
-}
-
-function FeatureCardSage() {
-  return (
-    <article className="group overflow-hidden rounded-xl border border-[#7B9E87]/30 bg-gradient-to-br from-[#1e1e1e] via-[#1d2522] to-[#1e1e1e] transition-all hover:shadow-xl hover:shadow-[#7B9E87]/20">
-      <div className="h-[1.5px] bg-gradient-to-r from-[#7B9E87] to-[#5D8069]" />
-      <div className="p-6">
-        <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-[#7B9E87]/20 to-[#5D8069]/15">
-          <Stethoscope className="h-7 w-7 text-[#7B9E87]" />
-        </div>
-        <h3 className="border-b border-[#7B9E87]/20 pb-4 font-montaga text-xl font-semibold leading-tight text-white">
-          For Doctors
-        </h3>
-        <ul className="mt-4 space-y-3 font-montserrat">
-          {[
-            "Manage schedule and availability easily",
-            "View appointments and write prescriptions",
-            "Message patients directly",
-            "Google Calendar sync",
-            "Video consultations via Google Meet",
-          ].map((item) => (
-            <li
-              key={item}
-              className="flex items-start gap-3 text-sm text-white/80"
-            >
-              <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#7B9E87]" />
-              <span>{item}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </article>
-  );
-}
-
-function FeatureCardTaupe() {
-  return (
-    <article className="group overflow-hidden rounded-xl border border-[#9B8B7E]/30 bg-gradient-to-br from-[#1e1e1e] via-[#23211f] to-[#1e1e1e] transition-all hover:shadow-xl hover:shadow-[#9B8B7E]/20">
-      <div className="h-[1.5px] bg-gradient-to-r from-[#9B8B7E] to-[#7D6E62]" />
-      <div className="p-6">
-        <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-[#9B8B7E]/20 to-[#7D6E62]/15">
-          <TrendingUp className="h-7 w-7 text-[#9B8B7E]" />
-        </div>
-        <h3 className="border-b border-[#9B8B7E]/20 pb-4 font-montaga text-xl font-semibold leading-tight text-white">
-          For Clinic Owners
-        </h3>
-        <ul className="mt-4 space-y-3 font-montserrat">
-          {[
-            "Live dashboard: bookings, revenue, doctor activity",
-            "Approve doctors before they go live",
-            "Manage and moderate patient reviews",
-            "Post jobs and screen candidates with AI",
-            "Everything in one place",
-          ].map((item) => (
-            <li
-              key={item}
-              className="flex items-start gap-3 text-sm text-white/80"
-            >
-              <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#9B8B7E]" />
-              <span>{item}</span>
+        <ul className="mt-5 list-disc space-y-4 pl-5 font-montserrat marker:text-white/55">
+          {items.map((item) => (
+            <li key={item} className="text-base leading-7 text-white/90">
+              {item}
             </li>
           ))}
         </ul>
