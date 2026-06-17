@@ -509,7 +509,7 @@ export function DoctorSelectionSection() {
                 key={i}
                 className="flex h-full flex-col overflow-hidden rounded-2xl border border-[#e5e5e5] bg-white shadow-sm"
               >
-                <Skeleton className="aspect-4/3 w-full rounded-t-2xl bg-[#e5e5e5] min-[450px]:h-72 min-[450px]:aspect-auto sm:h-64" />
+                <Skeleton className="block aspect-4/3 w-full shrink-0 rounded-t-2xl bg-[#e5e5e5] min-[450px]:h-72 min-[450px]:aspect-auto sm:h-64" />
                 <div className="flex flex-1 flex-col gap-3 px-5 py-4">
                   <Skeleton className="h-6 w-32 bg-[#e5e5e5] md:h-7" />
                   <Skeleton className="h-4 w-24 bg-[#e5e5e5]" />
@@ -540,7 +540,7 @@ export function DoctorSelectionSection() {
               >
                 <Link
                   href={cardHref(doctor)}
-                  className="relative aspect-4/3 w-full overflow-hidden rounded-t-2xl bg-[#f5f5f5] min-[450px]:h-72 min-[450px]:aspect-auto sm:h-64"
+                  className="relative block aspect-4/3 w-full shrink-0 overflow-hidden rounded-t-2xl bg-[#f5f5f5] min-[450px]:h-72 min-[450px]:aspect-auto sm:h-64"
                 >
                   <DoctorProfilePhoto
                     src={doctor.profilePhotoUrl}
