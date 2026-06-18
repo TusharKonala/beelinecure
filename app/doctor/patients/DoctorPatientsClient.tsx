@@ -123,6 +123,21 @@ export default function DoctorPatientsClient() {
         </p>
       </div>
 
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <p className="font-montserrat text-xs text-[#5E5E5E]">
+          Search patients by name, email, or phone.
+        </p>
+        {search.trim() ? (
+          <button
+            type="button"
+            onClick={() => setSearch("")}
+            className="cursor-pointer font-montserrat text-xs text-[#777777] underline underline-offset-4 transition hover:text-[#2555F3]"
+          >
+            Clear search
+          </button>
+        ) : null}
+      </div>
+
       <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end sm:gap-x-8 sm:gap-y-4">
         <div className="flex min-w-0 flex-1 flex-col gap-2 sm:max-w-xs">
           <label
