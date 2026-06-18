@@ -123,21 +123,6 @@ export default function DoctorPatientsClient() {
         </p>
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-        <p className="font-montserrat text-xs text-[#5E5E5E]">
-          Search patients by name, email, or phone.
-        </p>
-        {search.trim() ? (
-          <button
-            type="button"
-            onClick={() => setSearch("")}
-            className="cursor-pointer font-montserrat text-xs text-[#777777] underline underline-offset-4 transition hover:text-[#2555F3]"
-          >
-            Clear search
-          </button>
-        ) : null}
-      </div>
-
       <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end sm:gap-x-8 sm:gap-y-4">
         <div className="flex min-w-0 flex-1 flex-col gap-2 sm:max-w-xs">
           <label
@@ -146,14 +131,26 @@ export default function DoctorPatientsClient() {
           >
             Patient
           </label>
-          <input
-            id="doctor-patients-search"
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search name, email, or phone"
-            className="w-full min-w-0 rounded-xl border border-[#e5e5e5] bg-white py-2 px-3 font-montserrat text-sm text-[#333333] shadow-sm outline-none focus:border-[#2555F3] focus:ring-2 focus:ring-[#2555F3]/20"
-          />
+          <div className="relative w-full">
+            <input
+              id="doctor-patients-search"
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search name, email, or phone"
+              className="w-full min-w-0 rounded-xl border border-[#e5e5e5] bg-white py-2 pl-3 pr-14 font-montserrat text-sm text-[#333333] shadow-sm outline-none focus:border-[#2555F3] focus:ring-2 focus:ring-[#2555F3]/20"
+            />
+            {search ? (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                aria-label="Clear search"
+                className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer font-montserrat text-sm text-[#5E5E5E] hover:text-[#333333]"
+              >
+                Clear
+              </button>
+            ) : null}
+          </div>
         </div>
       </div>
 
