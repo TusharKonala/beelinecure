@@ -14,6 +14,7 @@ type ConsultationType = "CLINIC" | "ONLINE";
 type AppointmentStatus = "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED";
 type TabKey = "upcoming" | "pending-review" | "completed" | "cancelled";
 type DateFilterValue = "asc" | "desc" | "today" | "week" | "month";
+const DEFAULT_DATE_FILTER: DateFilterValue = "desc";
 type CancelReason = "patient_no_show" | "doctor_unavailable";
 
 type RefundPreviewPayload = {
@@ -102,7 +103,7 @@ export default function DoctorAppointmentsClient() {
   const [hasMore, setHasMore] = useState(true);
   const [tab, setTab] = useState<TabKey>(initialTab);
   const [search, setSearch] = useState(initialSearch);
-  const [dateFilter, setDateFilter] = useState<DateFilterValue>("desc");
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>(DEFAULT_DATE_FILTER);
   const [isLoading, setIsLoading] = useState(false);
   const [isCanceling, setIsCanceling] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<DoctorAppointmentItem | null>(null);
@@ -210,6 +211,21 @@ export default function DoctorAppointmentsClient() {
   useEffect(() => {
     void loadAppointments(1, false);
   }, [loadAppointments]);
+
+  const hasActiveFilters =
+    search.trim() !== "" || dateFilter !== DEFAULT_DATE_FILTER;
+
+  const clearAllFilters = useCallback(() => {
+    setSearch("");
+    setDateFilter(DEFAULT_DATE_FILTER);
+
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.delete("search");
+    const qs = nextParams.toString();
+    router.replace(qs ? `/doctor/appointments?${qs}` : "/doctor/appointments", {
+      scroll: false,
+    });
+  }, [router, searchParams]);
 
   const [sentryRef] = useInfiniteScroll({
     loading: isLoading,
@@ -325,6 +341,21 @@ export default function DoctorAppointmentsClient() {
         >
           Cancelled
         </button>
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <p className="font-montserrat text-xs text-[#5E5E5E]">
+          Filter by patient and date.
+        </p>
+        {hasActiveFilters ? (
+          <button
+            type="button"
+            onClick={clearAllFilters}
+            className="cursor-pointer font-montserrat text-xs text-[#777777] underline underline-offset-4 transition hover:text-[#2555F3]"
+          >
+            Clear all filters
+          </button>
+        ) : null}
       </div>
 
       <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end sm:gap-x-8 sm:gap-y-4">
