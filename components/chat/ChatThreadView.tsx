@@ -109,6 +109,7 @@ export function ChatThreadView({
   const [showDeleteConversation, setShowDeleteConversation] = useState(false);
   const [hidingConversation, setHidingConversation] = useState(false);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+  const lightboxOpenedAtRef = useRef(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const topSentinelRef = useRef<HTMLDivElement>(null);
@@ -120,6 +121,15 @@ export function ChatThreadView({
   const loadingMoreRef = useRef(false);
   const isNearBottomRef = useRef(true);
   const didInitialScrollRef = useRef(false);
+
+  const openLightbox = useCallback((src: string) => {
+    lightboxOpenedAtRef.current = Date.now();
+    setLightboxSrc(src);
+  }, []);
+
+  const closeLightbox = useCallback(() => {
+    setLightboxSrc(null);
+  }, []);
 
   const syncUnreadBadge = useCallback(async () => {
     try {
@@ -737,11 +747,11 @@ export function ChatThreadView({
   useEffect(() => {
     if (!lightboxSrc) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setLightboxSrc(null);
+      if (e.key === "Escape") closeLightbox();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [lightboxSrc]);
+  }, [lightboxSrc, closeLightbox]);
 
   const inputDisabled = loadingInitial || !thread || thread.isReadOnly;
 
@@ -841,7 +851,7 @@ export function ChatThreadView({
               message={m}
               imageLoadFailed={imageLoadFailed}
               setImageLoadFailed={setImageLoadFailed}
-              onOpenImage={setLightboxSrc}
+              onOpenImage={openLightbox}
               onOpenDeleteMenu={(coords) => {
                 if (!canDeleteMessage(m)) return;
                 setDeleteMenuTarget({
@@ -970,13 +980,16 @@ export function ChatThreadView({
       {lightboxSrc && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
-          onClick={() => setLightboxSrc(null)}
+          onClick={() => {
+            if (Date.now() - lightboxOpenedAtRef.current < 400) return;
+            closeLightbox();
+          }}
           role="dialog"
           aria-modal="true"
         >
           <button
             type="button"
-            onClick={() => setLightboxSrc(null)}
+            onClick={closeLightbox}
             className="absolute right-4 top-4 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20"
             aria-label="Close image"
           >
