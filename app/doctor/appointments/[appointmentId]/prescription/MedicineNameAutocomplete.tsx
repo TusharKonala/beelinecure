@@ -80,6 +80,7 @@ export function MedicineNameAutocomplete({
     setIsOpen(false);
     setSuggestions([]);
     setHighlightIndex(-1);
+    setHasSearched(false);
   }
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
