@@ -191,10 +191,12 @@ export function PrescriptionPreviewClient({
                         {medicine.durationDays} day{medicine.durationDays === 1 ? "" : "s"}
                       </p>
                     </div>
-                    <p className="mt-3 font-montserrat text-sm text-[#333333]">
-                      <span className="font-semibold">Instructions:</span>{" "}
-                      {medicine.instructions}
-                    </p>
+                    {medicine.instructions.trim() && (
+                      <p className="mt-3 font-montserrat text-sm text-[#333333]">
+                        <span className="font-semibold">Instructions:</span>{" "}
+                        {medicine.instructions}
+                      </p>
+                    )}
                   </div>
                 ))}
                 {normalizedPrescription.generalNotes && (
