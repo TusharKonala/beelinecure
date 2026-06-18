@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import useInfiniteScroll from "react-infinite-scroll-hook";
 import { Button } from "@/components/ui/button";
 import { MontagaCapitalN } from "@/components/ui/MontagaCapitalN";
@@ -35,6 +35,7 @@ function consultationLabel(type: ConsultationType) {
 }
 
 type DateFilterValue = "asc" | "desc" | "today" | "week" | "month";
+const DEFAULT_DATE_FILTER: DateFilterValue = "desc";
 
 /** Hide native select arrow; custom chevron at `right: 0.75rem` with `pr-10` text inset. */
 const SELECT_CHEVRON =
@@ -45,13 +46,14 @@ function searchFromParam(raw: string | null): string {
 }
 
 export default function DoctorPrescriptionsClient() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const initialSearch = searchFromParam(searchParams.get("search"));
   const [items, setItems] = useState<DoctorPrescriptionItem[]>([]);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [search, setSearch] = useState(initialSearch);
-  const [dateFilter, setDateFilter] = useState<DateFilterValue>("desc");
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>(DEFAULT_DATE_FILTER);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const latestRequestIdRef = useRef(0);
@@ -102,6 +104,21 @@ export default function DoctorPrescriptionsClient() {
     setSearch(searchFromParam(searchParams.get("search")));
   }, [searchParams]);
 
+  const hasActiveFilters =
+    search.trim() !== "" || dateFilter !== DEFAULT_DATE_FILTER;
+
+  const clearAllFilters = useCallback(() => {
+    setSearch("");
+    setDateFilter(DEFAULT_DATE_FILTER);
+
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.delete("search");
+    const qs = nextParams.toString();
+    router.replace(qs ? `/doctor/prescriptions?${qs}` : "/doctor/prescriptions", {
+      scroll: false,
+    });
+  }, [router, searchParams]);
+
   const [sentryRef] = useInfiniteScroll({
     loading: isLoading,
     hasNextPage: hasMore,
@@ -119,6 +136,21 @@ export default function DoctorPrescriptionsClient() {
         <p className="font-montserrat text-sm text-[#5E5E5E]">
           View all prescriptions from your completed appointments.
         </p>
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <p className="font-montserrat text-xs text-[#5E5E5E]">
+          Filter by patient and date.
+        </p>
+        {hasActiveFilters ? (
+          <button
+            type="button"
+            onClick={clearAllFilters}
+            className="cursor-pointer font-montserrat text-xs text-[#777777] underline underline-offset-4 transition hover:text-[#2555F3]"
+          >
+            Clear all filters
+          </button>
+        ) : null}
       </div>
 
       <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end sm:gap-x-8 sm:gap-y-4">
