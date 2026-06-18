@@ -16,6 +16,9 @@ function doctorBackNav(from: string | undefined): { href: string; label: string 
   if (from === "prescriptions") {
     return { href: "/doctor/prescriptions", label: "Back to prescriptions" };
   }
+  if (from === "appointments") {
+    return { href: "/doctor/appointments?tab=completed", label: "Back to appointments" };
+  }
   return { href: "/doctor/appointments", label: "Back to appointments" };
 }
 
