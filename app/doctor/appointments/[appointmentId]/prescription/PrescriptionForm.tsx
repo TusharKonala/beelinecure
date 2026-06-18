@@ -21,6 +21,27 @@ type PrescriptionApiMedicine = {
   instructions: string;
 };
 
+type PrescriptionPayload = {
+  medicines: PrescriptionApiMedicine[];
+  generalNotes: string | null;
+};
+
+function buildPrescriptionPayload(
+  medicines: MedicineInput[],
+  generalNotes: string,
+): PrescriptionPayload {
+  return {
+    medicines: medicines.map((medicine) => ({
+      name: medicine.name.trim(),
+      dosage: medicine.dosage.trim(),
+      frequency: medicine.frequency.trim(),
+      durationDays: Number(medicine.durationDays),
+      instructions: medicine.instructions.trim(),
+    })),
+    generalNotes: generalNotes.trim() || null,
+  };
+}
+
 const emptyMedicine = (): MedicineInput => ({
   name: "",
   dosage: "",
@@ -44,6 +65,7 @@ export function PrescriptionForm({ appointmentId }: { appointmentId: string }) {
   const [medicines, setMedicines] = useState<MedicineInput[]>([emptyMedicine()]);
   const [generalNotes, setGeneralNotes] = useState("");
   const [isEditingExistingPrescription, setIsEditingExistingPrescription] = useState(false);
+  const [initialSnapshot, setInitialSnapshot] = useState<PrescriptionPayload | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,8 +92,19 @@ export function PrescriptionForm({ appointmentId }: { appointmentId: string }) {
         const rows = Array.isArray(existingMedicines)
           ? existingMedicines.map(mapApiMedicineToInput)
           : [];
+        const notes = data.prescription?.generalNotes ?? "";
         setMedicines(rows.length > 0 ? rows : [emptyMedicine()]);
-        setGeneralNotes(data.prescription?.generalNotes ?? "");
+        setGeneralNotes(notes);
+        if (data.prescription) {
+          setInitialSnapshot(
+            buildPrescriptionPayload(
+              rows.length > 0 ? rows : [emptyMedicine()],
+              notes,
+            ),
+          );
+        } else {
+          setInitialSnapshot(null);
+        }
       } catch (e) {
         if (!cancelled) {
           setError(e instanceof Error ? e.message : "Failed to load prescription");
@@ -101,6 +134,14 @@ export function PrescriptionForm({ appointmentId }: { appointmentId: string }) {
     [medicines],
   );
 
+  const isDirty = useMemo(() => {
+    if (!initialSnapshot) return false;
+    return (
+      JSON.stringify(buildPrescriptionPayload(medicines, generalNotes)) !==
+      JSON.stringify(initialSnapshot)
+    );
+  }, [initialSnapshot, medicines, generalNotes]);
+
   function updateMedicine(index: number, key: keyof MedicineInput, value: string) {
     setMedicines((current) =>
       current.map((medicine, i) => (i === index ? { ...medicine, [key]: value } : medicine)),
@@ -124,16 +165,7 @@ export function PrescriptionForm({ appointmentId }: { appointmentId: string }) {
       return;
     }
 
-    const payload = {
-      medicines: medicines.map((medicine) => ({
-        name: medicine.name.trim(),
-        dosage: medicine.dosage.trim(),
-        frequency: medicine.frequency.trim(),
-        durationDays: Number(medicine.durationDays),
-        instructions: medicine.instructions.trim(),
-      })),
-      generalNotes: generalNotes.trim() || null,
-    };
+    const payload = buildPrescriptionPayload(medicines, generalNotes);
 
     setIsSaving(true);
     try {
@@ -249,7 +281,7 @@ export function PrescriptionForm({ appointmentId }: { appointmentId: string }) {
           type="button"
           className="cursor-pointer rounded-xl font-montserrat"
           onClick={() => void handleSubmit()}
-          disabled={isSaving}
+          disabled={isSaving || (isEditingExistingPrescription && !isDirty)}
         >
           {isSaving
             ? "Saving..."

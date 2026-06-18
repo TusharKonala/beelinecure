@@ -42,7 +42,6 @@ function normalizePrescription(raw: {
         m.name &&
         m.dosage &&
         m.frequency &&
-        m.instructions &&
         Number.isInteger(m.durationDays) &&
         m.durationDays > 0,
     ),
