@@ -145,7 +145,7 @@ export default function DoctorPatientsClient() {
                 type="button"
                 onClick={() => setSearch("")}
                 aria-label="Clear search"
-                className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer font-montserrat text-sm text-[#5E5E5E] hover:text-[#333333]"
+                className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer font-montserrat text-sm text-[#5E5E5E] transition hover:text-[#2555F3]"
               >
                 Clear
               </button>
