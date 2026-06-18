@@ -281,7 +281,11 @@ export function PrescriptionForm({ appointmentId }: { appointmentId: string }) {
           type="button"
           className="cursor-pointer rounded-xl font-montserrat"
           onClick={() => void handleSubmit()}
-          disabled={isSaving || (isEditingExistingPrescription && !isDirty)}
+          disabled={
+            isSaving ||
+            hasInvalidMedicine ||
+            (isEditingExistingPrescription && !isDirty)
+          }
         >
           {isSaving
             ? "Saving..."
