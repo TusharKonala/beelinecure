@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getSession, signIn } from "next-auth/react";
 import { Container } from "@/components/layout/Container";
+import { useRedirectOverlay } from "@/components/nav/RedirectOverlayProvider";
 import { getPostLoginPath } from "@/lib/post-login-redirect";
 
 function safeCallbackPath(raw: string): string {
@@ -21,6 +22,7 @@ export default function MagicLinkClient({
   callbackUrlRaw: string;
 }) {
   const router = useRouter();
+  const { redirectWithOverlay } = useRedirectOverlay();
   const [status, setStatus] = useState<"working" | "error">("working");
   const [errorMessage, setErrorMessage] = useState(
     "This sign-in link is invalid or has expired. Please request a new one.",
@@ -61,7 +63,7 @@ export default function MagicLinkClient({
         profileComplete: session?.user?.profileComplete ?? true,
       });
       const nextPath = callbackUrl === "/patient/overview" ? fallbackPath : callbackUrl;
-      router.push(nextPath);
+      redirectWithOverlay(router, nextPath);
       router.refresh();
     }
 

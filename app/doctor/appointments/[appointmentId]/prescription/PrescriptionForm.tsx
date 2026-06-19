@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { useRedirectOverlay } from "@/components/nav/RedirectOverlayProvider";
 import { MedicineNameAutocomplete } from "./MedicineNameAutocomplete";
 
 type MedicineInput = {
@@ -62,6 +63,7 @@ function mapApiMedicineToInput(medicine: PrescriptionApiMedicine): MedicineInput
 
 export function PrescriptionForm({ appointmentId }: { appointmentId: string }) {
   const router = useRouter();
+  const { redirectWithOverlay } = useRedirectOverlay();
   const [medicines, setMedicines] = useState<MedicineInput[]>([emptyMedicine()]);
   const [generalNotes, setGeneralNotes] = useState("");
   const [isEditingExistingPrescription, setIsEditingExistingPrescription] = useState(false);
@@ -168,6 +170,7 @@ export function PrescriptionForm({ appointmentId }: { appointmentId: string }) {
     const payload = buildPrescriptionPayload(medicines, generalNotes);
 
     setIsSaving(true);
+    let didRedirect = false;
     try {
       const res = await fetch(`/api/doctor/appointments/${appointmentId}/prescription`, {
         method: "PUT",
@@ -179,12 +182,13 @@ export function PrescriptionForm({ appointmentId }: { appointmentId: string }) {
         setError(data?.error ?? "Failed to save prescription");
         return;
       }
-      router.push("/doctor/appointments?tab=completed");
+      redirectWithOverlay(router, "/doctor/appointments?tab=completed");
       router.refresh();
+      didRedirect = true;
     } catch {
       setError("Failed to save prescription");
     } finally {
-      setIsSaving(false);
+      if (!didRedirect) setIsSaving(false);
     }
   }
 

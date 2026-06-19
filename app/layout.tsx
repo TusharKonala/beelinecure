@@ -4,6 +4,7 @@ import { AdminNotificationToaster } from "@/components/admin/AdminNotificationTo
 import { DoctorNotificationToaster } from "@/components/doctor/DoctorNotificationToaster";
 import { QueryProvider } from "@/components/QueryProvider";
 import { PatientNotificationToaster } from "@/components/patient/PatientNotificationToaster";
+import { RedirectOverlayProvider } from "@/components/nav/RedirectOverlayProvider";
 import { SessionProvider } from "@/components/SessionProvider";
 import "@/app/globals.css";
 
@@ -44,12 +45,14 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} ${montaga.variable} ${montserrat.variable} antialiased`}
       >
         <SessionProvider>
-          <QueryProvider>
-            {children}
-            <PatientNotificationToaster />
-            <DoctorNotificationToaster />
-            <AdminNotificationToaster />
-          </QueryProvider>
+          <RedirectOverlayProvider>
+            <QueryProvider>
+              {children}
+              <PatientNotificationToaster />
+              <DoctorNotificationToaster />
+              <AdminNotificationToaster />
+            </QueryProvider>
+          </RedirectOverlayProvider>
         </SessionProvider>
       </body>
     </html>

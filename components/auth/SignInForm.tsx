@@ -6,11 +6,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { getSession, signIn } from "next-auth/react";
 import { Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useRedirectOverlay } from "@/components/nav/RedirectOverlayProvider";
 import { DEMO_ACCOUNTS } from "@/lib/demo-credentials";
 import { getPostLoginPath } from "@/lib/post-login-redirect";
 
 export function SignInForm() {
   const router = useRouter();
+  const { redirectWithOverlay } = useRedirectOverlay();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") ?? "/patient/overview";
   const registered = searchParams.get("registered") === "1";
@@ -38,6 +40,7 @@ export function SignInForm() {
     e.preventDefault();
     setError(null);
     setPending(true);
+    let didRedirect = false;
     try {
       const result = await signIn("credentials", {
         email,
@@ -67,10 +70,11 @@ export function SignInForm() {
         profileComplete: session?.user?.profileComplete ?? true,
       });
       const nextPath = callbackUrl === "/patient/overview" ? fallbackPath : callbackUrl;
-      router.push(nextPath);
+      redirectWithOverlay(router, nextPath);
       router.refresh();
+      didRedirect = true;
     } finally {
-      setPending(false);
+      if (!didRedirect) setPending(false);
     }
   }
 

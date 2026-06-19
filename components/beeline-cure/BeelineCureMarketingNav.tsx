@@ -55,6 +55,7 @@ function AuthNavLinks({
       <NavLink
         href={dashboardHref}
         className={linkClass}
+        showProgress
         onClick={onCloseMenu}
       >
         Dashboard

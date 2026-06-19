@@ -18,6 +18,7 @@ import PhoneInput, { isValidPhoneNumber } from "react-phone-number-input";
 import { z } from "zod";
 import { SetAvailabilityCalendar } from "@/app/doctor/my-schedule/SetAvailabilityCalendar";
 import { Container } from "@/components/layout/Container";
+import { useRedirectOverlay } from "@/components/nav/RedirectOverlayProvider";
 import { PostAppointmentActions } from "@/components/PostAppointmentActions";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -181,6 +182,7 @@ export default function BookAppointmentDoctorPage() {
   const params = useParams();
   const doctorId = String(params?.doctorId ?? "");
   const router = useRouter();
+  const { redirectWithOverlay } = useRedirectOverlay();
   const [selectedDate, setSelectedDate] = useState<string>(() =>
     todayYmdInTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone),
   );
@@ -471,6 +473,7 @@ export default function BookAppointmentDoctorPage() {
     async (data: PatientFormValues) => {
       setSubmitError(null);
       setIsSubmitting(true);
+      let didRedirect = false;
       try {
         if (consultationType === null || !selectedSlot) return;
 
@@ -576,7 +579,11 @@ export default function BookAppointmentDoctorPage() {
 
           const bookingSessionId = String(bookingSessionJson.bookingSessionId);
 
-          router.push(`/book-appointment/review/${bookingSessionId}`);
+          redirectWithOverlay(
+            router,
+            `/book-appointment/review/${bookingSessionId}`,
+          );
+          didRedirect = true;
         }
 
         void queryClient.invalidateQueries({
@@ -587,7 +594,7 @@ export default function BookAppointmentDoctorPage() {
       } catch {
         setSubmitError({ message: "Network error. Please try again." });
       } finally {
-        setIsSubmitting(false);
+        if (!didRedirect) setIsSubmitting(false);
       }
     },
     [
@@ -601,6 +608,7 @@ export default function BookAppointmentDoctorPage() {
       slotsData?.doctorTimezone,
       patientTimezone,
       queryClient,
+      redirectWithOverlay,
       router,
     ],
   );

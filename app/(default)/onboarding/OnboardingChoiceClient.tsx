@@ -5,9 +5,11 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Container } from "@/components/layout/Container";
+import { useRedirectOverlay } from "@/components/nav/RedirectOverlayProvider";
 
 export function OnboardingChoiceClient() {
   const router = useRouter();
+  const { redirectWithOverlay } = useRedirectOverlay();
   const { update } = useSession();
   const [pending, setPending] = useState<"patient" | "doctor" | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -15,6 +17,7 @@ export function OnboardingChoiceClient() {
   async function continueAsPatient() {
     setPending("patient");
     setError(null);
+    let didRedirect = false;
     try {
       const res = await fetch("/api/onboarding/complete", { method: "POST" });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
@@ -23,16 +26,18 @@ export function OnboardingChoiceClient() {
         return;
       }
       await update({ profileComplete: true });
-      router.replace("/patient/overview");
+      redirectWithOverlay(router, "/patient/overview", { replace: true });
       router.refresh();
+      didRedirect = true;
     } finally {
-      setPending(null);
+      if (!didRedirect) setPending(null);
     }
   }
 
   async function switchToDoctorSignup() {
     setPending("doctor");
     setError(null);
+    let didRedirect = false;
     try {
       const res = await fetch("/api/onboarding/doctor-intent", {
         method: "POST",
@@ -45,13 +50,12 @@ export function OnboardingChoiceClient() {
         setError(data.error ?? "Unable to continue to doctor signup.");
         return;
       }
-      // Keep the Google session active; just refresh the JWT so the role
-      // change made server-side propagates into the session.
       await update();
-      router.replace("/auth/signup?role=doctor");
+      redirectWithOverlay(router, "/auth/signup?role=doctor", { replace: true });
       router.refresh();
+      didRedirect = true;
     } finally {
-      setPending(null);
+      if (!didRedirect) setPending(null);
     }
   }
 

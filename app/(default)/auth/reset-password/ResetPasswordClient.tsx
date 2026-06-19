@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Container } from "@/components/layout/Container";
+import { useRedirectOverlay } from "@/components/nav/RedirectOverlayProvider";
 
 type TokenStatus = "checking" | "valid" | "invalid" | "expired" | "server_error";
 
@@ -17,6 +18,7 @@ export default function ResetPasswordClient({
   mode?: "reset" | "set";
 }) {
   const router = useRouter();
+  const { redirectWithOverlay } = useRedirectOverlay();
   const isSetMode = mode === "set";
   const [tokenStatus, setTokenStatus] = useState<TokenStatus>("checking");
   const [password, setPassword] = useState("");
@@ -84,6 +86,7 @@ export default function ResetPasswordClient({
     }
 
     setPending(true);
+    let didRedirect = false;
     try {
       const res = await fetch("/api/reset-password", {
         method: "POST",
@@ -97,10 +100,14 @@ export default function ResetPasswordClient({
         return;
       }
 
-      router.push(`/auth/signin?reset=1&mode=${isSetMode ? "set" : "reset"}`);
+      redirectWithOverlay(
+        router,
+        `/auth/signin?reset=1&mode=${isSetMode ? "set" : "reset"}`,
+      );
       router.refresh();
+      didRedirect = true;
     } finally {
-      setPending(false);
+      if (!didRedirect) setPending(false);
     }
   }
 

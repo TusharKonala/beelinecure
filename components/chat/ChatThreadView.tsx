@@ -21,6 +21,7 @@ import { DeleteConversationDialog } from "@/components/chat/DeleteConversationDi
 import { MessageDeleteMenu } from "@/components/chat/MessageDeleteMenu";
 import { formatMessageTime } from "@/components/chat/format-chat-time";
 import { LONG_PRESS_MS, useLongPress } from "@/components/chat/useLongPress";
+import { useRedirectOverlay } from "@/components/nav/RedirectOverlayProvider";
 import { syncGlobalUnreadBadge } from "@/components/chat/useChatInboxPusher";
 
 const DELETED_MESSAGE_PLACEHOLDER = "This message was deleted";
@@ -90,6 +91,7 @@ export function ChatThreadView({
   className = "",
 }: ChatThreadViewProps) {
   const router = useRouter();
+  const { redirectWithOverlay } = useRedirectOverlay();
   const { data: session, status } = useSession();
   const [thread, setThread] = useState<ThreadMeta | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -426,6 +428,7 @@ export function ChatThreadView({
     if (!convId || hidingConversation) return;
     const isDoctor = session?.user?.role === "DOCTOR";
     setHidingConversation(true);
+    let didRedirect = false;
     try {
       const endpoint = isDoctor ? "archive" : "hide";
       const res = await fetch(
@@ -442,7 +445,8 @@ export function ChatThreadView({
         );
       }
       setShowDeleteConversation(false);
-      router.push(backHref);
+      redirectWithOverlay(router, backHref);
+      didRedirect = true;
     } catch (err) {
       setError(
         err instanceof Error
@@ -453,9 +457,9 @@ export function ChatThreadView({
       );
       setShowDeleteConversation(false);
     } finally {
-      setHidingConversation(false);
+      if (!didRedirect) setHidingConversation(false);
     }
-  }, [backHref, hidingConversation, router, session?.user?.role]);
+  }, [backHref, hidingConversation, redirectWithOverlay, router, session?.user?.role]);
 
   /** Clears staged composer images without revoking URLs (ownership moves to sent bubbles). */
   const clearAllSelectedImages = useCallback(() => {

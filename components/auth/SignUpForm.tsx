@@ -8,6 +8,7 @@ import { signOut, useSession } from "next-auth/react";
 import { Eye, EyeOff } from "lucide-react";
 import PhoneInput, { isValidPhoneNumber } from "react-phone-number-input";
 import { Button } from "@/components/ui/button";
+import { useRedirectOverlay } from "@/components/nav/RedirectOverlayProvider";
 import { uploadDoctorPhoto } from "@/lib/uploads/uploadDoctorPhoto";
 import { DOCTOR_SPECIALIZATIONS } from "@/lib/doctor-specializations";
 import { DoctorPhotoCropper } from "@/components/doctor/DoctorPhotoCropper";
@@ -18,6 +19,7 @@ export function SignUpForm({
   initialRole?: "PATIENT" | "DOCTOR";
 }) {
   const router = useRouter();
+  const { redirectWithOverlay } = useRedirectOverlay();
   const { data: session, status: sessionStatus } = useSession();
 
   // Google-OAuth user completing the doctor profile: signed in, role already
@@ -92,6 +94,7 @@ export function SignUpForm({
     e.preventDefault();
     setError(null);
     setPending(true);
+    let didRedirect = false;
     try {
       const parsedYearsExperience =
         yearsExperience.trim().length > 0 ? Number(yearsExperience) : undefined;
@@ -211,12 +214,16 @@ export function SignUpForm({
 
       // After signup we require email verification before credentials login.
       const roleParam = role === "DOCTOR" ? "&role=doctor" : "&role=patient";
-      router.push(`/auth/signin?registered=1${roleParam}`);
+      redirectWithOverlay(
+        router,
+        `/auth/signin?registered=1${roleParam}`,
+      );
       router.refresh();
+      didRedirect = true;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
-      setPending(false);
+      if (!didRedirect) setPending(false);
     }
   }
 
