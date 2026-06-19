@@ -144,18 +144,4 @@
       @apply inline-flex min-h-11 items-center rounded-lg px-3 py-2;
     }
   }
-
-  .nav-link-progress {
-    width: 40%;
-    animation: nav-link-progress-slide 1.2s ease-in-out infinite;
-  }
-
-  @keyframes nav-link-progress-slide {
-    0% {
-      transform: translateX(-100%);
-    }
-    100% {
-      transform: translateX(350%);
-    }
-  }
 }

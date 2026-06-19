@@ -23,32 +23,32 @@ export function NavLink({
   onClick?: () => void;
   showProgress?: boolean;
 }) {
-  const [progress, setProgress] = useState(false);
+  const [showBar, setShowBar] = useState(false);
   const pathname = usePathname();
   const pathnameRef = useRef(pathname);
 
   useEffect(() => {
-    if (progress && pathname !== pathnameRef.current) {
-      setProgress(false);
+    if (showBar && pathname !== pathnameRef.current) {
+      setShowBar(false);
     }
     pathnameRef.current = pathname;
-  }, [pathname, progress]);
+  }, [pathname, showBar]);
 
   function handleClick(e: MouseEvent<HTMLAnchorElement>) {
     if (showProgress) {
-      setProgress(true);
+      setShowBar(true);
     }
     onClick?.();
   }
 
   return (
     <>
-      {progress && (
+      {showBar && (
         <div
-          className="pointer-events-none fixed left-0 top-0 z-[99] h-0.5 w-full overflow-hidden"
+          className="pointer-events-none fixed left-0 top-0 z-[99] h-0.5 w-full bg-[#2555F3]/15"
           aria-hidden
         >
-          <div className="nav-link-progress h-full bg-[#2555F3]" />
+          <div className="h-full w-[35%] bg-[#2555F3]" />
         </div>
       )}
       <Link href={href} className={className} onClick={handleClick}>
