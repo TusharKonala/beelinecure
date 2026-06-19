@@ -12,7 +12,11 @@ import { prisma } from "@/lib/db";
 import { inngest } from "@/inngest/client";
 import { createAppointmentNotificationForEmail } from "@/lib/notifications";
 import { formatDoctorDisplayName } from "@/lib/doctor-name";
-import { chatThreadUrlForRole, enqueueChatConversationEnsure, isChatLocked } from "@/lib/chat";
+import {
+  chatThreadUrlForRole,
+  ensureChatConversationForAppointment,
+  isChatLocked,
+} from "@/lib/chat";
 import { getEmailFrom } from "@/lib/email-from";
 import { prescriptionReminderTsFromSavedAt } from "@/lib/reminder-time";
 import {
@@ -173,9 +177,6 @@ export async function PUT(
           appointmentId: true,
         },
       },
-      chatConversation: {
-        select: { completedAt: true, lockedAt: true },
-      },
     },
   });
 
@@ -257,12 +258,6 @@ export async function PUT(
     });
   });
 
-  try {
-    await enqueueChatConversationEnsure(appointment.id);
-  } catch (err) {
-    console.error("[doctor-prescription] Failed to enqueue chat conversation:", err);
-  }
-
   const courseDays = Math.max(...medicines.map((medicine) => medicine.durationDays));
   try {
     const { halfwayTs, completedTs } = prescriptionReminderTsFromSavedAt(
@@ -295,6 +290,17 @@ export async function PUT(
     console.error("[doctor-prescription] Failed to schedule reminders:", err);
   }
 
+  let chatConv: { completedAt: Date; lockedAt: Date | null } | null = null;
+  try {
+    await ensureChatConversationForAppointment(appointment.id);
+    chatConv = await prisma.chatConversation.findUnique({
+      where: { appointmentId: appointment.id },
+      select: { completedAt: true, lockedAt: true },
+    });
+  } catch (err) {
+    console.error("[doctor-prescription] Failed to ensure chat conversation:", err);
+  }
+
   try {
     const dateStr = appointment.date.toISOString().slice(0, 10);
     const doctorDisplayName = formatDoctorDisplayName(appointment.doctor.name);
@@ -308,9 +314,8 @@ export async function PUT(
       notificationKind === "READY"
         ? `Your prescription from ${doctorDisplayName} is now ready. You can review it online from your appointments.`
         : `Your prescription from ${doctorDisplayName} has been updated. Please review the latest version in your appointments.`;
-    const conv = appointment.chatConversation;
     const chatActive =
-      conv && !isChatLocked(conv.completedAt, conv.lockedAt);
+      chatConv && !isChatLocked(chatConv.completedAt, chatConv.lockedAt);
     const chatUrl = chatActive
       ? chatThreadUrlForRole(UserRole.PATIENT, appointment.id)
       : null;
