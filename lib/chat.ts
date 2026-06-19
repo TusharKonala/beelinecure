@@ -157,6 +157,8 @@ export async function getUnreadCountsForUser(
     INNER JOIN "Appointment" a ON a.id = c."appointmentId"
     LEFT JOIN "ChatReadState" rs
       ON rs."conversationId" = m."conversationId" AND rs."userId" = ${userId}
+    LEFT JOIN "ChatConversationHideState" hs
+      ON hs."conversationId" = c.id AND hs."userId" = ${userId}
     WHERE (
       c."doctorUserId" = ${userId}
       OR c."patientUserId" = ${userId}
@@ -166,6 +168,10 @@ export async function getUnreadCountsForUser(
       AND m."isDeletedForEveryone" = false
       AND NOT (${userId} = ANY(m."deletedFor"))
       AND m."createdAt" > COALESCE(rs."lastReadAt", TIMESTAMP '1970-01-01')
+      AND (
+        hs."hiddenAt" IS NULL
+        OR m."createdAt" > hs."hiddenAt"
+      )
     GROUP BY m."conversationId"
   `;
 
@@ -438,18 +444,36 @@ function mapDbMessagesToClient(
     .map((m) => mapDbMessageToClient(m, userId));
 }
 
-function messagesVisibleWhere(userId: string) {
+function messagesVisibleWhere(userId: string, hiddenAt?: Date | null) {
   return {
     NOT: { deletedFor: { has: userId } },
+    ...(hiddenAt ? { createdAt: { gt: hiddenAt } } : {}),
   };
+}
+
+async function getHiddenAtCutoff(
+  conversationId: string,
+  userId: string,
+  role: UserRole,
+): Promise<Date | null> {
+  if (role !== UserRole.PATIENT) return null;
+  const state = await prisma.chatConversationHideState.findUnique({
+    where: {
+      conversationId_userId: { conversationId, userId },
+    },
+    select: { hiddenAt: true },
+  });
+  return state?.hiddenAt ?? null;
 }
 
 export async function getLastVisibleMessageForPreview(
   conversationId: string,
   userId: string,
+  role: UserRole,
 ) {
+  const hiddenAt = await getHiddenAtCutoff(conversationId, userId, role);
   const rows = await prisma.chatMessage.findMany({
-    where: { conversationId, ...messagesVisibleWhere(userId) },
+    where: { conversationId, ...messagesVisibleWhere(userId, hiddenAt) },
     orderBy: { createdAt: "desc" },
     take: 1,
     select: {
@@ -492,11 +516,25 @@ export async function hideConversationForUser(
     select: { hiddenFor: true },
   });
   if (!row) throw new Error("Conversation not found");
-  if (row.hiddenFor.includes(userId)) return;
-  await prisma.chatConversation.update({
-    where: { id: conversationId },
-    data: { hiddenFor: [...row.hiddenFor, userId] },
-  });
+
+  const now = new Date();
+  const hiddenFor = row.hiddenFor.includes(userId)
+    ? row.hiddenFor
+    : [...row.hiddenFor, userId];
+
+  await prisma.$transaction([
+    prisma.chatConversationHideState.upsert({
+      where: {
+        conversationId_userId: { conversationId, userId },
+      },
+      create: { conversationId, userId, hiddenAt: now },
+      update: { hiddenAt: now },
+    }),
+    prisma.chatConversation.update({
+      where: { id: conversationId },
+      data: { hiddenFor },
+    }),
+  ]);
 }
 
 export async function archiveConversationForDoctor(
@@ -507,6 +545,9 @@ export async function archiveConversationForDoctor(
   const conversation = await assertConversationAccess(conversationId, userId, role);
   if (!conversation) {
     throw new Error("Conversation not found");
+  }
+  if (!isChatLocked(conversation.completedAt, conversation.lockedAt)) {
+    throw new Error("Conversation must be read-only before archiving");
   }
   await prisma.chatConversation.update({
     where: { id: conversationId },
@@ -607,10 +648,12 @@ export async function deleteChatMessage(params: {
 export async function fetchRecentMessagesForConversation(
   conversationId: string,
   userId: string,
+  role: UserRole,
   limit = CHAT_MESSAGE_PAGE_SIZE,
 ): Promise<ChatMessagesPage> {
+  const hiddenAt = await getHiddenAtCutoff(conversationId, userId, role);
   const dbMessages = await prisma.chatMessage.findMany({
-    where: { conversationId, ...messagesVisibleWhere(userId) },
+    where: { conversationId, ...messagesVisibleWhere(userId, hiddenAt) },
     orderBy: { createdAt: "desc" },
     take: limit + 1,
     select: messageListSelect,
@@ -629,13 +672,18 @@ export async function fetchRecentMessagesForConversation(
 export async function fetchOlderMessagesForConversation(
   conversationId: string,
   userId: string,
+  role: UserRole,
   before: Date,
   limit = CHAT_MESSAGE_PAGE_SIZE,
 ): Promise<ChatMessagesPage> {
+  const hiddenAt = await getHiddenAtCutoff(conversationId, userId, role);
   const dbMessages = await prisma.chatMessage.findMany({
     where: {
       conversationId,
-      createdAt: { lt: before },
+      createdAt: {
+        lt: before,
+        ...(hiddenAt ? { gt: hiddenAt } : {}),
+      },
       ...messagesVisibleWhere(userId),
     },
     orderBy: { createdAt: "desc" },

@@ -92,6 +92,7 @@ export async function GET(
   const { messages, hasMore } = await fetchRecentMessagesForConversation(
     conversation.id,
     userId,
+    role,
   );
 
   const peerName =

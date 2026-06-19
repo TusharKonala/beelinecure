@@ -333,9 +333,20 @@ model ChatConversation {
 
   messages   ChatMessage[]
   readStates ChatReadState[]
+  hideStates ChatConversationHideState[]
 
   @@index([doctorUserId])
   @@index([patientUserId])
+}
+
+model ChatConversationHideState {
+  conversationId String
+  conversation   ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String
+  hiddenAt       DateTime
+
+  @@id([conversationId, userId])
+  @@index([userId])
 }
 
 model ChatMessage {

@@ -4,6 +4,7 @@ import { AppointmentStatus, UserRole } from "@/generated/prisma/client";
 import { authOptions } from "@/lib/auth";
 import {
   deriveLastMessagePreview,
+  getLastVisibleMessageForPreview,
   getUnreadCountsForUser,
   isChatLocked,
 } from "@/lib/chat";
@@ -80,18 +81,6 @@ export async function GET(request: NextRequest) {
             id: true,
             completedAt: true,
             lockedAt: true,
-            messages: {
-              where: { NOT: { deletedFor: { has: userId } } },
-              orderBy: { createdAt: "desc" },
-              take: 1,
-              select: {
-                body: true,
-                createdAt: true,
-                messageType: true,
-                imageKey: true,
-                isDeletedForEveryone: true,
-              },
-            },
           },
         },
       },
@@ -102,28 +91,38 @@ export async function GET(request: NextRequest) {
       ? completedAppointments.slice(0, limit)
       : completedAppointments;
 
-    const mapped = page.map((apt) => {
-      const conv = apt.chatConversation;
-      const convId = conv?.id ?? `pending-${apt.id}`;
-      const lastMessageAt =
-        conv?.messages[0]?.createdAt?.toISOString() ?? null;
-      const lastMessagePreview = deriveLastMessagePreview(conv?.messages[0]);
-      return {
-        id: convId,
-        appointmentId: apt.id,
-        peerName: apt.doctor.name,
-        peerSubtitle: apt.doctor.specialization,
-        peerPhotoUrl: apt.doctor.profilePhotoUrl,
-        lastMessagePreview,
-        lastMessageAt,
-        unreadCount: conv ? (unread.byConversationId[conv.id] ?? 0) : 0,
-        isReadOnly: conv
-          ? isChatLocked(conv.completedAt, conv.lockedAt)
-          : false,
-        isReady: Boolean(conv),
-        sortFallbackAt: apt.createdAt.toISOString(),
-      };
-    });
+    const mapped = await Promise.all(
+      page.map(async (apt) => {
+        const conv = apt.chatConversation;
+        const convId = conv?.id ?? `pending-${apt.id}`;
+        const lastMessage = conv
+          ? await getLastVisibleMessageForPreview(
+              conv.id,
+              userId,
+              UserRole.PATIENT,
+            )
+          : null;
+        const lastMessageAt = lastMessage?.createdAt?.toISOString() ?? null;
+        const lastMessagePreview = deriveLastMessagePreview(
+          lastMessage ?? undefined,
+        );
+        return {
+          id: convId,
+          appointmentId: apt.id,
+          peerName: apt.doctor.name,
+          peerSubtitle: apt.doctor.specialization,
+          peerPhotoUrl: apt.doctor.profilePhotoUrl,
+          lastMessagePreview,
+          lastMessageAt,
+          unreadCount: conv ? (unread.byConversationId[conv.id] ?? 0) : 0,
+          isReadOnly: conv
+            ? isChatLocked(conv.completedAt, conv.lockedAt)
+            : false,
+          isReady: Boolean(conv),
+          sortFallbackAt: apt.createdAt.toISOString(),
+        };
+      }),
+    );
 
     const threads = sortThreadsByActivity(mapped).map(
       ({ sortFallbackAt: _s, ...t }) => t,

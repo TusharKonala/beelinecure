@@ -41,11 +41,11 @@ export async function GET(
     if (Number.isNaN(before.getTime())) {
       return NextResponse.json({ error: "Invalid before cursor" }, { status: 400 });
     }
-    const page = await fetchOlderMessagesForConversation(id, userId, before);
+    const page = await fetchOlderMessagesForConversation(id, userId, role, before);
     return NextResponse.json(page);
   }
 
-  const page = await fetchRecentMessagesForConversation(id, userId);
+  const page = await fetchRecentMessagesForConversation(id, userId, role);
   const response = NextResponse.json(page);
 
   after(async () => {

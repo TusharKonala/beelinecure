@@ -30,6 +30,9 @@ export async function POST(
     if (msg.includes("not found")) {
       return NextResponse.json({ error: msg }, { status: 404 });
     }
+    if (msg.includes("read-only")) {
+      return NextResponse.json({ error: msg }, { status: 400 });
+    }
     console.error("[chat/archive] Failed:", err);
     return NextResponse.json({ error: "Failed to archive conversation" }, { status: 500 });
   }
