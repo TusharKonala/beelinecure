@@ -3,12 +3,52 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  createContext,
+  useCallback,
+  useContext,
   useEffect,
   useRef,
   useState,
   type MouseEvent,
   type ReactNode,
 } from "react";
+
+type NavProgressContextValue = {
+  startProgress: () => void;
+};
+
+const NavProgressContext = createContext<NavProgressContextValue | null>(null);
+
+export function NavProgressProvider({ children }: { children: ReactNode }) {
+  const [showBar, setShowBar] = useState(false);
+  const pathname = usePathname();
+  const pathnameRef = useRef(pathname);
+
+  useEffect(() => {
+    if (showBar && pathname !== pathnameRef.current) {
+      setShowBar(false);
+    }
+    pathnameRef.current = pathname;
+  }, [pathname, showBar]);
+
+  const startProgress = useCallback(() => {
+    setShowBar(true);
+  }, []);
+
+  return (
+    <NavProgressContext.Provider value={{ startProgress }}>
+      {children}
+      {showBar && (
+        <div
+          className="pointer-events-none fixed left-0 top-0 z-[99] h-0.5 w-full bg-[#2555F3]/15"
+          aria-hidden
+        >
+          <div className="h-full w-[35%] bg-[#2555F3]" />
+        </div>
+      )}
+    </NavProgressContext.Provider>
+  );
+}
 
 export function NavLink({
   href,
@@ -23,37 +63,18 @@ export function NavLink({
   onClick?: () => void;
   showProgress?: boolean;
 }) {
-  const [showBar, setShowBar] = useState(false);
-  const pathname = usePathname();
-  const pathnameRef = useRef(pathname);
-
-  useEffect(() => {
-    if (showBar && pathname !== pathnameRef.current) {
-      setShowBar(false);
-    }
-    pathnameRef.current = pathname;
-  }, [pathname, showBar]);
+  const navProgress = useContext(NavProgressContext);
 
   function handleClick(e: MouseEvent<HTMLAnchorElement>) {
     if (showProgress) {
-      setShowBar(true);
+      navProgress?.startProgress();
     }
     onClick?.();
   }
 
   return (
-    <>
-      {showBar && (
-        <div
-          className="pointer-events-none fixed left-0 top-0 z-[99] h-0.5 w-full bg-[#2555F3]/15"
-          aria-hidden
-        >
-          <div className="h-full w-[35%] bg-[#2555F3]" />
-        </div>
-      )}
-      <Link href={href} className={className} onClick={handleClick}>
-        {children}
-      </Link>
-    </>
+    <Link href={href} className={className} onClick={handleClick}>
+      {children}
+    </Link>
   );
 }
