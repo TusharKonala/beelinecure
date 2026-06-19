@@ -25,6 +25,9 @@ export async function POST(
     if (msg.includes("not found")) {
       return NextResponse.json({ error: msg }, { status: 404 });
     }
+    if (msg.includes("no messages")) {
+      return NextResponse.json({ error: msg }, { status: 400 });
+    }
     console.error("[chat/hide] Failed:", err);
     return NextResponse.json({ error: "Failed to hide conversation" }, { status: 500 });
   }

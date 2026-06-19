@@ -511,6 +511,14 @@ export async function hideConversationForUser(
   if (!conversation) {
     throw new Error("Conversation not found");
   }
+  if (role === UserRole.PATIENT) {
+    const messageCount = await prisma.chatMessage.count({
+      where: { conversationId },
+    });
+    if (messageCount === 0) {
+      throw new Error("Cannot delete a conversation with no messages");
+    }
+  }
   const row = await prisma.chatConversation.findUnique({
     where: { id: conversationId },
     select: { hiddenFor: true },

@@ -327,6 +327,8 @@ export function ChatListClient({ basePath }: ChatListClientProps) {
   function renderThreadRow(thread: ChatThread, archived = false) {
     const timeLabel = formatListMessageTime(thread.lastMessageAt);
     const canManage = thread.isReady && !thread.id.startsWith("pending-");
+    const canHideOrArchive =
+      canManage && (isDoctor ? thread.isReadOnly : Boolean(thread.lastMessageAt));
     return (
       <li
         key={thread.appointmentId}
@@ -394,7 +396,7 @@ export function ChatListClient({ basePath }: ChatListClientProps) {
             )}
           </div>
         </Link>
-        {canManage && !archived && (!isDoctor || thread.isReadOnly) && (
+        {canHideOrArchive && !archived && (
           <button
             type="button"
             className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 cursor-pointer items-center justify-center rounded-lg text-[#5E5E5E] hover:bg-[#f0f0f0]"

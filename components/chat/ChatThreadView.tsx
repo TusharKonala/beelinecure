@@ -793,7 +793,10 @@ export function ChatThreadView({
         <h1 className="flex-1 truncate font-montserrat text-sm font-semibold text-[#333333]">
           {thread?.peerName}
         </h1>
-        {thread && (session?.user?.role !== "DOCTOR" || thread.isReadOnly) && (
+        {thread &&
+          (session?.user?.role === "DOCTOR"
+            ? thread.isReadOnly
+            : messages.length > 0) && (
           <button
             type="button"
             onClick={() => setShowDeleteConversation(true)}

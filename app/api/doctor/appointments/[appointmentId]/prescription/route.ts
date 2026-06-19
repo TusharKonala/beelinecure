@@ -12,7 +12,7 @@ import { prisma } from "@/lib/db";
 import { inngest } from "@/inngest/client";
 import { createAppointmentNotificationForEmail } from "@/lib/notifications";
 import { formatDoctorDisplayName } from "@/lib/doctor-name";
-import { enqueueChatConversationEnsure } from "@/lib/chat";
+import { chatThreadUrlForRole, enqueueChatConversationEnsure, isChatLocked } from "@/lib/chat";
 import { getEmailFrom } from "@/lib/email-from";
 import { prescriptionReminderTsFromSavedAt } from "@/lib/reminder-time";
 import {
@@ -173,6 +173,9 @@ export async function PUT(
           appointmentId: true,
         },
       },
+      chatConversation: {
+        select: { completedAt: true, lockedAt: true },
+      },
     },
   });
 
@@ -301,10 +304,19 @@ export async function PUT(
         : "Your prescription has been updated";
     const heading =
       notificationKind === "READY" ? "Prescription Ready" : "Prescription Updated";
-    const message =
+    const baseMessage =
       notificationKind === "READY"
         ? `Your prescription from ${doctorDisplayName} is now ready. You can review it online from your appointments.`
         : `Your prescription from ${doctorDisplayName} has been updated. Please review the latest version in your appointments.`;
+    const conv = appointment.chatConversation;
+    const chatActive =
+      conv && !isChatLocked(conv.completedAt, conv.lockedAt);
+    const chatUrl = chatActive
+      ? chatThreadUrlForRole(UserRole.PATIENT, appointment.id)
+      : null;
+    const message = chatActive
+      ? `${baseMessage} You can also message your doctor with any questions for up to 48 hours after your appointment.`
+      : baseMessage;
     const notificationTitle =
       notificationKind === "READY" ? "Prescription ready" : "Prescription updated";
     const notificationMessage =
@@ -350,6 +362,8 @@ export async function PUT(
         patientName: appointment.patientName,
         primaryActionLabel: "View prescription",
         primaryActionUrl: viewPrescriptionUrl,
+        secondaryActionLabel: chatUrl ? "Message your doctor" : undefined,
+        secondaryActionUrl: chatUrl ?? undefined,
       }),
     });
     if (error) {
