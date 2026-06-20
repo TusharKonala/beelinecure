@@ -80,8 +80,10 @@ export default function AdminDoctorsPage() {
   const [hasMore, setHasMore] = useState(false);
   const [activeTab, setActiveTab] = useState<ApprovalTab>("PENDING");
   const [activityTab, setActivityTab] = useState<ActivityTab>("active");
-  const [query, setQuery] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [searchInput, setSearchInput] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [loadingInitial, setLoadingInitial] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busyDoctorId, setBusyDoctorId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AdminDoctor | null>(null);
@@ -95,6 +97,13 @@ export default function AdminDoctorsPage() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      setDebouncedSearch(searchInput.trim());
+    }, 500);
+    return () => window.clearTimeout(handle);
+  }, [searchInput]);
 
   useEffect(() => {
     if (!deleteTarget) return;
@@ -151,7 +160,14 @@ export default function AdminDoctorsPage() {
 
   const loadDoctors = useCallback(async (nextPage: number, append: boolean) => {
     const requestId = ++latestRequestIdRef.current;
-    setLoading(true);
+    if (!append) {
+      setDoctors([]);
+    }
+    if (append) {
+      setLoadingMore(true);
+    } else {
+      setLoadingInitial(true);
+    }
     setError(null);
     try {
       const params = new URLSearchParams({
@@ -162,7 +178,7 @@ export default function AdminDoctorsPage() {
       if (activityTab === "active") {
         params.set("status", activeTab);
       }
-      if (query.trim()) params.set("search", query.trim());
+      if (debouncedSearch) params.set("search", debouncedSearch);
       const response = await fetch(`/api/admin/doctors?${params.toString()}`, {
         cache: "no-store",
       });
@@ -186,19 +202,23 @@ export default function AdminDoctorsPage() {
       setError("Failed to load doctors.");
     } finally {
       if (latestRequestIdRef.current !== requestId) return;
-      setLoading(false);
+      if (append) {
+        setLoadingMore(false);
+      } else {
+        setLoadingInitial(false);
+      }
     }
-  }, [activeTab, activityTab, query]);
+  }, [activeTab, activityTab, debouncedSearch]);
 
   useEffect(() => {
     void loadDoctors(1, false);
   }, [loadDoctors]);
 
   const [sentryRef] = useInfiniteScroll({
-    loading,
+    loading: loadingMore,
     hasNextPage: hasMore,
     onLoadMore: () => void loadDoctors(page + 1, true),
-    disabled: false,
+    disabled: loadingInitial,
     rootMargin: "0px 0px 300px 0px",
   });
 
@@ -304,8 +324,8 @@ export default function AdminDoctorsPage() {
             </label>
             <input
               id="admin-doctors-search"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
               placeholder="Search by doctor name or email"
               className="w-full rounded-xl border border-[#e5e5e5] bg-white px-3 py-2 font-montserrat text-sm text-[#333333] shadow-sm outline-none focus:border-[#2555F3] focus:ring-2 focus:ring-[#2555F3]/20"
             />
@@ -403,11 +423,11 @@ export default function AdminDoctorsPage() {
             </div>
           ) : null}
 
-          {loading ? (
+          {loadingInitial && visibleDoctors.length === 0 ? (
             <div className="mt-6 rounded-xl border border-dashed border-[#e5e5e5] bg-[#fafafa] p-6 text-center">
               <p className="font-montserrat text-sm text-[#5e5e5e]">Loading doctors...</p>
             </div>
-          ) : visibleDoctors.length === 0 ? (
+          ) : !loadingInitial && visibleDoctors.length === 0 ? (
             <div className="mt-6 rounded-xl border border-dashed border-[#e5e5e5] bg-[#fafafa] p-6 text-center">
               <p className="font-montserrat text-sm text-[#5e5e5e]">
                 No doctors found for this filter.
@@ -547,12 +567,12 @@ export default function AdminDoctorsPage() {
                 </table>
               </div>
 
-              {(hasMore || loading) && visibleDoctors.length > 0 && (
+              {(hasMore || loadingMore) && visibleDoctors.length > 0 && (
                 <div
                   ref={sentryRef}
                   className="py-4 text-center font-montserrat text-sm text-[#5E5E5E]"
                 >
-                  {loading ? "Loading..." : "Scroll for more"}
+                  {loadingMore ? "Loading..." : "Scroll for more"}
                 </div>
               )}
             </>
