@@ -84,6 +84,9 @@ export async function GET(request: NextRequest) {
     `${appointmentDateParam}T${timeWithSeconds}`,
     appointment.timezone,
   ).getTime();
+  if (appointmentStartMs <= Date.now()) {
+    return NextResponse.json({ status: "invalid_link" as const });
+  }
   const refundPolicy =
     appointment.paymentStatus === PaymentStatus.PAID
       ? cancellationRefundPolicy(appointmentStartMs)
@@ -184,6 +187,9 @@ export async function POST(request: NextRequest) {
     `${appointmentDateParam}T${timeWithSeconds}`,
     appointment.timezone,
   ).getTime();
+  if (appointmentStartMs <= Date.now()) {
+    return NextResponse.json({ status: "invalid_link" as const });
+  }
   const calendarEventId = appointment.googleCalendarEventId;
   if (calendarEventId) {
     await deleteMeetCalendarEvent(appointment.doctorId, calendarEventId);
