@@ -15,12 +15,6 @@ import {
 } from "../generated/prisma/client.js";
 import { assignUniqueDoctorSlug } from "../lib/doctor-slug.js";
 import { recomputeAllDoctorReviewStats } from "../lib/review-stats.js";
-import {
-  DEMO_DOCTOR_EMAIL,
-  DEMO_DOCTOR_PASSWORD,
-  DEMO_PATIENT_EMAIL,
-  DEMO_PATIENT_PASSWORD,
-} from "../lib/demo-credentials.js";
 import { DOCTOR_CATALOG } from "./seed-data/doctor-catalog.js";
 import { CAREER_POSTINGS } from "./seed-data/career-postings.js";
 
@@ -180,35 +174,14 @@ async function main() {
 
   const today = toDateOnly(new Date());
   const doctorIds: string[] = [];
-  let demoDoctorUserId: string | null = null;
-  let demoDoctorRecordId: string | null = null;
 
   console.log("Creating doctors and availability…");
   for (let i = 0; i < DOCTOR_CATALOG.length; i += 1) {
     const entry = DOCTOR_CATALOG[i];
-    const isDemoDoctor = i === 0;
-
-    let userId: string | undefined;
-    if (isDemoDoctor) {
-      const hashed = await bcrypt.hash(DEMO_DOCTOR_PASSWORD, 12);
-      const demoUser = await prisma.user.create({
-        data: {
-          email: DEMO_DOCTOR_EMAIL,
-          name: entry.name,
-          phone: entry.phone,
-          role: UserRole.DOCTOR,
-          password: hashed,
-          profileComplete: true,
-          emailVerifiedAt: new Date(),
-        },
-      });
-      userId = demoUser.id;
-      demoDoctorUserId = demoUser.id;
-    }
 
     const doctor = await prisma.doctor.create({
       data: {
-        userId: userId ?? null,
+        userId: null,
         name: entry.name,
         phone: entry.phone,
         specialization: entry.specialization,
@@ -226,10 +199,6 @@ async function main() {
         isActive: true,
       },
     });
-
-    if (isDemoDoctor) {
-      demoDoctorRecordId = doctor.id;
-    }
 
     await assignUniqueDoctorSlug(prisma, {
       doctorId: doctor.id,
@@ -334,12 +303,7 @@ async function main() {
     createdSamplePatients.push(await createPatientUser(p));
   }
 
-  const demoPatient = await createPatientUser({
-    email: DEMO_PATIENT_EMAIL,
-    name: "Alex Morgan",
-    phone: "+14155552999",
-    password: DEMO_PATIENT_PASSWORD,
-  });
+  const primarySamplePatient = samplePatients[0]!;
 
   console.log("Creating appointments…");
   const slotTimes = ["09:00", "09:30", "10:00", "10:30", "11:00", "14:00", "14:30"];
@@ -409,9 +373,9 @@ async function main() {
 
   await createPastAppointment({
     doctorIndex: 0,
-    patientEmail: DEMO_PATIENT_EMAIL,
-    patientName: "Alex Morgan",
-    patientPhone: "+14155552999",
+    patientEmail: primarySamplePatient.email,
+    patientName: primarySamplePatient.name,
+    patientPhone: primarySamplePatient.phone,
     daysAgo: 28,
     time: "10:00",
     consultationType: ConsultationType.CLINIC,
@@ -419,51 +383,43 @@ async function main() {
 
   await createPastAppointment({
     doctorIndex: 2,
-    patientEmail: DEMO_PATIENT_EMAIL,
-    patientName: "Alex Morgan",
-    patientPhone: "+14155552999",
+    patientEmail: primarySamplePatient.email,
+    patientName: primarySamplePatient.name,
+    patientPhone: primarySamplePatient.phone,
     daysAgo: 56,
     time: "14:00",
     consultationType: ConsultationType.ONLINE,
   });
 
-  if (demoDoctorRecordId) {
-    const demoDoctorEntry = DOCTOR_CATALOG[0];
-    await prisma.appointment.create({
-      data: {
-        doctorId: demoDoctorRecordId,
-        patientName: "Alex Morgan",
-        email: DEMO_PATIENT_EMAIL,
-        phone: "+14155552999",
-        timezone: demoDoctorEntry.timezone,
-        patientTimezone: demoDoctorEntry.timezone,
-        date: addDays(today, 14),
-        time: slotTimes[2],
-        durationMinutes: 30,
-        priceCentsAtBooking: demoDoctorEntry.price30Cents,
-        currencyAtBooking: demoDoctorEntry.currency,
-        consultationType: ConsultationType.CLINIC,
-        status: AppointmentStatus.CONFIRMED,
-        paymentStatus: PaymentStatus.PAID,
-        paymentMethod: PaymentMethod.ONLINE,
-        cancelToken: token(),
-        rescheduleToken: token(),
-      },
-    });
-  }
+  const firstDoctorEntry = DOCTOR_CATALOG[0];
+  await prisma.appointment.create({
+    data: {
+      doctorId: doctorIds[0]!,
+      patientName: primarySamplePatient.name,
+      email: primarySamplePatient.email,
+      phone: primarySamplePatient.phone,
+      timezone: firstDoctorEntry.timezone,
+      patientTimezone: firstDoctorEntry.timezone,
+      date: addDays(today, 14),
+      time: slotTimes[2],
+      durationMinutes: 30,
+      priceCentsAtBooking: firstDoctorEntry.price30Cents,
+      currencyAtBooking: firstDoctorEntry.currency,
+      consultationType: ConsultationType.CLINIC,
+      status: AppointmentStatus.CONFIRMED,
+      paymentStatus: PaymentStatus.PAID,
+      paymentMethod: PaymentMethod.ONLINE,
+      cancelToken: token(),
+      rescheduleToken: token(),
+    },
+  });
 
   console.log("\nDemo seed complete.\n");
   console.log("Doctors:", doctorIds.length);
   console.log("Reviews:", reviewRows.length);
   console.log("Job postings:", CAREER_POSTINGS.length);
   console.log("Sample patients:", createdSamplePatients.length);
-  console.log("\nDemo sign-in accounts (also shown on /auth/signin):");
-  console.log(`  Patient: ${DEMO_PATIENT_EMAIL} / ${DEMO_PATIENT_PASSWORD}`);
-  console.log(`  Doctor:  ${DEMO_DOCTOR_EMAIL} / ${DEMO_DOCTOR_PASSWORD}`);
-  console.log(`  Admin:   ${admin.email} (password from ADMIN_SEED_PASSWORD in .env)`);
-  if (demoDoctorUserId) {
-    console.log(`\nDemo doctor linked to ${DOCTOR_CATALOG[0].name} (${demoDoctorRecordId})`);
-  }
+  console.log(`\nAdmin: ${admin.email} (password from ADMIN_SEED_PASSWORD in .env)`);
 }
 
 main()
