@@ -3,7 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import PhoneInput, { isValidPhoneNumber } from "react-phone-number-input";
+import PhoneInput, {
+  isValidPhoneNumber,
+  parsePhoneNumber,
+} from "react-phone-number-input";
+import { z } from "zod";
 import {
   CareersJobPostingSummary,
   type JobPostingSummaryData,
@@ -17,6 +21,42 @@ import {
 
 const phoneInputClassName =
   "h-11 w-full rounded-xl border border-[#e5e5e5] bg-white px-3 text-sm font-montserrat text-[#333333] shadow-sm placeholder:text-[#5E5E5E]/70 focus-within:border-[#2555F3] focus-within:ring-[3px] focus-within:ring-[#2555F3]/20 [&_.PhoneInputInput]:outline-none";
+
+type ExtractedContact = {
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+};
+
+function applyContactPrefill(
+  contact: ExtractedContact,
+  setName: (value: string) => void,
+  setEmail: (value: string) => void,
+  setPhone: (value: string | undefined) => void,
+  setPhoneError: (value: string | null) => void,
+) {
+  if (contact.name?.trim()) {
+    setName(contact.name.trim());
+  }
+
+  if (contact.email?.trim()) {
+    const emailResult = z.email().safeParse(contact.email.trim());
+    if (emailResult.success) {
+      setEmail(emailResult.data);
+    }
+  }
+
+  if (contact.phone?.trim()) {
+    const raw = contact.phone.trim();
+    const parsed =
+      parsePhoneNumber(raw) ?? parsePhoneNumber(raw, "US");
+    const e164 = parsed?.format("E.164");
+    if (e164 && isValidPhoneNumber(e164)) {
+      setPhone(e164);
+      setPhoneError(null);
+    }
+  }
+}
 
 export default function ApplyPage() {
   const params = useParams();
@@ -89,6 +129,26 @@ export default function ApplyPage() {
       const text = await extractTextFromPdfFile(file);
       setResumeText(text);
       setResumeFileName(file.name);
+
+      try {
+        const contactRes = await fetch("/api/careers/extract-contact", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ resumeText: text }),
+        });
+        if (contactRes.ok) {
+          const contact = (await contactRes.json()) as ExtractedContact;
+          applyContactPrefill(
+            contact,
+            setName,
+            setEmail,
+            setPhone,
+            setPhoneError,
+          );
+        }
+      } catch {
+        // Non-blocking: resume is still loaded if contact extraction fails.
+      }
     } catch (err) {
       setPdfError(extractPdfErrorMessage(err));
     } finally {

@@ -1,6 +1,6 @@
 const MAX_PDF_BYTES = 5 * 1024 * 1024;
-const MIN_RESUME_CHARS = 50;
-const MAX_RESUME_CHARS = 5000;
+export const MIN_RESUME_CHARS = 50;
+export const MAX_RESUME_CHARS = 5000;
 
 export type ExtractPdfErrorCode =
   | "invalid_type"

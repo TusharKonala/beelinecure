@@ -1,7 +1,9 @@
 import { AiRecommendation } from "@/generated/prisma/client";
-import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
-import { anthropic } from "@/lib/anthropic";
+import {
+  callAnthropicWithRetry,
+  parseJsonFromModelText,
+} from "@/lib/anthropic-message";
 import { prisma } from "@/lib/db";
 
 const screeningResultSchema = z.object({
@@ -9,38 +11,6 @@ const screeningResultSchema = z.object({
   summary: z.string().min(1).max(2000),
   recommendation: z.enum(["shortlist", "reject"]),
 });
-
-function parseJsonFromModelText(text: string): unknown {
-  const trimmed = text.trim();
-  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);
-  const candidate = fenced ? fenced[1].trim() : trimmed;
-  return JSON.parse(candidate);
-}
-
-async function callAnthropicWithRetry(
-  params: Anthropic.MessageCreateParamsNonStreaming,
-  maxAttempts = 3,
-): Promise<Anthropic.Message> {
-  let waitMs = 1000;
-  let lastError: unknown;
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      return await anthropic.messages.create(params);
-    } catch (err) {
-      const status = (err as { status?: number })?.status;
-      lastError = err;
-      if (status !== 529 || attempt === maxAttempts) {
-        throw err;
-      }
-      console.warn(
-        `[careers-ai] Anthropic 529 (attempt ${attempt}/${maxAttempts}); waiting ${waitMs}ms`,
-      );
-      await new Promise((r) => setTimeout(r, waitMs));
-      waitMs *= 2;
-    }
-  }
-  throw lastError;
-}
 
 export async function screenCareersApplication(applicationId: string) {
   const application = await prisma.jobApplication.findUnique({
@@ -77,16 +47,20 @@ export async function screenCareersApplication(applicationId: string) {
       : "Cover note: (none)",
   ].join("\n\n");
 
-  const message = await callAnthropicWithRetry({
-    model: "claude-haiku-4-5",
-    max_tokens: 300,
-    messages: [
-      {
-        role: "user",
-        content: `${userContent}\n\nRespond with only a JSON object with exactly these fields:\n- score: integer 1-10 (fit for the role)\n- summary: string, 2-3 lines on fit\n- recommendation: either "shortlist" or "reject"`,
-      },
-    ],
-  });
+  const message = await callAnthropicWithRetry(
+    {
+      model: "claude-haiku-4-5",
+      max_tokens: 300,
+      messages: [
+        {
+          role: "user",
+          content: `${userContent}\n\nRespond with only a JSON object with exactly these fields:\n- score: integer 1-10 (fit for the role)\n- summary: string, 2-3 lines on fit\n- recommendation: either "shortlist" or "reject"`,
+        },
+      ],
+    },
+    3,
+    "[careers-ai]",
+  );
 
   const textBlock = message.content.find((b) => b.type === "text");
   if (!textBlock || textBlock.type !== "text") {
