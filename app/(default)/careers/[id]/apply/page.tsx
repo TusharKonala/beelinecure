@@ -27,6 +27,7 @@ type ExtractedContact = {
   name: string | null;
   email: string | null;
   phone: string | null;
+  phoneCountry: string | null;
 };
 
 function defaultCountryFromLocale(): Country {
@@ -40,11 +41,16 @@ function defaultCountryFromLocale(): Country {
   return "US";
 }
 
-function parseContactPhone(raw: string): string | undefined {
+function parseContactPhone(
+  raw: string,
+  phoneCountry?: string | null,
+): string | undefined {
   const trimmed = raw.trim();
   const localeCountry = defaultCountryFromLocale();
+  const inferredCountry = phoneCountry?.trim().toUpperCase() as Country | undefined;
   const parsed =
     parsePhoneNumber(trimmed) ??
+    (inferredCountry ? parsePhoneNumber(trimmed, inferredCountry) : undefined) ??
     parsePhoneNumber(trimmed, localeCountry) ??
     parsePhoneNumber(trimmed, "US");
   const e164 = parsed?.format("E.164");
@@ -59,6 +65,7 @@ function applyContactPrefill(
   setName: (value: string) => void,
   setEmail: (value: string) => void,
   setPhone: (value: string | undefined) => void,
+  setPhoneDefaultCountry: (value: Country) => void,
   setPhoneError: (value: string | null) => void,
   bumpPhoneInputKey: () => void,
 ) {
@@ -73,8 +80,12 @@ function applyContactPrefill(
     }
   }
 
+  if (contact.phoneCountry) {
+    setPhoneDefaultCountry(contact.phoneCountry as Country);
+  }
+
   const e164 = contact.phone?.trim()
-    ? parseContactPhone(contact.phone)
+    ? parseContactPhone(contact.phone, contact.phoneCountry)
     : undefined;
   setPhone(e164);
   setPhoneError(null);
@@ -91,6 +102,7 @@ export default function ApplyPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState<string | undefined>();
+  const [phoneDefaultCountry, setPhoneDefaultCountry] = useState<Country>("US");
   const [phoneInputKey, setPhoneInputKey] = useState(0);
   const [phoneError, setPhoneError] = useState<string | null>(null);
   const [coverNote, setCoverNote] = useState("");
@@ -170,6 +182,7 @@ export default function ApplyPage() {
             setName,
             setEmail,
             setPhone,
+            setPhoneDefaultCountry,
             setPhoneError,
             () => setPhoneInputKey((k) => k + 1),
           );
@@ -307,9 +320,10 @@ export default function ApplyPage() {
 
             <div className="mt-4 rounded-xl border border-[#2555F3]/10 bg-[#F0F7FF] px-4 py-3">
               <p className="font-montserrat text-sm leading-relaxed text-[#333333]">
-                Start by uploading your resume (PDF). We will pre-fill your
-                name, email, and phone from your resume — please review and edit
-                anything that looks incorrect before you submit.
+                Start by uploading your resume (PDF). We will try to pre-fill your
+                name, email, and phone from your resume. Auto-fill may not work
+                for every field, so please review and enter any missing details
+                before you submit.
               </p>
             </div>
 
@@ -411,7 +425,7 @@ export default function ApplyPage() {
                   key={phoneInputKey}
                   id="phone"
                   international
-                  defaultCountry="US"
+                  defaultCountry={phoneDefaultCountry}
                   value={phone}
                   onChange={(value) => {
                     setPhone(value);
