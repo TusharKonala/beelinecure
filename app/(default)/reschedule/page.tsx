@@ -38,6 +38,7 @@ type RescheduleUiState =
   | "invalid_link"
   | "invalid_body"
   | "already_cancelled"
+  | "appointment_passed"
   | "too_close_to_reschedule"
   | "error";
 
@@ -91,6 +92,7 @@ async function fetchAppointmentDetails(
   | { status: "success"; appointment: AppointmentDetails }
   | { status: "invalid_link" }
   | { status: "already_cancelled" }
+  | { status: "appointment_passed" }
   | { status: "too_close_to_reschedule" }
 > {
   const res = await fetch(
@@ -468,6 +470,7 @@ function RescheduleContent() {
         nextState === "already_cancelled" ||
         nextState === "invalid_link" ||
         nextState === "invalid_body" ||
+        nextState === "appointment_passed" ||
         nextState === "too_close_to_reschedule"
       ) {
         setState(nextState);
@@ -497,6 +500,8 @@ function RescheduleContent() {
         return "Already Cancelled";
       case "invalid_link":
         return "Invalid Reschedule Link";
+      case "appointment_passed":
+        return "Reschedule Not Available";
       case "invalid_body":
         return "Invalid Request";
       case "error":
@@ -516,6 +521,8 @@ function RescheduleContent() {
         return "This appointment has been cancelled and can’t be rescheduled.";
       case "invalid_link":
         return "This reschedule link is invalid or expired.";
+      case "appointment_passed":
+        return "This appointment has already started. Online rescheduling is no longer available.";
       case "invalid_body":
         return "Invalid request. Please try again.";
       case "error":

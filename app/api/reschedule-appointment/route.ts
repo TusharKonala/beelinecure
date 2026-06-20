@@ -33,6 +33,7 @@ type RescheduleResponse =
   | { status: "invalid_link" }
   | { status: "invalid_body" }
   | { status: "already_cancelled" }
+  | { status: "appointment_passed" }
   | { status: "too_close_to_reschedule" }
   | { status: "slot_unavailable" };
 
@@ -93,7 +94,7 @@ export async function GET(request: NextRequest) {
   );
   if (appointmentStartMs <= Date.now()) {
     return NextResponse.json({
-      status: "invalid_link",
+      status: "appointment_passed",
     } satisfies RescheduleResponse);
   }
   if (appointmentStartMs - Date.now() < RESCHEDULE_MIN_LEAD_TIME_MS) {
@@ -174,7 +175,7 @@ export async function POST(request: NextRequest) {
   );
   if (appointmentStartMs <= Date.now()) {
     return NextResponse.json({
-      status: "invalid_link",
+      status: "appointment_passed",
     } satisfies RescheduleResponse);
   }
   if (appointmentStartMs - Date.now() < RESCHEDULE_MIN_LEAD_TIME_MS) {

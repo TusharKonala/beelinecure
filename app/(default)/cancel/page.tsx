@@ -10,6 +10,7 @@ type CancelUiState =
   | "idle"
   | "success"
   | "invalid_link"
+  | "appointment_passed"
   | "already_cancelled"
   | "error";
 
@@ -99,7 +100,11 @@ function CancelContent() {
           | null;
 
         const nextState = json?.status;
-        if (nextState === "already_cancelled" || nextState === "invalid_link") {
+        if (
+          nextState === "already_cancelled" ||
+          nextState === "invalid_link" ||
+          nextState === "appointment_passed"
+        ) {
           setState(nextState);
           setRefundPolicy(null);
           return;
@@ -137,7 +142,8 @@ function CancelContent() {
       if (
         nextState === "success" ||
         nextState === "already_cancelled" ||
-        nextState === "invalid_link"
+        nextState === "invalid_link" ||
+        nextState === "appointment_passed"
       ) {
         setState(nextState);
         return;
@@ -159,6 +165,8 @@ function CancelContent() {
         return "Already Cancelled";
       case "invalid_link":
         return "Invalid Cancellation Link";
+      case "appointment_passed":
+        return "Cannot Cancel Appointment";
       case "error":
         return "Cancellation Error";
       default:
@@ -174,6 +182,8 @@ function CancelContent() {
         return "This appointment has already been cancelled.";
       case "invalid_link":
         return "This cancellation link is invalid or expired.";
+      case "appointment_passed":
+        return "This appointment has already started. Online cancellation is no longer available.";
       case "error":
         return "We could not cancel your appointment. Please try again.";
       default:
