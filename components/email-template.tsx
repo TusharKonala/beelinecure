@@ -52,25 +52,45 @@ const secondaryButtonStyle: React.CSSProperties = {
   border: "1px solid #2555F3",
 };
 
+const emailActionResponsiveStyles = `
+  .bc-email-action-row-item {
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 0.5rem;
+  }
+  @media only screen and (max-width: 480px) {
+    .bc-email-action-row-item {
+      display: block !important;
+      margin-right: 0 !important;
+      margin-top: 0.5rem !important;
+    }
+    .bc-email-action-row-item.bc-email-action-row-first {
+      margin-top: 0 !important;
+    }
+  }
+`;
+
 function EmailActionButton({
   href,
   label,
   variant,
   isFirst,
-  inline,
+  rowItemClassName,
 }: {
   href: string;
   label: string;
   variant: "primary" | "secondary";
   isFirst?: boolean;
-  inline?: boolean;
+  rowItemClassName?: string;
 }) {
+  const isRowItem = Boolean(rowItemClassName);
+
   return (
     <span
+      className={rowItemClassName}
       style={{
-        display: inline ? "inline-block" : "block",
-        marginTop: isFirst ? 0 : inline ? 0 : "0.5rem",
-        marginRight: inline ? "0.5rem" : 0,
+        display: isRowItem ? undefined : "block",
+        marginTop: isFirst ? 0 : isRowItem ? undefined : "0.5rem",
       }}
     >
       <a
@@ -126,6 +146,7 @@ export function EmailTemplate({
     <div
       style={{ fontFamily: "sans-serif", maxWidth: "600px", margin: "0 auto" }}
     >
+      <style>{emailActionResponsiveStyles}</style>
       <h1 style={{ color: "#111111", marginBottom: "1rem" }}>{heading}</h1>
       <p style={{ color: "#333333", lineHeight: 1.6 }}>Hello {patientName},</p>
       <p style={{ color: "#333333", lineHeight: 1.6 }}>
@@ -150,7 +171,7 @@ export function EmailTemplate({
                   label={secondActionLabel}
                   variant="primary"
                   isFirst
-                  inline
+                  rowItemClassName="bc-email-action-row-item bc-email-action-row-first"
                 />
               )}
               {firstActionUrl && (
@@ -161,7 +182,11 @@ export function EmailTemplate({
                     secondActionUrl || showMeetButton ? "secondary" : "primary"
                   }
                   isFirst={!secondActionUrl}
-                  inline={!!secondActionUrl}
+                  rowItemClassName={
+                    secondActionUrl
+                      ? "bc-email-action-row-item"
+                      : "bc-email-action-row-item bc-email-action-row-first"
+                  }
                 />
               )}
             </div>
