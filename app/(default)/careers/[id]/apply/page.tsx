@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import PhoneInput, { isValidPhoneNumber } from "react-phone-number-input";
@@ -10,6 +10,10 @@ import {
 } from "@/components/careers-job-posting-summary";
 import { Container } from "@/components/layout/Container";
 import { Button } from "@/components/ui/button";
+import {
+  extractPdfErrorMessage,
+  extractTextFromPdfFile,
+} from "@/lib/extract-pdf-text";
 
 const phoneInputClassName =
   "h-11 w-full rounded-xl border border-[#e5e5e5] bg-white px-3 text-sm font-montserrat text-[#333333] shadow-sm placeholder:text-[#5E5E5E]/70 focus-within:border-[#2555F3] focus-within:ring-[3px] focus-within:ring-[#2555F3]/20 [&_.PhoneInputInput]:outline-none";
@@ -17,6 +21,7 @@ const phoneInputClassName =
 export default function ApplyPage() {
   const params = useParams();
   const jobId = typeof params.id === "string" ? params.id : "";
+  const resumeInputRef = useRef<HTMLInputElement>(null);
 
   const [posting, setPosting] = useState<JobPostingSummaryData | null>(null);
   const [loadingPosting, setLoadingPosting] = useState(true);
@@ -26,6 +31,9 @@ export default function ApplyPage() {
   const [phoneError, setPhoneError] = useState<string | null>(null);
   const [coverNote, setCoverNote] = useState("");
   const [resumeText, setResumeText] = useState("");
+  const [resumeFileName, setResumeFileName] = useState<string | null>(null);
+  const [extracting, setExtracting] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
   const [resumeUrl, setResumeUrl] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,6 +73,27 @@ export default function ApplyPage() {
     }
     setPhoneError(null);
     return true;
+  }
+
+  async function handleResumeFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    setExtracting(true);
+    setPdfError(null);
+    setResumeText("");
+    setResumeFileName(null);
+
+    try {
+      const text = await extractTextFromPdfFile(file);
+      setResumeText(text);
+      setResumeFileName(file.name);
+    } catch (err) {
+      setPdfError(extractPdfErrorMessage(err));
+    } finally {
+      setExtracting(false);
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -107,6 +136,7 @@ export default function ApplyPage() {
   const phoneInvalid = Boolean(phoneError);
   const canSubmit =
     !submitting &&
+    !extracting &&
     !phoneInvalid &&
     name.trim().length > 0 &&
     email.trim().length > 0 &&
@@ -187,7 +217,7 @@ export default function ApplyPage() {
               Apply for this role
             </h1>
             <p className="mt-2 font-montserrat text-sm text-[#5e5e5e]">
-              Paste your resume text below (required).
+              Upload your resume as a PDF (required).
             </p>
 
             {error ? (
@@ -256,24 +286,51 @@ export default function ApplyPage() {
                 ) : null}
               </div>
               <div>
-                <label
-                  htmlFor="resumeText"
-                  className="mb-1 block font-montserrat text-sm font-medium text-[#333333]"
-                >
-                  Resume (paste text) <span className="text-red-600">*</span>
-                </label>
-                <textarea
-                  id="resumeText"
-                  required
-                  rows={10}
-                  value={resumeText}
-                  onChange={(e) => setResumeText(e.target.value)}
-                  placeholder="Paste the full text of your resume here..."
-                  className="w-full rounded-xl border border-[#e5e5e5] bg-white px-3 py-2 font-montserrat text-sm text-[#333333] outline-none focus:border-[#2555F3] focus:ring-2 focus:ring-[#2555F3]/20"
+                <span className="mb-1 block font-montserrat text-sm font-medium text-[#333333]">
+                  Resume (PDF) <span className="text-red-600">*</span>
+                </span>
+                <input
+                  ref={resumeInputRef}
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  className="sr-only"
+                  onChange={(e) => void handleResumeFileChange(e)}
                 />
-                <p className="mt-1 font-montserrat text-xs text-[#5e5e5e]">
-                  Minimum 50 characters. This is used for our initial review.
-                </p>
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={extracting}
+                    className="cursor-pointer rounded-xl border-[#e5e5e5] font-montserrat text-sm"
+                    onClick={() => resumeInputRef.current?.click()}
+                  >
+                    {extracting
+                      ? "Reading PDF..."
+                      : resumeFileName
+                        ? "Replace PDF"
+                        : "Upload resume (PDF)"}
+                  </Button>
+                  {resumeFileName && !extracting && !pdfError ? (
+                    <span className="font-montserrat text-sm text-[#1f7a36]">
+                      Resume loaded
+                    </span>
+                  ) : null}
+                </div>
+                {resumeFileName && !pdfError ? (
+                  <p className="mt-1 font-montserrat text-xs text-[#5e5e5e]">
+                    {resumeFileName}
+                  </p>
+                ) : (
+                  <p className="mt-1 font-montserrat text-xs text-[#5e5e5e]">
+                    PDF only, up to 5 MB. Text is extracted for our initial
+                    review.
+                  </p>
+                )}
+                {pdfError ? (
+                  <p className="mt-1 font-montserrat text-sm text-red-600">
+                    {pdfError}
+                  </p>
+                ) : null}
               </div>
               <div>
                 <label
