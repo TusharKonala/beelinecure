@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import PhoneInput, {
   isValidPhoneNumber,
   parsePhoneNumber,
+  type Country,
 } from "react-phone-number-input";
 import { z } from "zod";
 import {
@@ -28,12 +29,38 @@ type ExtractedContact = {
   phone: string | null;
 };
 
+function defaultCountryFromLocale(): Country {
+  try {
+    const locale = Intl.DateTimeFormat().resolvedOptions().locale;
+    const region = new Intl.Locale(locale).region;
+    if (region) return region as Country;
+  } catch {
+    // ignore unsupported locale parsing
+  }
+  return "US";
+}
+
+function parseContactPhone(raw: string): string | undefined {
+  const trimmed = raw.trim();
+  const localeCountry = defaultCountryFromLocale();
+  const parsed =
+    parsePhoneNumber(trimmed) ??
+    parsePhoneNumber(trimmed, localeCountry) ??
+    parsePhoneNumber(trimmed, "US");
+  const e164 = parsed?.format("E.164");
+  if (e164 && isValidPhoneNumber(e164)) {
+    return e164;
+  }
+  return undefined;
+}
+
 function applyContactPrefill(
   contact: ExtractedContact,
   setName: (value: string) => void,
   setEmail: (value: string) => void,
   setPhone: (value: string | undefined) => void,
   setPhoneError: (value: string | null) => void,
+  bumpPhoneInputKey: () => void,
 ) {
   if (contact.name?.trim()) {
     setName(contact.name.trim());
@@ -46,16 +73,12 @@ function applyContactPrefill(
     }
   }
 
-  if (contact.phone?.trim()) {
-    const raw = contact.phone.trim();
-    const parsed =
-      parsePhoneNumber(raw) ?? parsePhoneNumber(raw, "US");
-    const e164 = parsed?.format("E.164");
-    if (e164 && isValidPhoneNumber(e164)) {
-      setPhone(e164);
-      setPhoneError(null);
-    }
-  }
+  const e164 = contact.phone?.trim()
+    ? parseContactPhone(contact.phone)
+    : undefined;
+  setPhone(e164);
+  setPhoneError(null);
+  bumpPhoneInputKey();
 }
 
 export default function ApplyPage() {
@@ -68,6 +91,7 @@ export default function ApplyPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState<string | undefined>();
+  const [phoneInputKey, setPhoneInputKey] = useState(0);
   const [phoneError, setPhoneError] = useState<string | null>(null);
   const [coverNote, setCoverNote] = useState("");
   const [resumeText, setResumeText] = useState("");
@@ -124,6 +148,9 @@ export default function ApplyPage() {
     setPdfError(null);
     setResumeText("");
     setResumeFileName(null);
+    setPhone(undefined);
+    setPhoneError(null);
+    setPhoneInputKey((k) => k + 1);
 
     try {
       const text = await extractTextFromPdfFile(file);
@@ -144,6 +171,7 @@ export default function ApplyPage() {
             setEmail,
             setPhone,
             setPhoneError,
+            () => setPhoneInputKey((k) => k + 1),
           );
         }
       } catch {
@@ -276,9 +304,61 @@ export default function ApplyPage() {
             <h1 className="font-montaga text-2xl text-[#333333] md:text-3xl">
               Apply for this role
             </h1>
-            <p className="mt-2 font-montserrat text-sm text-[#5e5e5e]">
-              Upload your resume as a PDF (required).
-            </p>
+
+            <div className="mt-4 rounded-xl border border-[#2555F3]/10 bg-[#F0F7FF] px-4 py-3">
+              <p className="font-montserrat text-sm leading-relaxed text-[#333333]">
+                Start by uploading your resume (PDF). We will pre-fill your
+                name, email, and phone from your resume — please review and edit
+                anything that looks incorrect before you submit.
+              </p>
+            </div>
+
+            <div className="mt-4">
+              <span className="mb-1 block font-montserrat text-sm font-medium text-[#333333]">
+                Resume (PDF) <span className="text-red-600">*</span>
+              </span>
+              <input
+                ref={resumeInputRef}
+                type="file"
+                accept="application/pdf,.pdf"
+                className="sr-only"
+                onChange={(e) => void handleResumeFileChange(e)}
+              />
+              <div className="flex flex-wrap items-center gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={extracting}
+                  className="cursor-pointer rounded-xl border-[#e5e5e5] font-montserrat text-sm"
+                  onClick={() => resumeInputRef.current?.click()}
+                >
+                  {extracting
+                    ? "Reading PDF..."
+                    : resumeFileName
+                      ? "Replace PDF"
+                      : "Upload resume (PDF)"}
+                </Button>
+                {resumeFileName && !extracting && !pdfError ? (
+                  <span className="font-montserrat text-sm text-[#1f7a36]">
+                    Resume loaded
+                  </span>
+                ) : null}
+              </div>
+              {resumeFileName && !pdfError ? (
+                <p className="mt-1 font-montserrat text-xs text-[#5e5e5e]">
+                  {resumeFileName}
+                </p>
+              ) : (
+                <p className="mt-1 font-montserrat text-xs text-[#5e5e5e]">
+                  PDF only, up to 5 MB. Text is extracted for our initial review.
+                </p>
+              )}
+              {pdfError ? (
+                <p className="mt-1 font-montserrat text-sm text-red-600">
+                  {pdfError}
+                </p>
+              ) : null}
+            </div>
 
             {error ? (
               <div className="mt-6 rounded-xl border border-dashed border-[#ffd0d0] bg-[#fff6f6] p-4">
@@ -328,6 +408,7 @@ export default function ApplyPage() {
                   Phone <span className="text-red-600">*</span>
                 </label>
                 <PhoneInput
+                  key={phoneInputKey}
                   id="phone"
                   international
                   defaultCountry="US"
@@ -342,53 +423,6 @@ export default function ApplyPage() {
                 {phoneError ? (
                   <p className="mt-1 font-montserrat text-sm text-red-600">
                     {phoneError}
-                  </p>
-                ) : null}
-              </div>
-              <div>
-                <span className="mb-1 block font-montserrat text-sm font-medium text-[#333333]">
-                  Resume (PDF) <span className="text-red-600">*</span>
-                </span>
-                <input
-                  ref={resumeInputRef}
-                  type="file"
-                  accept="application/pdf,.pdf"
-                  className="sr-only"
-                  onChange={(e) => void handleResumeFileChange(e)}
-                />
-                <div className="flex flex-wrap items-center gap-3">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={extracting}
-                    className="cursor-pointer rounded-xl border-[#e5e5e5] font-montserrat text-sm"
-                    onClick={() => resumeInputRef.current?.click()}
-                  >
-                    {extracting
-                      ? "Reading PDF..."
-                      : resumeFileName
-                        ? "Replace PDF"
-                        : "Upload resume (PDF)"}
-                  </Button>
-                  {resumeFileName && !extracting && !pdfError ? (
-                    <span className="font-montserrat text-sm text-[#1f7a36]">
-                      Resume loaded
-                    </span>
-                  ) : null}
-                </div>
-                {resumeFileName && !pdfError ? (
-                  <p className="mt-1 font-montserrat text-xs text-[#5e5e5e]">
-                    {resumeFileName}
-                  </p>
-                ) : (
-                  <p className="mt-1 font-montserrat text-xs text-[#5e5e5e]">
-                    PDF only, up to 5 MB. Text is extracted for our initial
-                    review.
-                  </p>
-                )}
-                {pdfError ? (
-                  <p className="mt-1 font-montserrat text-sm text-red-600">
-                    {pdfError}
                   </p>
                 ) : null}
               </div>
