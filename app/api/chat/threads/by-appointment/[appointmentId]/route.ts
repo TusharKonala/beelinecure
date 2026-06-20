@@ -12,6 +12,7 @@ import {
   resolveConversationAccess,
 } from "@/lib/chat";
 import { prisma } from "@/lib/db";
+import { formatDoctorDisplayName } from "@/lib/doctor-name";
 
 const appointmentInclude = {
   appointment: {
@@ -98,7 +99,7 @@ export async function GET(
   const peerName =
     role === UserRole.DOCTOR
       ? conversation.appointment.patientName
-      : conversation.appointment.doctor.name;
+      : formatDoctorDisplayName(conversation.appointment.doctor.name);
 
   const response = NextResponse.json({
     thread: {

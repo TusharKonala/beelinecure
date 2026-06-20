@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { formatDoctorDisplayName } from "@/lib/doctor-name";
 import { createPrescriptionPdfBlobUrl, downloadPrescriptionPdf } from "@/lib/prescription-pdf";
 import { type StructuredPrescription } from "@/lib/prescription-pdf-text";
 
@@ -69,6 +70,10 @@ export function PrescriptionPreviewClient({
     () => normalizePrescription(prescription),
     [prescription],
   );
+  const displayDoctorName = useMemo(
+    () => formatDoctorDisplayName(doctorName),
+    [doctorName],
+  );
 
   useEffect(() => {
     if (typeof navigator === "undefined") return;
@@ -85,7 +90,7 @@ export function PrescriptionPreviewClient({
       setPreviewError(null);
       try {
         const url = await createPrescriptionPdfBlobUrl({
-          doctorName,
+          doctorName: displayDoctorName,
           patientName,
           date,
           time,
@@ -118,13 +123,13 @@ export function PrescriptionPreviewClient({
         URL.revokeObjectURL(objectUrl);
       }
     };
-  }, [doctorName, patientName, date, time, timezone, normalizedPrescription]);
+  }, [displayDoctorName, patientName, date, time, timezone, normalizedPrescription]);
 
   async function downloadPdf() {
     setIsDownloading(true);
     try {
       await downloadPrescriptionPdf({
-        doctorName,
+        doctorName: displayDoctorName,
         patientName,
         date,
         time,
@@ -159,7 +164,7 @@ export function PrescriptionPreviewClient({
               </div>
               <div className="space-y-2 rounded-lg border border-[#e5e5e5] bg-[#fcfcfc] p-4 font-montserrat text-sm text-[#333333]">
                 <p>
-                  <span className="font-semibold">Doctor:</span> {doctorName}
+                  <span className="font-semibold">Doctor:</span> {displayDoctorName}
                 </p>
                 <p>
                   <span className="font-semibold">Patient:</span> {patientName}

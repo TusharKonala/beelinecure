@@ -6,6 +6,7 @@ import {
   ConsultationType,
 } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
+import { formatDoctorDisplayName } from "@/lib/doctor-name";
 
 const CLOCK_SKEW_MS = 120_000;
 
@@ -275,7 +276,7 @@ export async function createMeetEventForOnlineAppointment(
       calendarId: "primary",
       conferenceDataVersion: 1,
       requestBody: {
-        summary: `Online: ${appointment.patientName} — ${appointment.doctor.name}`,
+        summary: `Online: ${appointment.patientName} — ${formatDoctorDisplayName(appointment.doctor.name)}`,
         description: `BeelineCure online consultation (appointment ${appointment.id})`,
         start: {
           dateTime: start.toISOString(),

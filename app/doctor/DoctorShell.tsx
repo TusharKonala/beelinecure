@@ -19,6 +19,7 @@ import { Container } from "@/components/layout/Container";
 import { ChatInboxRealtime } from "@/components/chat/ChatInboxRealtime";
 import { CHAT_UNREAD_COUNT_EVENT } from "@/lib/chat-events";
 import { DOCTOR_UNREAD_COUNT_EVENT } from "@/components/doctor/DoctorNotificationToaster";
+import { formatDoctorDisplayName } from "@/lib/doctor-name";
 
 type DoctorNavItem = {
   href: string;
@@ -76,9 +77,9 @@ export function DoctorShell({
   const [unreadChatCount, setUnreadChatCount] = useState(0);
   const [doctorDisplayName, setDoctorDisplayName] = useState(initialDoctorName);
   const lastActivityPingAtRef = useRef(0);
-  const doctorName = doctorDisplayName;
+  const displayDoctorName = formatDoctorDisplayName(doctorDisplayName);
   const initials =
-    doctorName
+    displayDoctorName
       .split(/\s+/)
       .filter(Boolean)
       .slice(0, 2)
@@ -316,7 +317,7 @@ export function DoctorShell({
                 {initials}
               </div>
               <span className="hidden font-montserrat text-sm font-medium text-[#333333] md:block">
-                {doctorName}
+                {displayDoctorName}
               </span>
             </div>
           </div>

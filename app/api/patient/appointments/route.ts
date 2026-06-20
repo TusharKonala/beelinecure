@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { AppointmentStatus, type Prisma } from "@/generated/prisma/client";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { formatDoctorDisplayName } from "@/lib/doctor-name";
 import { isDoctorTimeInPast } from "@/lib/timezone-display";
 
 type TabKey = "upcoming" | "completed" | "cancelled";
@@ -157,7 +158,7 @@ export async function GET(request: NextRequest) {
   const doctorOptions = Array.from(
     optionFilteredAppointments.reduce((map, appointment) => {
       if (!map.has(appointment.doctorId)) {
-        map.set(appointment.doctorId, appointment.doctor.name);
+        map.set(appointment.doctorId, formatDoctorDisplayName(appointment.doctor.name));
       }
       return map;
     }, new Map<string, string>()),
@@ -191,7 +192,7 @@ export async function GET(request: NextRequest) {
       : null,
     status: a.status,
     doctor: {
-      name: a.doctor.name,
+      name: formatDoctorDisplayName(a.doctor.name),
       specialization: a.doctor.specialization,
     },
   }));

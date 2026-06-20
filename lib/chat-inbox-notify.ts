@@ -2,6 +2,7 @@ import { ChatSenderRole } from "@/generated/prisma/client";
 import { deriveLastMessagePreview, isChatLocked } from "@/lib/chat";
 import { prisma } from "@/lib/db";
 import type { ChatInboxUpdatePayload } from "@/lib/chat-realtime-types";
+import { formatDoctorDisplayName } from "@/lib/doctor-name";
 import { triggerChatInboxUpdate } from "@/lib/pusher-server";
 
 export async function notifyChatInboxAfterMessage(params: {
@@ -67,7 +68,7 @@ export async function notifyChatInboxAfterMessage(params: {
     const isDoctorRecipient = userId === conversation.doctorUserId;
     const peerName = isDoctorRecipient
       ? conversation.appointment.patientName
-      : conversation.appointment.doctor.name;
+      : formatDoctorDisplayName(conversation.appointment.doctor.name);
     const peerSubtitle = isDoctorRecipient
       ? null
       : conversation.appointment.doctor.specialization;

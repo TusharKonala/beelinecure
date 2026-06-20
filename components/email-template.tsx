@@ -1,4 +1,5 @@
 import * as React from "react";
+import { formatDoctorNameForDisplay } from "@/lib/doctor-name";
 
 export interface EmailTemplateProps {
   heading?: string;
@@ -59,6 +60,7 @@ export function EmailTemplate({
   const firstActionUrl = primaryActionUrl ?? cancelUrl;
   const secondActionLabel = secondaryActionLabel ?? "Reschedule Appointment";
   const secondActionUrl = secondaryActionUrl ?? rescheduleUrl;
+  const displayDoctorName = formatDoctorNameForDisplay(doctorName);
 
   return (
     <div
@@ -80,7 +82,7 @@ export function EmailTemplate({
         }}
       >
         <p style={{ margin: "0.25rem 0", color: "#111111" }}>
-          <strong>Doctor:</strong> {doctorName}
+          <strong>Doctor:</strong> {displayDoctorName}
         </p>
         <p style={{ margin: "0.25rem 0", color: "#111111" }}>
           <strong>Date:</strong> {appointmentDate}

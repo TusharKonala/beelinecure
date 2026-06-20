@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { UserRole, type Prisma } from "@/generated/prisma/client";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { formatDoctorDisplayName } from "@/lib/doctor-name";
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -78,7 +79,7 @@ export async function GET(request: NextRequest) {
       rating: review.rating,
       comment: review.comment,
       createdAt: review.createdAt.toISOString(),
-      doctorName: review.doctor.name,
+      doctorName: formatDoctorDisplayName(review.doctor.name),
       patientName: review.patient.name ?? review.patient.email,
     })),
     hasMore: skip + reviews.length < total,

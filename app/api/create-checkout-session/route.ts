@@ -12,6 +12,7 @@ import {
   priceCentsForDuration,
 } from "@/lib/doctor-pricing";
 import { coerceSupportedCurrency } from "@/lib/currency";
+import { formatDoctorDisplayName } from "@/lib/doctor-name";
 import { authOptions } from "@/lib/auth";
 import { getServerSession } from "next-auth/next";
 import { z } from "zod";
@@ -135,7 +136,9 @@ export async function POST(request: NextRequest) {
     const currency = coerceSupportedCurrency(
       bookingSession.currencyAtBooking ?? doctor.currency,
     );
-    const doctorName = doctor.name?.trim() || "your doctor";
+    const doctorName = doctor.name?.trim()
+      ? formatDoctorDisplayName(doctor.name)
+      : "your doctor";
     const isClinic = bookingSession.consultationType === "CLINIC";
     const description = isClinic
       ? `Clinic visit (${bookingSession.durationMinutes} min) with ${doctorName}.`

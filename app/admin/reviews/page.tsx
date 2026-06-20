@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import useInfiniteScroll from "react-infinite-scroll-hook";
 import { Container } from "@/components/layout/Container";
+import { formatDoctorDisplayName } from "@/lib/doctor-name";
 import { RatingStars } from "@/components/reviews/RatingStars";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -395,7 +396,7 @@ export default function AdminReviewsPage() {
                 </span>{" "}
                 for{" "}
                 <span className="font-medium text-[#333333]">
-                  Dr. {deleteTarget.doctorName}
+                  {formatDoctorDisplayName(deleteTarget.doctorName)}
                 </span>
                 .
               </p>

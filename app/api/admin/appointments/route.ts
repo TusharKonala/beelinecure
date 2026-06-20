@@ -14,6 +14,7 @@ import {
   normalizeDoctorDateFilter,
 } from "@/lib/doctor-appointment-filters";
 import { prisma } from "@/lib/db";
+import { formatDoctorDisplayName } from "@/lib/doctor-name";
 import { isDoctorTimeInPast } from "@/lib/timezone-display";
 import { cancelAppointmentByStaff } from "@/lib/doctor-cancellations";
 
@@ -141,7 +142,7 @@ export async function GET(request: NextRequest) {
       notes: a.notes,
       googleMeetUrl: a.googleMeetUrl,
       doctor: {
-        name: a.doctor.name,
+        name: formatDoctorDisplayName(a.doctor.name),
         specialization: a.doctor.specialization,
       },
     })),

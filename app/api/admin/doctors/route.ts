@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { DoctorApprovalStatus, UserRole, type Prisma } from "@/generated/prisma/client";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { formatDoctorDisplayName } from "@/lib/doctor-name";
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -95,7 +96,7 @@ export async function GET(request: NextRequest) {
     items: doctors.map((doctor) => ({
       id: doctor.id,
       userId: doctor.userId,
-      name: doctor.name,
+      name: formatDoctorDisplayName(doctor.name),
       email: doctor.user?.email ?? null,
       specialization: doctor.specialization,
       licenseNumber: doctor.licenseNumber,

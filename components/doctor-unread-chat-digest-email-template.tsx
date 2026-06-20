@@ -9,6 +9,7 @@ import {
   Section,
   Text,
 } from "@react-email/components";
+import { formatDoctorDisplayName } from "@/lib/doctor-name";
 
 type DoctorUnreadChatDigestEmailProps = {
   doctorName: string;
@@ -23,6 +24,7 @@ export function DoctorUnreadChatDigestEmailTemplate({
   moreCount,
   chatUrl,
 }: DoctorUnreadChatDigestEmailProps) {
+  const displayDoctorName = formatDoctorDisplayName(doctorName);
   const preview =
     patientNames.length === 1
       ? `New message from ${patientNames[0]}`
@@ -35,7 +37,7 @@ export function DoctorUnreadChatDigestEmailTemplate({
       <Body style={main}>
         <Container style={container}>
           <Heading style={heading}>Unread patient messages</Heading>
-          <Text style={text}>Hi {doctorName},</Text>
+          <Text style={text}>Hi {displayDoctorName},</Text>
           <Text style={text}>
             You have unread messages from the following patient
             {patientNames.length === 1 ? "" : "s"}:

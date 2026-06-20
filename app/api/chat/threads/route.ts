@@ -9,6 +9,7 @@ import {
   isChatLocked,
 } from "@/lib/chat";
 import { prisma } from "@/lib/db";
+import { formatDoctorDisplayName } from "@/lib/doctor-name";
 
 function parseLimit(raw: string | null): number {
   const n = Number(raw ?? "5");
@@ -109,7 +110,7 @@ export async function GET(request: NextRequest) {
         return {
           id: convId,
           appointmentId: apt.id,
-          peerName: apt.doctor.name,
+          peerName: formatDoctorDisplayName(apt.doctor.name),
           peerSubtitle: apt.doctor.specialization,
           peerPhotoUrl: apt.doctor.profilePhotoUrl,
           lastMessagePreview,

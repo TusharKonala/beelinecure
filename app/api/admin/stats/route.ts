@@ -8,6 +8,7 @@ import {
 } from "@/generated/prisma/client";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { formatDoctorDisplayName } from "@/lib/doctor-name";
 import {
   coerceSupportedCurrency,
   isSupportedCurrency,
@@ -187,7 +188,7 @@ export async function GET(request: NextRequest) {
       return {
         id: row.id,
         patientName: row.patientName,
-        doctorName: row.doctor.name,
+        doctorName: formatDoctorDisplayName(row.doctor.name),
         appointmentType: row.consultationType,
         amountCents: convertedAmountCents,
         status: row.status,

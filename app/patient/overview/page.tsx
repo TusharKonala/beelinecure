@@ -7,6 +7,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { Container } from "@/components/layout/Container";
 import { computeAgeYears, computeBmi } from "@/lib/health-profile-metrics";
+import { formatDoctorDisplayName } from "@/lib/doctor-name";
 import {
   formatDateInPatientTz,
   formatTimeInPatientTz,
@@ -183,7 +184,7 @@ export default async function PatientOverviewPage() {
                       return (
                         <li key={a.id} className={SNAPSHOT_LIST_ITEM}>
                           <p className="wrap-break-word font-montserrat text-sm font-semibold text-[#333333]">
-                            {a.doctor.name}
+                            {formatDoctorDisplayName(a.doctor.name)}
                           </p>
                           <p className="mt-1 font-montserrat text-xs text-[#5E5E5E]">
                             {formatDateInPatientTz(dateStr, a.time, a.timezone)} ·{" "}

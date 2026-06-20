@@ -1,4 +1,5 @@
 import * as React from "react";
+import { formatDoctorDisplayName } from "@/lib/doctor-name";
 
 export interface MedicineReminderEmailTemplateProps {
   heading: string;
@@ -21,6 +22,8 @@ export function MedicineReminderEmailTemplate({
   secondaryActionLabel,
   secondaryActionUrl,
 }: MedicineReminderEmailTemplateProps) {
+  const displayDoctorName = formatDoctorDisplayName(doctorName);
+
   return (
     <div
       style={{ fontFamily: "sans-serif", maxWidth: "600px", margin: "0 auto" }}
@@ -39,7 +42,7 @@ export function MedicineReminderEmailTemplate({
         }}
       >
         <p style={{ margin: "0.25rem 0", color: "#111111" }}>
-          <strong>Doctor:</strong> {doctorName}
+          <strong>Doctor:</strong> {displayDoctorName}
         </p>
         <p style={{ margin: "0.25rem 0", color: "#111111" }}>
           <strong>Patient:</strong> {patientName}

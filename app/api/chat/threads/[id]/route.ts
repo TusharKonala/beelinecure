@@ -6,6 +6,7 @@ import {
   isChatLocked,
   markRead,
 } from "@/lib/chat";
+import { formatDoctorDisplayName } from "@/lib/doctor-name";
 
 export async function GET(
   _request: NextRequest,
@@ -31,7 +32,7 @@ export async function GET(
   const peerName =
     role === "DOCTOR"
       ? conversation.appointment.patientName
-      : conversation.appointment.doctor.name;
+      : formatDoctorDisplayName(conversation.appointment.doctor.name);
 
   return NextResponse.json({
     thread: {

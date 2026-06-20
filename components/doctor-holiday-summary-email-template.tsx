@@ -1,4 +1,5 @@
 import * as React from "react";
+import { formatDoctorDisplayName } from "@/lib/doctor-name";
 
 export interface DoctorHolidaySummaryItem {
   patientName: string;
@@ -30,6 +31,7 @@ export function DoctorHolidaySummaryEmailTemplate({
   doctorTimezone,
   appointmentsByDate,
 }: DoctorHolidaySummaryEmailProps) {
+  const displayDoctorName = formatDoctorDisplayName(doctorName);
   const totalCount = Object.values(appointmentsByDate).reduce(
     (acc, list) => acc + list.length,
     0,
@@ -42,7 +44,7 @@ export function DoctorHolidaySummaryEmailTemplate({
       <h1 style={{ color: "#111111", marginBottom: "1rem" }}>
         Holiday cancellation summary
       </h1>
-      <p style={{ color: "#333333", lineHeight: 1.6 }}>Hello {doctorName},</p>
+      <p style={{ color: "#333333", lineHeight: 1.6 }}>Hello {displayDoctorName},</p>
       <p style={{ color: "#333333", lineHeight: 1.6 }}>
         You marked the following date{dateLabels.length === 1 ? "" : "s"} as a
         holiday: <strong>{dateLabels.join(", ")}</strong>.
