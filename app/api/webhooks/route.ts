@@ -314,7 +314,7 @@ export async function POST(request: NextRequest) {
         patientEmail: bookingSession.email,
         type: NotificationType.APPOINTMENT_BOOKED,
         title: "Appointment booked",
-        message: `Your ${patientModality} appointment with Dr. ${doctor.name} is confirmed for ${patientDateLabel} at ${patientTimeLabel}.`,
+        message: `Your ${patientModality} appointment with ${formatDoctorDisplayName(doctor.name)} is confirmed for ${patientDateLabel} at ${patientTimeLabel}.`,
         actorUserId:
           (
             await prisma.user.findUnique({

@@ -43,6 +43,7 @@ import {
 import { buildEmailPriceLabels } from "@/lib/email-price-labels";
 import { bookingConfirmationEmailMessage } from "@/lib/reschedule-policy-copy";
 import { publicDoctorByIdWhere } from "@/lib/doctor-visibility";
+import { formatDoctorDisplayName } from "@/lib/doctor-name";
 import { fromZonedTime } from "date-fns-tz";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -380,7 +381,7 @@ export async function POST(request: NextRequest) {
       patientEmail: email,
       type: NotificationType.APPOINTMENT_BOOKED,
       title: "Appointment booked",
-      message: `Your in-clinic appointment with Dr. ${doctor.name} is confirmed for ${doctorDateLabel} at ${doctorTimeLabel}.`,
+      message: `Your in-clinic appointment with ${formatDoctorDisplayName(doctor.name)} is confirmed for ${doctorDateLabel} at ${doctorTimeLabel}.`,
       actorUserId: session?.user?.id ?? null,
     });
   } catch (err) {
