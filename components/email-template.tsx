@@ -29,24 +29,26 @@ export interface EmailTemplateProps {
 
 const primaryButtonStyle: React.CSSProperties = {
   display: "inline-block",
-  padding: "12px 20px",
+  padding: "7px 12px",
   backgroundColor: "#2555F3",
   color: "#ffffff",
   textDecoration: "none",
   fontWeight: 600,
-  borderRadius: "8px",
-  fontSize: "14px",
+  borderRadius: "6px",
+  fontSize: "13px",
+  lineHeight: 1.3,
 };
 
 const secondaryButtonStyle: React.CSSProperties = {
   display: "inline-block",
-  padding: "12px 20px",
+  padding: "6px 12px",
   backgroundColor: "#ffffff",
   color: "#2555F3",
   textDecoration: "none",
   fontWeight: 600,
-  borderRadius: "8px",
-  fontSize: "14px",
+  borderRadius: "6px",
+  fontSize: "13px",
+  lineHeight: 1.3,
   border: "1px solid #2555F3",
 };
 
@@ -55,21 +57,29 @@ function EmailActionButton({
   label,
   variant,
   isFirst,
+  inline,
 }: {
   href: string;
   label: string;
   variant: "primary" | "secondary";
   isFirst?: boolean;
+  inline?: boolean;
 }) {
   return (
-    <div style={{ marginTop: isFirst ? 0 : "0.75rem" }}>
+    <span
+      style={{
+        display: inline ? "inline-block" : "block",
+        marginTop: isFirst ? 0 : inline ? 0 : "0.5rem",
+        marginRight: inline ? "0.5rem" : 0,
+      }}
+    >
       <a
         href={href}
         style={variant === "primary" ? primaryButtonStyle : secondaryButtonStyle}
       >
         {label}
       </a>
-    </div>
+    </span>
   );
 }
 
@@ -123,7 +133,7 @@ export function EmailTemplate({
         {message ?? getConfirmationMessage(consultationType)}
       </p>
       {showActionLinks && (
-        <div style={{ marginTop: "1.5rem" }}>
+        <div style={{ marginTop: "1rem" }}>
           {showMeetButton && meetLink && (
             <EmailActionButton
               href={meetLink}
@@ -133,13 +143,14 @@ export function EmailTemplate({
             />
           )}
           {usesDefaultPatientActions ? (
-            <>
+            <div style={{ marginTop: showMeetButton ? "0.5rem" : 0 }}>
               {secondActionUrl && (
                 <EmailActionButton
                   href={secondActionUrl}
                   label={secondActionLabel}
                   variant="primary"
-                  isFirst={!showMeetButton}
+                  isFirst
+                  inline
                 />
               )}
               {firstActionUrl && (
@@ -149,10 +160,11 @@ export function EmailTemplate({
                   variant={
                     secondActionUrl || showMeetButton ? "secondary" : "primary"
                   }
-                  isFirst={!showMeetButton && !secondActionUrl}
+                  isFirst={!secondActionUrl}
+                  inline={!!secondActionUrl}
                 />
               )}
-            </>
+            </div>
           ) : (
             <>
               {firstActionUrl && firstActionLabel && (
