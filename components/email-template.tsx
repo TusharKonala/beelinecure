@@ -53,19 +53,14 @@ const secondaryButtonStyle: React.CSSProperties = {
 };
 
 const emailActionResponsiveStyles = `
-  .bc-email-action-row-item {
-    display: inline-block;
-    vertical-align: middle;
-    margin-right: 0.5rem;
-  }
   @media only screen and (max-width: 480px) {
-    .bc-email-action-row-item {
+    .bc-email-action-pair-cell {
       display: block !important;
-      margin-right: 0 !important;
-      margin-top: 0.5rem !important;
+      width: 100% !important;
+      padding-right: 0 !important;
     }
-    .bc-email-action-row-item.bc-email-action-row-first {
-      margin-top: 0 !important;
+    .bc-email-action-pair-cell-first {
+      padding-bottom: 8px !important;
     }
   }
 `;
@@ -75,22 +70,17 @@ function EmailActionButton({
   label,
   variant,
   isFirst,
-  rowItemClassName,
 }: {
   href: string;
   label: string;
   variant: "primary" | "secondary";
   isFirst?: boolean;
-  rowItemClassName?: string;
 }) {
-  const isRowItem = Boolean(rowItemClassName);
-
   return (
     <span
-      className={rowItemClassName}
       style={{
-        display: isRowItem ? undefined : "block",
-        marginTop: isFirst ? 0 : isRowItem ? undefined : "0.5rem",
+        display: "block",
+        marginTop: isFirst ? 0 : "0.5rem",
       }}
     >
       <a
@@ -100,6 +90,57 @@ function EmailActionButton({
         {label}
       </a>
     </span>
+  );
+}
+
+function EmailActionPair({
+  firstHref,
+  firstLabel,
+  firstVariant,
+  secondHref,
+  secondLabel,
+  secondVariant,
+}: {
+  firstHref: string;
+  firstLabel: string;
+  firstVariant: "primary" | "secondary";
+  secondHref: string;
+  secondLabel: string;
+  secondVariant: "primary" | "secondary";
+}) {
+  return (
+    <table
+      role="presentation"
+      cellPadding={0}
+      cellSpacing={0}
+      border={0}
+      style={{ borderCollapse: "collapse" }}
+    >
+      <tbody>
+        <tr>
+          <td
+            className="bc-email-action-pair-cell bc-email-action-pair-cell-first"
+            style={{
+              paddingRight: "10px",
+              paddingBottom: "0",
+              verticalAlign: "middle",
+            }}
+          >
+            <a href={firstHref} style={firstVariant === "primary" ? primaryButtonStyle : secondaryButtonStyle}>
+              {firstLabel}
+            </a>
+          </td>
+          <td
+            className="bc-email-action-pair-cell"
+            style={{ verticalAlign: "middle" }}
+          >
+            <a href={secondHref} style={secondVariant === "primary" ? primaryButtonStyle : secondaryButtonStyle}>
+              {secondLabel}
+            </a>
+          </td>
+        </tr>
+      </tbody>
+    </table>
   );
 }
 
@@ -165,29 +206,34 @@ export function EmailTemplate({
           )}
           {usesDefaultPatientActions ? (
             <div style={{ marginTop: showMeetButton ? "0.5rem" : 0 }}>
-              {secondActionUrl && (
-                <EmailActionButton
-                  href={secondActionUrl}
-                  label={secondActionLabel}
-                  variant="primary"
-                  isFirst
-                  rowItemClassName="bc-email-action-row-item bc-email-action-row-first"
+              {secondActionUrl && firstActionUrl ? (
+                <EmailActionPair
+                  firstHref={secondActionUrl}
+                  firstLabel={secondActionLabel}
+                  firstVariant="primary"
+                  secondHref={firstActionUrl}
+                  secondLabel={firstActionLabel}
+                  secondVariant="secondary"
                 />
-              )}
-              {firstActionUrl && (
-                <EmailActionButton
-                  href={firstActionUrl}
-                  label={firstActionLabel}
-                  variant={
-                    secondActionUrl || showMeetButton ? "secondary" : "primary"
-                  }
-                  isFirst={!secondActionUrl}
-                  rowItemClassName={
-                    secondActionUrl
-                      ? "bc-email-action-row-item"
-                      : "bc-email-action-row-item bc-email-action-row-first"
-                  }
-                />
+              ) : (
+                <>
+                  {secondActionUrl && (
+                    <EmailActionButton
+                      href={secondActionUrl}
+                      label={secondActionLabel}
+                      variant="primary"
+                      isFirst
+                    />
+                  )}
+                  {firstActionUrl && (
+                    <EmailActionButton
+                      href={firstActionUrl}
+                      label={firstActionLabel}
+                      variant="primary"
+                      isFirst={!secondActionUrl}
+                    />
+                  )}
+                </>
               )}
             </div>
           ) : (
