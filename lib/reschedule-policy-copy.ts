@@ -20,8 +20,8 @@ export function bookingConfirmationEmailMessage(
 ): string {
   const base =
     consultationType === "ONLINE"
-      ? "Your online appointment is confirmed. Please be available at the scheduled time. To cancel or reschedule, use the links below."
-      : "Your appointment is confirmed. Please arrive a few minutes early. To cancel or reschedule, use the links below.";
+      ? "Your online appointment is confirmed. Please be available at the scheduled time. To cancel or reschedule, use the buttons below."
+      : "Your appointment is confirmed. Please arrive a few minutes early. To cancel or reschedule, use the buttons below.";
   return `${base} ${RESCHEDULE_POLICY_CONFIRMATION_LINE}`;
 }
 
@@ -31,7 +31,7 @@ export function rescheduleConfirmationEmailMessage(
 ): string {
   const base =
     consultationType === "ONLINE"
-      ? "Your appointment has been rescheduled. Please be available at the scheduled time. To cancel or reschedule, use the links below."
-      : "Your appointment has been rescheduled. Please arrive a few minutes early. To cancel or reschedule, use the links below.";
+      ? "Your appointment has been rescheduled. Please be available at the scheduled time. To cancel or reschedule, use the buttons below."
+      : "Your appointment has been rescheduled. Please arrive a few minutes early. To cancel or reschedule, use the buttons below.";
   return `${base} ${RESCHEDULE_POLICY_CONFIRMATION_LINE}`;
 }

@@ -27,12 +27,58 @@ export interface EmailTemplateProps {
   showOnlineContactFallback?: boolean;
 }
 
+const primaryButtonStyle: React.CSSProperties = {
+  display: "inline-block",
+  padding: "12px 20px",
+  backgroundColor: "#2555F3",
+  color: "#ffffff",
+  textDecoration: "none",
+  fontWeight: 600,
+  borderRadius: "8px",
+  fontSize: "14px",
+};
+
+const secondaryButtonStyle: React.CSSProperties = {
+  display: "inline-block",
+  padding: "12px 20px",
+  backgroundColor: "#ffffff",
+  color: "#2555F3",
+  textDecoration: "none",
+  fontWeight: 600,
+  borderRadius: "8px",
+  fontSize: "14px",
+  border: "1px solid #2555F3",
+};
+
+function EmailActionButton({
+  href,
+  label,
+  variant,
+  isFirst,
+}: {
+  href: string;
+  label: string;
+  variant: "primary" | "secondary";
+  isFirst?: boolean;
+}) {
+  return (
+    <div style={{ marginTop: isFirst ? 0 : "0.75rem" }}>
+      <a
+        href={href}
+        style={variant === "primary" ? primaryButtonStyle : secondaryButtonStyle}
+      >
+        {label}
+      </a>
+    </div>
+  );
+}
+
 const getConfirmationMessage = (consultationType: "CLINIC" | "ONLINE") => {
   if (consultationType === "ONLINE") {
-    return "Your online appointment is confirmed. Please be available at the scheduled time. To cancel or reschedule, use the links below.";
+    return "Your online appointment is confirmed. Please be available at the scheduled time. Use the buttons below to manage your appointment.";
   }
 
-  return "Your appointment is confirmed. Please arrive a few minutes early. To cancel or reschedule, use the links below.";
+  return "Your appointment is confirmed. Please arrive a few minutes early. Use the buttons below to manage your appointment.";
 };
 
 export function EmailTemplate({
@@ -61,6 +107,10 @@ export function EmailTemplate({
   const secondActionLabel = secondaryActionLabel ?? "Reschedule Appointment";
   const secondActionUrl = secondaryActionUrl ?? rescheduleUrl;
   const displayDoctorName = formatDoctorNameForDisplay(doctorName);
+  const usesDefaultPatientActions =
+    primaryActionLabel === undefined && primaryActionUrl === undefined;
+  const showMeetButton =
+    consultationType === "ONLINE" && showActionLinks && !!meetLink;
 
   return (
     <div
@@ -72,6 +122,58 @@ export function EmailTemplate({
         {" "}
         {message ?? getConfirmationMessage(consultationType)}
       </p>
+      {showActionLinks && (
+        <div style={{ marginTop: "1.5rem" }}>
+          {showMeetButton && meetLink && (
+            <EmailActionButton
+              href={meetLink}
+              label="Join Google Meet"
+              variant="primary"
+              isFirst
+            />
+          )}
+          {usesDefaultPatientActions ? (
+            <>
+              {secondActionUrl && (
+                <EmailActionButton
+                  href={secondActionUrl}
+                  label={secondActionLabel}
+                  variant="primary"
+                  isFirst={!showMeetButton}
+                />
+              )}
+              {firstActionUrl && (
+                <EmailActionButton
+                  href={firstActionUrl}
+                  label={firstActionLabel}
+                  variant={
+                    secondActionUrl || showMeetButton ? "secondary" : "primary"
+                  }
+                  isFirst={!showMeetButton && !secondActionUrl}
+                />
+              )}
+            </>
+          ) : (
+            <>
+              {firstActionUrl && firstActionLabel && (
+                <EmailActionButton
+                  href={firstActionUrl}
+                  label={firstActionLabel}
+                  variant="primary"
+                  isFirst={!showMeetButton}
+                />
+              )}
+              {secondActionUrl && secondActionLabel && (
+                <EmailActionButton
+                  href={secondActionUrl}
+                  label={secondActionLabel}
+                  variant="secondary"
+                />
+              )}
+            </>
+          )}
+        </div>
+      )}
       <div
         style={{
           marginTop: "1.5rem",
@@ -107,61 +209,15 @@ export function EmailTemplate({
           </p>
         ) : null}
       </div>
-      {consultationType === "ONLINE" && showActionLinks && meetLink && (
-        <p style={{ marginTop: "1rem", color: "#333" }}>
-          <strong>Join Google Meet:</strong>{" "}
-          <a
-            href={meetLink}
-            style={{
-              color: "#2555F3",
-              wordBreak: "break-all",
-            }}
-          >
-            {meetLink}
-          </a>
-        </p>
-      )}
       {consultationType === "ONLINE" &&
         showActionLinks &&
         showOnlineContactFallback &&
         !meetLink && (
-        <p style={{ marginTop: "1rem", color: "#333" }}>
-          This is an online consultation. The doctor will contact you at the
-          scheduled time.
-        </p>
-      )}
-      {showActionLinks && (
-        <>
-          {firstActionLabel && firstActionUrl && (
-            <div style={{ marginTop: "1rem" }}>
-              <a
-                href={firstActionUrl}
-                style={{
-                  color: "#2555F3",
-                  textDecoration: "none",
-                  fontWeight: 600,
-                }}
-              >
-                {firstActionLabel}
-              </a>
-            </div>
-          )}
-          {secondActionLabel && secondActionUrl && (
-            <div style={{ marginTop: "0.75rem" }}>
-              <a
-                href={secondActionUrl}
-                style={{
-                  color: "#2555F3",
-                  textDecoration: "none",
-                  fontWeight: 600,
-                }}
-              >
-                {secondActionLabel}
-              </a>
-            </div>
-          )}
-        </>
-      )}
+          <p style={{ marginTop: "1rem", color: "#333" }}>
+            This is an online consultation. The doctor will contact you at the
+            scheduled time.
+          </p>
+        )}
       <p
         style={{ color: "#5E5E5E", fontSize: "0.875rem", marginTop: "1.5rem" }}
       >

@@ -259,7 +259,7 @@ export const sendOnlineAppointmentT15Reminder = inngest.createFunction(
           appointment.id,
         )}&token=${encodeURIComponent(appointment.cancelToken)}`
       : "";
-    const message = `This is a reminder that your online consultation starts in about 15 minutes. Use the Google Meet link below to join. ${RESCHEDULE_ONLY_MORE_THAN_24H} If you cannot attend, use Cancel below — then book a new appointment when you are ready.`;
+    const message = `This is a reminder that your online consultation starts in about 15 minutes. Use the Join Google Meet button below. ${RESCHEDULE_ONLY_MORE_THAN_24H} If you cannot attend, use the Cancel button below — then book a new appointment when you are ready.`;
 
     const patientSend = await resend.emails.send({
       from: getEmailFrom(),
@@ -435,7 +435,7 @@ export const sendClinicAppointmentT120Reminder = inngest.createFunction(
       subject: "Your clinic appointment is in 2 hours",
       react: EmailTemplate({
         heading: "Time to head out",
-        message: `This is a reminder that your in-clinic appointment is in about 2 hours. Please arrive a few minutes early. ${RESCHEDULE_ONLY_MORE_THAN_24H} If you cannot attend, use Cancel below and book again when you are ready.`,
+        message: `This is a reminder that your in-clinic appointment is in about 2 hours. Please arrive a few minutes early. ${RESCHEDULE_ONLY_MORE_THAN_24H} If you cannot attend, use the Cancel button below and book again when you are ready.`,
         showActionLinks: true,
         doctorName: appointment.doctor.name,
         appointmentDate: formatDateInPatientTz(
