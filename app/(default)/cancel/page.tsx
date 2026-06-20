@@ -166,7 +166,7 @@ function CancelContent() {
       case "invalid_link":
         return "Invalid Cancellation Link";
       case "appointment_passed":
-        return "Cannot Cancel Appointment";
+        return "Too Late to Cancel";
       case "error":
         return "Cancellation Error";
       default:
@@ -183,7 +183,7 @@ function CancelContent() {
       case "invalid_link":
         return "This cancellation link is invalid or expired.";
       case "appointment_passed":
-        return "This appointment has already started. Online cancellation is no longer available.";
+        return "Your appointment time has passed. This link can no longer be used to cancel online.";
       case "error":
         return "We could not cancel your appointment. Please try again.";
       default:

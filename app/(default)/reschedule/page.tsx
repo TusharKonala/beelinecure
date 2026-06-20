@@ -501,7 +501,7 @@ function RescheduleContent() {
       case "invalid_link":
         return "Invalid Reschedule Link";
       case "appointment_passed":
-        return "Reschedule Not Available";
+        return "Too Late to Reschedule";
       case "invalid_body":
         return "Invalid Request";
       case "error":
@@ -522,7 +522,7 @@ function RescheduleContent() {
       case "invalid_link":
         return "This reschedule link is invalid or expired.";
       case "appointment_passed":
-        return "This appointment has already started. Online rescheduling is no longer available.";
+        return "Your appointment time has passed. This link can no longer be used to reschedule. Please book a new appointment instead.";
       case "invalid_body":
         return "Invalid request. Please try again.";
       case "error":
