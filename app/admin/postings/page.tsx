@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import useInfiniteScroll from "react-infinite-scroll-hook";
 import { Container } from "@/components/layout/Container";
 import { Button } from "@/components/ui/button";
-import { formatJobTypeLabel, formatSalaryDisplay } from "@/lib/careers-schemas";
+import { formatJobTypeLabel, formatSalaryDisplay, jobTypeValues } from "@/lib/careers-schemas";
 import {
   activeBadgeClass,
   emptyPostingForm,
@@ -13,6 +13,7 @@ import {
   jobTypeBadgeClass,
   postingFormsEqual,
   PostingFormFields,
+  SELECT_CHEVRON,
   type JobType,
   type PostingForm,
 } from "@/lib/admin-careers-ui";
@@ -31,6 +32,10 @@ type JobPosting = {
   applicationCount: number;
 };
 
+type TypeFilter = "ALL" | JobType;
+type RemoteFilter = "ALL" | "remote" | "onsite";
+type ActiveFilter = "ALL" | "active" | "inactive";
+
 export default function AdminCareersPostingsPage() {
   const [postings, setPostings] = useState<JobPosting[]>([]);
   const [postingsCursor, setPostingsCursor] = useState<string | null>(null);
@@ -46,6 +51,9 @@ export default function AdminCareersPostingsPage() {
   const [editBaseline, setEditBaseline] = useState<PostingForm | null>(null);
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>("ALL");
+  const [remoteFilter, setRemoteFilter] = useState<RemoteFilter>("ALL");
+  const [activeFilter, setActiveFilter] = useState<ActiveFilter>("ALL");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<JobPosting | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -72,6 +80,11 @@ export default function AdminCareersPostingsPage() {
       const params = new URLSearchParams({ limit: "10" });
       if (cursor) params.set("cursor", cursor);
       if (debouncedSearch) params.set("search", debouncedSearch);
+      if (typeFilter !== "ALL") params.set("type", typeFilter);
+      if (remoteFilter === "remote") params.set("remote", "true");
+      if (remoteFilter === "onsite") params.set("remote", "false");
+      if (activeFilter === "active") params.set("active", "true");
+      if (activeFilter === "inactive") params.set("active", "false");
       const res = await fetch(`/api/admin/careers/postings?${params}`, {
         cache: "no-store",
       });
@@ -88,11 +101,30 @@ export default function AdminCareersPostingsPage() {
     } finally {
       if (postingsRequestIdRef.current === requestId) setPostingsLoading(false);
     }
-  }, [debouncedSearch]);
+  }, [activeFilter, debouncedSearch, remoteFilter, typeFilter]);
 
   useEffect(() => {
     void loadPostings(null, false);
   }, [loadPostings]);
+
+  const hasActiveFilters =
+    searchInput.trim() !== "" ||
+    typeFilter !== "ALL" ||
+    remoteFilter !== "ALL" ||
+    activeFilter !== "ALL";
+
+  const clearAllFilters = useCallback(() => {
+    setSearchInput("");
+    setDebouncedSearch("");
+    setTypeFilter("ALL");
+    setRemoteFilter("ALL");
+    setActiveFilter("ALL");
+  }, []);
+
+  const clearSearch = useCallback(() => {
+    setSearchInput("");
+    setDebouncedSearch("");
+  }, []);
 
   const [postingsSentryRef] = useInfiniteScroll({
     loading: postingsLoading,
@@ -282,14 +314,107 @@ export default function AdminCareersPostingsPage() {
           </form>
         ) : null}
 
-        <div className="mt-6">
-          <input
-            type="search"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search by posting title..."
-            className="w-full max-w-md rounded-xl border border-[#e5e5e5] bg-white px-3 py-2 font-montserrat text-sm text-[#333333] outline-none focus:border-[#2555F3] focus:ring-2 focus:ring-[#2555F3]/20"
-          />
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+          <p className="font-montserrat text-xs text-[#5E5E5E]">
+            Filter by title, job type, location, and status.
+          </p>
+          {hasActiveFilters ? (
+            <button
+              type="button"
+              onClick={clearAllFilters}
+              className="cursor-pointer font-montserrat text-xs text-[#777777] underline underline-offset-4 transition hover:text-[#2555F3]"
+            >
+              Clear all filters
+            </button>
+          ) : null}
+        </div>
+
+        <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end sm:gap-x-8 sm:gap-y-4">
+          <div className="flex min-w-0 flex-1 flex-col gap-2 sm:max-w-xs">
+            <label className="sr-only" htmlFor="admin-postings-search">
+              Search by posting title
+            </label>
+            <div className="relative w-full">
+              <input
+                id="admin-postings-search"
+                type="search"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder="Search by posting title..."
+                className="w-full rounded-xl border border-[#e5e5e5] bg-white py-2 pl-3 pr-14 font-montserrat text-sm text-[#333333] outline-none focus:border-[#2555F3] focus:ring-2 focus:ring-[#2555F3]/20 [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-results-button]:hidden"
+              />
+              {searchInput ? (
+                <button
+                  type="button"
+                  onClick={clearSearch}
+                  aria-label="Clear search"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer font-montserrat text-sm text-[#5E5E5E] transition hover:text-[#2555F3]"
+                >
+                  Clear
+                </button>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="flex min-w-0 flex-1 flex-col gap-2 sm:max-w-[180px]">
+            <label
+              htmlFor="admin-postings-type-filter"
+              className="shrink-0 font-montserrat text-sm font-medium text-[#333333]"
+            >
+              Job type
+            </label>
+            <select
+              id="admin-postings-type-filter"
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value as TypeFilter)}
+              className={`w-full cursor-pointer rounded-xl border border-[#e5e5e5] bg-white px-3 py-2 pr-10 font-montserrat text-sm text-[#333333] shadow-sm outline-none focus:border-[#2555F3] focus:ring-2 focus:ring-[#2555F3]/20 ${SELECT_CHEVRON}`}
+            >
+              <option value="ALL">All types</option>
+              {jobTypeValues.map((type) => (
+                <option key={type} value={type}>
+                  {formatJobTypeLabel(type)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex min-w-0 flex-1 flex-col gap-2 sm:max-w-[180px]">
+            <label
+              htmlFor="admin-postings-remote-filter"
+              className="shrink-0 font-montserrat text-sm font-medium text-[#333333]"
+            >
+              Location
+            </label>
+            <select
+              id="admin-postings-remote-filter"
+              value={remoteFilter}
+              onChange={(e) => setRemoteFilter(e.target.value as RemoteFilter)}
+              className={`w-full cursor-pointer rounded-xl border border-[#e5e5e5] bg-white px-3 py-2 pr-10 font-montserrat text-sm text-[#333333] shadow-sm outline-none focus:border-[#2555F3] focus:ring-2 focus:ring-[#2555F3]/20 ${SELECT_CHEVRON}`}
+            >
+              <option value="ALL">All locations</option>
+              <option value="remote">Remote</option>
+              <option value="onsite">On-site</option>
+            </select>
+          </div>
+
+          <div className="flex min-w-0 flex-1 flex-col gap-2 sm:max-w-[180px]">
+            <label
+              htmlFor="admin-postings-active-filter"
+              className="shrink-0 font-montserrat text-sm font-medium text-[#333333]"
+            >
+              Status
+            </label>
+            <select
+              id="admin-postings-active-filter"
+              value={activeFilter}
+              onChange={(e) => setActiveFilter(e.target.value as ActiveFilter)}
+              className={`w-full cursor-pointer rounded-xl border border-[#e5e5e5] bg-white px-3 py-2 pr-10 font-montserrat text-sm text-[#333333] shadow-sm outline-none focus:border-[#2555F3] focus:ring-2 focus:ring-[#2555F3]/20 ${SELECT_CHEVRON}`}
+            >
+              <option value="ALL">All statuses</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
         </div>
 
         {postingsLoading && postings.length === 0 ? (

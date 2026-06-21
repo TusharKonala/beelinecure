@@ -107,7 +107,8 @@ export default function CareersPage() {
             <button
               type="button"
               onClick={() => setSearchInput("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer font-montserrat text-sm text-[#5e5e5e] hover:text-[#333333]"
+              aria-label="Clear search"
+              className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer font-montserrat text-sm text-[#5E5E5E] transition hover:text-[#2555F3]"
             >
               Clear
             </button>
