@@ -22,6 +22,7 @@ type ConsultationType = "CLINIC" | "ONLINE";
 type AppointmentStatus = "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED";
 type TabKey = "upcoming" | "pending-review" | "completed" | "cancelled";
 type DateFilterValue = "asc" | "desc" | "today" | "week" | "month";
+const DEFAULT_DATE_FILTER: DateFilterValue = "desc";
 type CancelReason = "patient_no_show" | "doctor_unavailable";
 
 type RefundPreviewPayload = {
@@ -140,7 +141,7 @@ export default function AdminAppointmentsClient() {
   const [tab, setTab] = useState<TabKey>("upcoming");
   const [patientSearch, setPatientSearch] = useState("");
   const [doctorSearch, setDoctorSearch] = useState("");
-  const [dateFilter, setDateFilter] = useState<DateFilterValue>("desc");
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>(DEFAULT_DATE_FILTER);
   const [isLoading, setIsLoading] = useState(false);
   const [isCanceling, setIsCanceling] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<AdminAppointmentItem | null>(null);
@@ -260,6 +261,17 @@ export default function AdminAppointmentsClient() {
   useEffect(() => {
     void loadAppointments(1, false);
   }, [loadAppointments]);
+
+  const hasActiveFilters =
+    patientSearch.trim() !== "" ||
+    doctorSearch.trim() !== "" ||
+    dateFilter !== DEFAULT_DATE_FILTER;
+
+  const clearAllFilters = useCallback(() => {
+    setPatientSearch("");
+    setDoctorSearch("");
+    setDateFilter(DEFAULT_DATE_FILTER);
+  }, []);
 
   const [sentryRef] = useInfiniteScroll({
     loading: isLoading,
@@ -448,6 +460,21 @@ export default function AdminAppointmentsClient() {
             {label}
           </button>
         ))}
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <p className="font-montserrat text-xs text-[#5E5E5E]">
+          Filter by patient, doctor, and date.
+        </p>
+        {hasActiveFilters ? (
+          <button
+            type="button"
+            onClick={clearAllFilters}
+            className="cursor-pointer font-montserrat text-xs text-[#777777] underline underline-offset-4 transition hover:text-[#2555F3]"
+          >
+            Clear all filters
+          </button>
+        ) : null}
       </div>
 
       <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end sm:gap-x-8 sm:gap-y-4">
