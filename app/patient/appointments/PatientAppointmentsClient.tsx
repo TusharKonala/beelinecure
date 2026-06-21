@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import useInfiniteScroll from "react-infinite-scroll-hook";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -39,6 +40,12 @@ export type PatientAppointmentItem = {
 type TabKey = "upcoming" | "completed" | "cancelled";
 type DateFilterValue = "asc" | "desc" | "today" | "week" | "month";
 type DoctorOption = { id: string; name: string };
+
+function tabFromParam(raw: string | null): TabKey {
+  if (raw === "completed") return "completed";
+  if (raw === "cancelled") return "cancelled";
+  return "upcoming";
+}
 
 /** Hide native select arrow; custom chevron at `right: 0.75rem` with `pr-10` text inset. */
 const SELECT_CHEVRON =
@@ -99,18 +106,24 @@ function badgeClass(kind: "consultation" | "status", value: string) {
 }
 
 export default function PatientAppointmentsClient() {
+  const searchParams = useSearchParams();
+  const initialTab = tabFromParam(searchParams.get("tab"));
   const [appointments, setAppointments] = useState<PatientAppointmentItem[]>([]);
   const [doctorOptions, setDoctorOptions] = useState<DoctorOption[]>([]);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [tab, setTab] = useState<TabKey>("upcoming");
+  const [tab, setTab] = useState<TabKey>(initialTab);
   const [doctorId, setDoctorId] = useState<string>("");
   const [dateFilter, setDateFilter] = useState<DateFilterValue>("desc");
   const [error, setError] = useState<string | null>(null);
   const [reviewTarget, setReviewTarget] = useState<PatientAppointmentItem | null>(null);
   const latestRequestIdRef = useRef(0);
+
+  useEffect(() => {
+    setTab(tabFromParam(searchParams.get("tab")));
+  }, [searchParams]);
 
   const effectiveDoctorId = useMemo(
     () => (doctorOptions.some((d) => d.id === doctorId) ? doctorId : ""),

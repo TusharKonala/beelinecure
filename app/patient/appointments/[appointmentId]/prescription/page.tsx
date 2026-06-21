@@ -68,7 +68,7 @@ export default async function PatientPrescriptionDownloadPage({ params }: PagePr
               We could not load your prescription right now. Please try again in a moment.
             </p>
             <Link
-              href="/patient/appointments"
+              href="/patient/appointments?tab=completed"
               className="mt-4 inline-block font-montserrat text-sm font-medium text-[#2555F3]"
             >
               Back to appointments
@@ -91,7 +91,7 @@ export default async function PatientPrescriptionDownloadPage({ params }: PagePr
               This prescription is either unavailable or linked to a different account.
             </p>
             <Link
-              href="/patient/appointments"
+              href="/patient/appointments?tab=completed"
               className="mt-4 inline-block font-montserrat text-sm font-medium text-[#2555F3]"
             >
               Back to appointments
@@ -123,7 +123,7 @@ export default async function PatientPrescriptionDownloadPage({ params }: PagePr
                 medicines: appointment.prescription.medicines,
                 generalNotes: appointment.prescription.generalNotes,
               }}
-              backHref="/patient/appointments"
+              backHref="/patient/appointments?tab=completed"
             />
           </div>
         </section>
