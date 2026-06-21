@@ -151,6 +151,15 @@ export default function AdminReviewsPage() {
     rootMargin: "0px 0px 300px 0px",
   });
 
+  const hasActiveFilters =
+    searchInput.trim() !== "" || ratingFilter !== "ALL";
+
+  const clearAllFilters = useCallback(() => {
+    setSearchInput("");
+    setDebouncedSearch("");
+    setRatingFilter("ALL");
+  }, []);
+
   const handleDeleteConfirm = async () => {
     if (!deleteTarget) return;
     setBusyReviewId(deleteTarget.id);
@@ -187,7 +196,22 @@ export default function AdminReviewsPage() {
             Review patient feedback and remove inappropriate submissions.
           </p>
 
-          <div className="mt-6 grid gap-3 md:grid-cols-[1fr_220px]">
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+            <p className="font-montserrat text-xs text-[#5E5E5E]">
+              Filter by doctor name and rating.
+            </p>
+            {hasActiveFilters ? (
+              <button
+                type="button"
+                onClick={clearAllFilters}
+                className="cursor-pointer font-montserrat text-xs text-[#777777] underline underline-offset-4 transition hover:text-[#2555F3]"
+              >
+                Clear all filters
+              </button>
+            ) : null}
+          </div>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-[1fr_220px]">
             <div>
               <label className="sr-only" htmlFor="admin-reviews-search">
                 Search by doctor name
