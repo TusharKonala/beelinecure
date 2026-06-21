@@ -375,9 +375,10 @@ export function DoctorShell({
               className="mt-2 mb-4 rounded-xl border border-[#ffd9d9] bg-[#fff1f1] px-4 py-3 font-montserrat text-sm text-[#b42318]"
             >
               <span className="font-semibold">Account deactivated.</span>{" "}
-              Your account is read-only — you can still view and cancel
-              existing appointments so patients can be refunded, but no new
-              availability or appointments can be accepted.
+              Your account is read-only — you can still view existing
+              appointments, complete pending reviews (add prescriptions), and
+              cancel upcoming appointments so patients can be refunded. New
+              availability and appointments cannot be accepted.
             </div>
           </Container>
         )}

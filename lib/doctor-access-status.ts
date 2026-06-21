@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { getFutureActiveAppointmentsForDoctor } from "@/lib/admin-doctor-deactivation";
+import { doctorHasUnfinishedAppointments } from "@/lib/admin-doctor-deactivation";
 
 export type DoctorAccessStatus =
   | { found: false }
@@ -13,9 +13,9 @@ export type DoctorAccessStatus =
 
 /**
  * Resolves dashboard access for a logged-in doctor. When `isActive` is false,
- * remaining = future PENDING/CONFIRMED appointments (doctor-tz). Used by the
- * doctor layout to either show a deactivation banner (still has work) or
- * fully lock the doctor out (nothing left to manage).
+ * remaining = any unfinished PENDING/CONFIRMED appointment (upcoming or
+ * pending review). Used by the doctor layout to either show a deactivation
+ * banner (still has work) or fully lock the doctor out (nothing left to manage).
  */
 export async function getDoctorAccessStatus(
   userId: string,
@@ -37,12 +37,14 @@ export async function getDoctorAccessStatus(
       hasRemainingAppointments: true,
     };
   }
-  const remaining = await getFutureActiveAppointmentsForDoctor(doctor.id);
+  const hasRemainingAppointments = await doctorHasUnfinishedAppointments(
+    doctor.id,
+  );
   return {
     found: true,
     doctorId: doctor.id,
     doctorName,
     isActive: false,
-    hasRemainingAppointments: remaining.length > 0,
+    hasRemainingAppointments,
   };
 }

@@ -16,7 +16,7 @@ export default async function DoctorLayout({
   // Middleware already guarantees an authenticated DOCTOR with APPROVED status
   // before reaching `/doctor/*`. The DB check below adds the deactivation gate:
   // a deactivated doctor with no remaining work is fully locked out, while one
-  // with pending/upcoming appointments still gets read+cancel access.
+  // with unfinished appointments (upcoming or pending review) still gets read-only access.
   if (userId) {
     const access = await getDoctorAccessStatus(userId);
     if (access.found && !access.isActive && !access.hasRemainingAppointments) {

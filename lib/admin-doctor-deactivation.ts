@@ -43,6 +43,23 @@ export async function getFutureActiveAppointmentsForDoctor(
   });
 }
 
+/**
+ * Whether a deactivated doctor still has dashboard work: any PENDING or
+ * CONFIRMED appointment (upcoming or pending review). Used for access gating
+ * only — not for admin deactivation warnings (those use future slots only).
+ */
+export async function doctorHasUnfinishedAppointments(
+  doctorId: string,
+): Promise<boolean> {
+  const count = await prisma.appointment.count({
+    where: {
+      doctorId,
+      status: { in: [AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED] },
+    },
+  });
+  return count > 0;
+}
+
 export function summarizeFutureAppointmentsForDeactivation(
   rows: FutureAppointmentForDeactivation[],
 ) {

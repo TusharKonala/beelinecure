@@ -12,7 +12,7 @@ export default function DoctorDeactivatedPage() {
             </h1>
             <p className="mt-3 font-montserrat text-sm leading-relaxed text-[#5E5E5E] md:text-base">
               Your doctor account has been deactivated by an administrator and
-              has no remaining pending or upcoming appointments. Dashboard
+              has no remaining appointments to complete or manage. Dashboard
               access is no longer available. If you believe this is a mistake,
               please contact the BeelineCure team.
             </p>
