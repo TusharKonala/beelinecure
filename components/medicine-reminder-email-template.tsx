@@ -32,23 +32,6 @@ export function MedicineReminderEmailTemplate({
       <p style={{ color: "#333333", lineHeight: 1.6 }}>Hello {patientName},</p>
       <p style={{ color: "#333333", lineHeight: 1.6 }}>{message}</p>
 
-      <div
-        style={{
-          marginTop: "1.5rem",
-          padding: "1rem",
-          backgroundColor: "#f5f5f5",
-          borderRadius: "8px",
-          border: "1px solid #e5e5e5",
-        }}
-      >
-        <p style={{ margin: "0.25rem 0", color: "#111111" }}>
-          <strong>Doctor:</strong> {displayDoctorName}
-        </p>
-        <p style={{ margin: "0.25rem 0", color: "#111111" }}>
-          <strong>Patient:</strong> {patientName}
-        </p>
-      </div>
-
       <div style={{ marginTop: "1rem" }}>
         <a
           href={primaryActionUrl}
@@ -76,6 +59,23 @@ export function MedicineReminderEmailTemplate({
           </a>
         </div>
       )}
+
+      <div
+        style={{
+          marginTop: "1.5rem",
+          padding: "1rem",
+          backgroundColor: "#f5f5f5",
+          borderRadius: "8px",
+          border: "1px solid #e5e5e5",
+        }}
+      >
+        <p style={{ margin: "0.25rem 0", color: "#111111" }}>
+          <strong>Doctor:</strong> {displayDoctorName}
+        </p>
+        <p style={{ margin: "0.25rem 0", color: "#111111" }}>
+          <strong>Patient:</strong> {patientName}
+        </p>
+      </div>
 
       <p
         style={{ color: "#5E5E5E", fontSize: "0.875rem", marginTop: "1.5rem" }}
