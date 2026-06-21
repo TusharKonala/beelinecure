@@ -9,6 +9,7 @@ import { prisma } from "@/lib/db";
 import { getEmailFrom } from "@/lib/email-from";
 import {
   AppointmentStatus,
+  ApplicationStatus,
   ConsultationType,
   NotificationType,
 } from "@/generated/prisma/client";
@@ -28,6 +29,11 @@ import {
 import { formatDoctorDisplayName } from "@/lib/doctor-name";
 import { cancelAppointmentByDoctor } from "@/lib/doctor-cancellations";
 import { sendDoctorHolidaySummaryEmail } from "@/lib/doctor-holiday-summary-email";
+import {
+  applyBulkStatusUpdate,
+  loadBulkPendingTargets,
+  sendBulkStatusEmails,
+} from "@/lib/careers-application-bulk";
 import {
   APPOINTMENT_REMINDER_EMAIL_BODY_26H,
   RESCHEDULE_ONLY_MORE_THAN_24H,
@@ -1275,6 +1281,42 @@ export const sendInterviewReminder30m = inngest.createFunction(
       recipient,
       reminderLabel: "30 minutes",
     });
+  },
+);
+
+export const processBulkCareersApplications = inngest.createFunction(
+  {
+    id: "process-bulk-careers-applications",
+    retries: 2,
+    triggers: [{ event: "admin/careers.bulk-update-applications" }],
+  },
+  async ({ event, step }) => {
+    const { status, scoreMin, scoreMax } = event.data as {
+      status: typeof ApplicationStatus.SHORTLISTED | typeof ApplicationStatus.REJECTED;
+      scoreMin: number;
+      scoreMax: number;
+    };
+
+    const targets = await step.run("load-targets", () =>
+      loadBulkPendingTargets(scoreMin, scoreMax),
+    );
+    if (targets.length === 0) {
+      return { updatedCount: 0 };
+    }
+
+    await step.run("update-status", () =>
+      applyBulkStatusUpdate(targets, status),
+    );
+
+    const BATCH_SIZE = 25;
+    for (let i = 0; i < targets.length; i += BATCH_SIZE) {
+      const batch = targets.slice(i, i + BATCH_SIZE);
+      await step.run(`send-emails-${i}`, () =>
+        sendBulkStatusEmails(batch, status),
+      );
+    }
+
+    return { updatedCount: targets.length };
   },
 );
 

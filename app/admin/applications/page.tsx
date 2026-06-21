@@ -138,6 +138,7 @@ export default function AdminCareersApplicationsPage() {
     useState<InterviewRoundFilter>("ALL");
 
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
 
@@ -488,6 +489,7 @@ export default function AdminCareersApplicationsPage() {
 
     setBulkConfirm({ action, count: null, loading: true });
     setError(null);
+    setSuccessMessage(null);
     try {
       const params = new URLSearchParams({
         status: "PENDING",
@@ -521,6 +523,7 @@ export default function AdminCareersApplicationsPage() {
 
     setBulkBusy(true);
     setError(null);
+    setSuccessMessage(null);
     try {
       const res = await fetch("/api/admin/careers/applications/bulk", {
         method: "PATCH",
@@ -535,9 +538,23 @@ export default function AdminCareersApplicationsPage() {
       if (!res.ok) {
         throw new Error(data.error ?? "Failed to update applications");
       }
+
       setBulkConfirm(null);
       setScoreBand("all");
-      void loadApplications(null, false);
+
+      if (data.queued) {
+        const verb =
+          bulkConfirm.action === "reject" ? "rejecting" : "shortlisting";
+        const count = typeof data.count === "number" ? data.count : 0;
+        setSuccessMessage(
+          `Started ${verb} ${count} application${count === 1 ? "" : "s"}. The list will update shortly.`,
+        );
+        window.setTimeout(() => {
+          void loadApplications(null, false);
+        }, 2500);
+      } else {
+        void loadApplications(null, false);
+      }
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to update applications",
@@ -587,6 +604,14 @@ export default function AdminCareersApplicationsPage() {
         {error ? (
           <div className="mt-6 rounded-xl border border-dashed border-[#ffd0d0] bg-[#fff6f6] p-4">
             <p className="font-montserrat text-sm text-[#b42318]">{error}</p>
+          </div>
+        ) : null}
+
+        {successMessage ? (
+          <div className="mt-6 rounded-xl border border-dashed border-[#c7d7ff] bg-[#eef3ff] p-4">
+            <p className="font-montserrat text-sm text-[#2555F3]">
+              {successMessage}
+            </p>
           </div>
         ) : null}
 
@@ -1200,7 +1225,7 @@ export default function AdminCareersApplicationsPage() {
                     }`}
                   >
                     {bulkBusy
-                      ? "Updating..."
+                      ? "Starting..."
                       : bulkConfirm.action === "reject"
                         ? "Reject all"
                         : "Shortlist all"}

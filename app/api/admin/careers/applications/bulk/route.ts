@@ -2,12 +2,9 @@ import { ApplicationStatus } from "@/generated/prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAdminSession } from "@/lib/careers-admin";
-import { sendApplicationStatusChangeEmail } from "@/lib/careers-application-status-email";
-import {
-  buildPendingScoreBandWhereInput,
-  isValidScoreBandRange,
-} from "@/lib/careers-applications-query";
-import { prisma } from "@/lib/db";
+import { countBulkPendingTargets } from "@/lib/careers-application-bulk";
+import { isValidScoreBandRange } from "@/lib/careers-applications-query";
+import { inngest } from "@/inngest/client";
 
 const patchSchema = z.object({
   status: z.enum([
@@ -47,43 +44,26 @@ export async function PATCH(request: Request) {
     );
   }
 
-  const where = buildPendingScoreBandWhereInput(scoreMin, scoreMax);
-
-  const targets = await prisma.jobApplication.findMany({
-    where,
-    select: {
-      id: true,
-      email: true,
-      name: true,
-      jobPosting: { select: { title: true } },
-    },
-  });
-
-  if (targets.length === 0) {
-    return NextResponse.json({ updatedCount: 0 });
+  const count = await countBulkPendingTargets(scoreMin, scoreMax);
+  if (count === 0) {
+    return NextResponse.json({ updatedCount: 0, queued: false });
   }
 
-  await prisma.jobApplication.updateMany({
-    where: { id: { in: targets.map((t) => t.id) } },
-    data: { status },
-  });
-
-  for (const target of targets) {
-    try {
-      await sendApplicationStatusChangeEmail({
-        status,
-        to: target.email,
-        candidateName: target.name,
-        jobTitle: target.jobPosting.title,
-      });
-    } catch (err) {
-      console.error(
-        "[careers-application-bulk] Failed to send status email:",
-        target.id,
-        err,
-      );
-    }
+  try {
+    await inngest.send({
+      name: "admin/careers.bulk-update-applications",
+      data: { status, scoreMin, scoreMax },
+    });
+  } catch (err) {
+    console.error("[careers-application-bulk] Failed to queue bulk update:", err);
+    return NextResponse.json(
+      {
+        error:
+          "Could not start bulk update. Please try again in a moment.",
+      },
+      { status: 503 },
+    );
   }
 
-  return NextResponse.json({ updatedCount: targets.length });
+  return NextResponse.json({ queued: true, count }, { status: 202 });
 }
