@@ -183,6 +183,12 @@ export default function AdminCareersApplicationsPage() {
     }
   }, [statusFilter, interviewRoundFilter]);
 
+  useEffect(() => {
+    if (!successMessage) return;
+    const timer = window.setTimeout(() => setSuccessMessage(null), 5000);
+    return () => window.clearTimeout(timer);
+  }, [successMessage]);
+
   function handleScoreBandChange(band: ScoreBand) {
     setScoreBand(band);
     if (band !== "all") {
