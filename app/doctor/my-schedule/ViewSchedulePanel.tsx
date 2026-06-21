@@ -181,6 +181,9 @@ function ViewScheduleFilterHeader({
   );
 }
 
+const SCHEDULE_READONLY_NOTE =
+  "Schedule changes are disabled while your account is deactivated.";
+
 type ViewSchedulePanelProps = {
   timezone: string;
   onEditDate: (isoDate: string) => void;
@@ -193,6 +196,7 @@ type ViewSchedulePanelProps = {
    * Set Availability calendar — reloads immediately, no page refresh required.
    */
   onAvailabilityChanged?: (changedDate?: string) => void;
+  scheduleReadOnly?: boolean;
 };
 
 export function ViewSchedulePanel({
@@ -200,6 +204,7 @@ export function ViewSchedulePanel({
   onEditDate,
   listRefreshVersion,
   onAvailabilityChanged,
+  scheduleReadOnly = false,
 }: ViewSchedulePanelProps) {
   const [days, setDays] = useState<ListDay[] | null>(null);
   const [page, setPage] = useState(1);
@@ -720,9 +725,19 @@ export function ViewSchedulePanel({
       <div className="mt-6 space-y-4">
         <div className="rounded-xl border border-dashed border-[#e5e5e5] bg-[#fafafa] px-4 py-8 text-center">
           <p className="font-montserrat text-sm text-[#5E5E5E]">
-            No upcoming availability. Use{" "}
-            <span className="font-medium text-[#333333]">Set Availability</span>{" "}
-            to add slots.
+            No upcoming availability.
+            {scheduleReadOnly ? (
+              <> View your schedule below when slots are added.</>
+            ) : (
+              <>
+                {" "}
+                Use{" "}
+                <span className="font-medium text-[#333333]">
+                  Set Availability
+                </span>{" "}
+                to add slots.
+              </>
+            )}
           </p>
         </div>
         {todayFromApi ? (
@@ -754,6 +769,14 @@ export function ViewSchedulePanel({
 
   return (
     <div className="mt-6 space-y-4">
+      {scheduleReadOnly ? (
+        <p
+          role="status"
+          className="rounded-xl border border-[#ffd9d9] bg-[#fff1f1] px-4 py-3 font-montserrat text-sm text-[#b42318]"
+        >
+          {SCHEDULE_READONLY_NOTE}
+        </p>
+      ) : null}
       {todayFromApi ? (
         <div className="space-y-3">
           <ViewScheduleFilterHeader
@@ -890,24 +913,29 @@ export function ViewSchedulePanel({
               <div className="flex shrink-0 flex-wrap gap-2">
                 <button
                   type="button"
+                  disabled={scheduleReadOnly}
+                  title={scheduleReadOnly ? SCHEDULE_READONLY_NOTE : undefined}
                   onClick={() => onEditDate(day.date)}
                   className={cn(
                     "cursor-pointer rounded-lg border border-[#e5e5e5] bg-white px-3 py-1.5 font-montserrat text-xs font-medium text-[#2555F3] transition-colors",
                     "hover:bg-[#f5f8ff]",
+                    "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-white",
                   )}
                 >
                   Edit
                 </button>
                 {(() => {
                   const isHolidayBlocked =
-                    !!todayFromApi && day.date <= todayFromApi;
+                    scheduleReadOnly ||
+                    (!!todayFromApi && day.date <= todayFromApi);
+                  const holidayBlockedTitle = scheduleReadOnly
+                    ? SCHEDULE_READONLY_NOTE
+                    : isHolidayBlocked
+                      ? "Cannot mark a day in progress as a holiday"
+                      : undefined;
                   return (
                     <span
-                      title={
-                        isHolidayBlocked
-                          ? "Cannot mark a day in progress as a holiday"
-                          : undefined
-                      }
+                      title={holidayBlockedTitle}
                       className="inline-flex"
                     >
                       <button

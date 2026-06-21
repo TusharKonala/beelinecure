@@ -133,10 +133,19 @@ function CurrentSchedulePanelSkeleton() {
   );
 }
 
-export function MyScheduleClient() {
+const SCHEDULE_READONLY_NOTE =
+  "Schedule changes are disabled while your account is deactivated.";
+
+export function MyScheduleClient({
+  scheduleReadOnly = false,
+}: {
+  scheduleReadOnly?: boolean;
+}) {
   const [meta, setMeta] = useState<Meta | null>(null);
   const [metaError, setMetaError] = useState<string | null>(null);
-  const [mainTab, setMainTab] = useState<"set" | "view">("set");
+  const [mainTab, setMainTab] = useState<"set" | "view">(
+    scheduleReadOnly ? "view" : "set",
+  );
   const [mode, setMode] = useState<"range" | "single">("single");
 
   const [rangeStart, setRangeStart] = useState("");
@@ -568,13 +577,14 @@ export function MyScheduleClient() {
   }
 
   const handleEditDateFromView = useCallback((isoDate: string) => {
+    if (scheduleReadOnly) return;
     setMainTab("set");
     setMode("single");
     setSaveOk(null);
     setSaveError(null);
     setSingleDate(isoDate);
     setEditableDateFromView(isoDate);
-  }, []);
+  }, [scheduleReadOnly]);
 
   /** Bumped by ViewSchedulePanel after a holiday is marked so existingAvailabilityDates picks up the cleared day instantly. */
   const handleAvailabilityChanged = useCallback((changedDate?: string) => {
@@ -998,12 +1008,18 @@ export function MyScheduleClient() {
           <div className="mt-5 flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={() => setMainTab("set")}
+              disabled={scheduleReadOnly}
+              title={scheduleReadOnly ? SCHEDULE_READONLY_NOTE : undefined}
+              onClick={() => {
+                if (!scheduleReadOnly) setMainTab("set");
+              }}
               className={cn(
                 "cursor-pointer rounded-xl px-4 py-2 font-montserrat text-sm font-medium transition-colors",
                 mainTab === "set"
                   ? "bg-[#2555F3] text-white"
                   : "border border-[#e5e5e5] bg-white text-[#333333] hover:bg-[#f5f5f5]",
+                scheduleReadOnly &&
+                  "cursor-not-allowed opacity-50 hover:bg-white",
               )}
             >
               Set Availability
@@ -1031,6 +1047,7 @@ export function MyScheduleClient() {
               onEditDate={handleEditDateFromView}
               listRefreshVersion={viewScheduleListVersion}
               onAvailabilityChanged={handleAvailabilityChanged}
+              scheduleReadOnly={scheduleReadOnly}
             />
           </div>
           <div
