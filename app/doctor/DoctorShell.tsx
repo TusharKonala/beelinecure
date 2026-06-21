@@ -372,7 +372,7 @@ export function DoctorShell({
           <Container>
             <div
               role="status"
-              className="mt-2 mb-4 rounded-xl border border-[#ffd9d9] bg-[#fff1f1] px-4 py-3 font-montserrat text-sm text-[#b42318]"
+              className="mt-2 mb-4 lg:mt-6 rounded-xl border border-[#ffd9d9] bg-[#fff1f1] px-4 py-3 font-montserrat text-sm text-[#b42318]"
             >
               <span className="font-semibold">Account deactivated.</span>{" "}
               Your account is read-only — you can still view existing

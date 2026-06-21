@@ -82,6 +82,8 @@ type ChatThreadViewProps = {
   backHref: string;
   backLabel?: string;
   className?: string;
+  /** When true, scroll the page so the composer is visible after initial load. */
+  scrollPageToComposerOnReady?: boolean;
 };
 
 export function ChatThreadView({
@@ -89,6 +91,7 @@ export function ChatThreadView({
   backHref,
   backLabel = "Back to chat",
   className = "",
+  scrollPageToComposerOnReady = false,
 }: ChatThreadViewProps) {
   const router = useRouter();
   const { redirectWithOverlay } = useRedirectOverlay();
@@ -123,6 +126,8 @@ export function ChatThreadView({
   const loadingMoreRef = useRef(false);
   const isNearBottomRef = useRef(true);
   const didInitialScrollRef = useRef(false);
+  const didPageComposerScrollRef = useRef(false);
+  const composerRef = useRef<HTMLFormElement>(null);
 
   const openLightbox = useCallback((src: string) => {
     lightboxOpenedAtRef.current = Date.now();
@@ -284,6 +289,25 @@ export function ChatThreadView({
     didInitialScrollRef.current = true;
     scrollToBottom("auto");
   }, [loadingInitial, messages.length, scrollToBottom]);
+
+  useEffect(() => {
+    didPageComposerScrollRef.current = false;
+  }, [appointmentId]);
+
+  useLayoutEffect(() => {
+    if (
+      !scrollPageToComposerOnReady ||
+      loadingInitial ||
+      !thread ||
+      didPageComposerScrollRef.current
+    ) {
+      return;
+    }
+    didPageComposerScrollRef.current = true;
+    requestAnimationFrame(() => {
+      composerRef.current?.scrollIntoView({ block: "end", behavior: "auto" });
+    });
+  }, [scrollPageToComposerOnReady, loadingInitial, thread]);
 
   useEffect(() => {
     const root = scrollContainerRef.current;
@@ -894,6 +918,7 @@ export function ChatThreadView({
       )}
 
       <form
+        ref={composerRef}
         onSubmit={handleSend}
         className="shrink-0 border-t border-[#e5e5e5] p-2 sm:p-4"
       >
