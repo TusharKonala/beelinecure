@@ -3,10 +3,7 @@
 import { useState } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { LogoMark } from "@/components/beeline-cure/LogoMark";
-import {
-  NavLink,
-  NavProgressProvider,
-} from "@/components/nav/NavigationIndicator";
+import { NavLink } from "@/components/nav/NavigationIndicator";
 
 const navLinkClass =
   "font-montserrat text-sm font-semibold text-[#5E5E5E] transition-colors hover:text-[#2555F3]";
@@ -85,7 +82,6 @@ export function BeelineCureMarketingNav() {
   const closeMobileMenu = () => setMobileMenuOpen(false);
 
   return (
-    <NavProgressProvider>
     <header className="sticky top-0 z-50 w-full border-b border-black/10 bg-white">
         <nav className="mx-auto flex max-w-7xl items-center justify-between px-6 py-1.5">
           <div className="flex items-center leading-none lg:hidden">
@@ -171,6 +167,5 @@ export function BeelineCureMarketingNav() {
           </div>
         )}
       </header>
-    </NavProgressProvider>
   );
 }

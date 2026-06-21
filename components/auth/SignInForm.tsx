@@ -6,11 +6,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { getSession, signIn } from "next-auth/react";
 import { Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useNavProgress } from "@/components/nav/NavigationIndicator";
 import { useRedirectOverlay } from "@/components/nav/RedirectOverlayProvider";
 import { getPostLoginPath } from "@/lib/post-login-redirect";
 
 export function SignInForm() {
   const router = useRouter();
+  const { startProgress } = useNavProgress();
   const { redirectWithOverlay } = useRedirectOverlay();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") ?? "/patient/overview";
@@ -184,7 +186,10 @@ export function SignInForm() {
         type="button"
         variant="outline"
         className="h-11 w-full cursor-pointer gap-2 rounded-xl border-[#e5e5e5] bg-white font-montserrat text-sm font-medium text-[#333333] shadow-sm hover:bg-[#fafafa] md:h-12 md:text-base"
-        onClick={() => void signIn("google", { callbackUrl: "/auth/post-signin" })}
+        onClick={() => {
+          startProgress();
+          void signIn("google", { callbackUrl: "/auth/post-signin" });
+        }}
       >
         <GoogleMark className="size-5 shrink-0" aria-hidden />
         Continue with Google

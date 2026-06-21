@@ -50,6 +50,14 @@ export function NavProgressProvider({ children }: { children: ReactNode }) {
   );
 }
 
+export function useNavProgress() {
+  const ctx = useContext(NavProgressContext);
+  if (!ctx) {
+    throw new Error("useNavProgress must be used within NavProgressProvider");
+  }
+  return ctx;
+}
+
 export function NavLink({
   href,
   className,
