@@ -17,6 +17,7 @@ import {
 import { filterReschedulableSlots } from "@/lib/reschedule-slots";
 import { formatDoctorDisplayName } from "@/lib/doctor-name";
 import { currencyForTimezone } from "@/lib/currency";
+import { useAppointmentsListPoll } from "@/lib/use-appointments-list-poll";
 
 type ConsultationType = "CLINIC" | "ONLINE";
 type AppointmentStatus = "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED";
@@ -216,10 +217,17 @@ export default function AdminAppointmentsClient() {
   }, [cancelTarget, cancelReason, browserCurrency]);
 
   const loadAppointments = useCallback(
-    async (nextPage: number, append: boolean) => {
+    async (
+      nextPage: number,
+      append: boolean,
+      options?: { silent?: boolean },
+    ) => {
+      const silent = options?.silent === true;
       const requestId = ++latestRequestIdRef.current;
-      setIsLoading(true);
-      setError(null);
+      if (!silent) {
+        setIsLoading(true);
+        setError(null);
+      }
       try {
         const params = new URLSearchParams({
           tab,
@@ -234,7 +242,7 @@ export default function AdminAppointmentsClient() {
         });
         if (!res.ok) {
           if (latestRequestIdRef.current !== requestId) return;
-          setError("Failed to load appointments.");
+          if (!silent) setError("Failed to load appointments.");
           return;
         }
         const data = (await res.json()) as {
@@ -249,10 +257,10 @@ export default function AdminAppointmentsClient() {
         setPage(typeof data.page === "number" ? data.page : nextPage);
       } catch {
         if (latestRequestIdRef.current !== requestId) return;
-        setError("Failed to load appointments.");
+        if (!silent) setError("Failed to load appointments.");
       } finally {
         if (latestRequestIdRef.current !== requestId) return;
-        setIsLoading(false);
+        if (!silent) setIsLoading(false);
       }
     },
     [dateFilter, patientSearch, doctorSearch, tab],
@@ -261,6 +269,18 @@ export default function AdminAppointmentsClient() {
   useEffect(() => {
     void loadAppointments(1, false);
   }, [loadAppointments]);
+
+  const silentRefresh = useCallback(
+    () => loadAppointments(1, false, { silent: true }),
+    [loadAppointments],
+  );
+
+  useAppointmentsListPoll({
+    tab,
+    page,
+    pollBlocked: Boolean(cancelTarget || rescheduleTarget),
+    refresh: silentRefresh,
+  });
 
   const hasActiveFilters =
     patientSearch.trim() !== "" ||
