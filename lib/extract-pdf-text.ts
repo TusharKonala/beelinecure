@@ -38,7 +38,7 @@ async function getPdfJs() {
 }
 
 function normalizeExtractedText(text: string): string {
-  return text.replace(/\s+/g, " ").trim();
+  return text.replace(/\0/g, "").replace(/\s+/g, " ").trim();
 }
 
 export async function extractTextFromPdfFile(file: File): Promise<string> {

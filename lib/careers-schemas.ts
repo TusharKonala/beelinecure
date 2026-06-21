@@ -33,6 +33,17 @@ const resumeUrlSchema = z
     message: "Resume link must use HTTPS",
   });
 
+function stripNullBytes(value: string): string {
+  return value.replace(/\0/g, "");
+}
+
+function stripNullBytesOptional(
+  value: string | null | undefined,
+): string | null | undefined {
+  if (value == null) return value;
+  return stripNullBytes(value);
+}
+
 export const MAX_INTERVIEW_ROUNDS = 4;
 
 export const applicationStatusValues = [
@@ -47,24 +58,40 @@ export const applicationStatusDropdownValues = applicationStatusValues.filter(
 );
 
 export const jobApplicationSchema = z.object({
-  name: z.string().min(1, "Name is required").max(255),
-  email: z.email("Invalid email address"),
+  name: z
+    .string()
+    .transform(stripNullBytes)
+    .min(1, "Name is required")
+    .max(255),
+  email: z
+    .string()
+    .transform(stripNullBytes)
+    .pipe(z.email("Invalid email address")),
   phone: z
     .string()
+    .transform(stripNullBytes)
     .min(8, "Phone number is too short")
     .max(20, "Phone number is too long")
     .regex(/^\+[1-9]\d{6,14}$/, "Invalid phone number"),
-  coverNote: z.string().max(2000).optional().nullable(),
+  coverNote: z.preprocess(
+    stripNullBytesOptional,
+    z.string().max(2000).optional().nullable(),
+  ),
   resumeText: z
     .string()
+    .transform(stripNullBytes)
     .min(50, "Please paste at least 50 characters of your resume")
     .max(5000, "Resume text is too long"),
   resumeUrl: z
     .string()
+    .transform(stripNullBytes)
     .trim()
     .min(1, "Resume link is required")
     .pipe(resumeUrlSchema),
-  candidateTimezone: z.string().min(1).max(100).optional().nullable(),
+  candidateTimezone: z.preprocess(
+    stripNullBytesOptional,
+    z.string().min(1).max(100).optional().nullable(),
+  ),
 });
 
 export const scheduleInterviewSchema = z.object({
