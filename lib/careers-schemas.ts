@@ -37,14 +37,52 @@ function stripNullBytes(value: string): string {
   return value.replace(/\0/g, "");
 }
 
-function stripNullBytesOptional(
-  value: string | null | undefined,
-): string | null | undefined {
-  if (value == null) return value;
-  return stripNullBytes(value);
+function sanitizeJobApplicationInput(data: unknown): unknown {
+  if (typeof data !== "object" || data === null) return data;
+  const record = data as Record<string, unknown>;
+  const sanitized = { ...record };
+  for (const key of [
+    "name",
+    "email",
+    "phone",
+    "resumeText",
+    "resumeUrl",
+    "coverNote",
+    "candidateTimezone",
+  ] as const) {
+    const value = record[key];
+    if (typeof value === "string") {
+      sanitized[key] = stripNullBytes(value);
+    }
+  }
+  return sanitized;
 }
 
-export const MAX_INTERVIEW_ROUNDS = 4;
+const jobApplicationFieldsSchema = z.object({
+  name: z.string().min(1, "Name is required").max(255),
+  email: z.email("Invalid email address"),
+  phone: z
+    .string()
+    .min(8, "Phone number is too short")
+    .max(20, "Phone number is too long")
+    .regex(/^\+[1-9]\d{6,14}$/, "Invalid phone number"),
+  coverNote: z.string().max(2000).optional().nullable(),
+  resumeText: z
+    .string()
+    .min(50, "Please paste at least 50 characters of your resume")
+    .max(5000, "Resume text is too long"),
+  resumeUrl: z
+    .string()
+    .trim()
+    .min(1, "Resume link is required")
+    .pipe(resumeUrlSchema),
+  candidateTimezone: z.string().min(1).max(100).optional().nullable(),
+});
+
+export const jobApplicationSchema = z.preprocess(
+  sanitizeJobApplicationInput,
+  jobApplicationFieldsSchema,
+);
 
 export const applicationStatusValues = [
   "PENDING",
@@ -57,42 +95,7 @@ export const applicationStatusDropdownValues = applicationStatusValues.filter(
   (s) => s !== "HIRED",
 );
 
-export const jobApplicationSchema = z.object({
-  name: z
-    .string()
-    .transform(stripNullBytes)
-    .min(1, "Name is required")
-    .max(255),
-  email: z
-    .string()
-    .transform(stripNullBytes)
-    .pipe(z.email("Invalid email address")),
-  phone: z
-    .string()
-    .transform(stripNullBytes)
-    .min(8, "Phone number is too short")
-    .max(20, "Phone number is too long")
-    .regex(/^\+[1-9]\d{6,14}$/, "Invalid phone number"),
-  coverNote: z.preprocess(
-    stripNullBytesOptional,
-    z.string().max(2000).optional().nullable(),
-  ),
-  resumeText: z
-    .string()
-    .transform(stripNullBytes)
-    .min(50, "Please paste at least 50 characters of your resume")
-    .max(5000, "Resume text is too long"),
-  resumeUrl: z
-    .string()
-    .transform(stripNullBytes)
-    .trim()
-    .min(1, "Resume link is required")
-    .pipe(resumeUrlSchema),
-  candidateTimezone: z.preprocess(
-    stripNullBytesOptional,
-    z.string().min(1).max(100).optional().nullable(),
-  ),
-});
+export const MAX_INTERVIEW_ROUNDS = 4;
 
 export const scheduleInterviewSchema = z.object({
   roundNumber: z.number().int().min(1).max(MAX_INTERVIEW_ROUNDS),
