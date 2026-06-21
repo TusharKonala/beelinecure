@@ -187,7 +187,10 @@ export async function cancelAppointmentByStaff(input: {
       ? ` ${refundSentence}`
       : refundFailed
         ? " We attempted to initiate your refund but ran into an issue. Our support team will follow up shortly to resolve it."
-        : "";
+        : input.reason === "patient_no_show" &&
+            appointment.paymentStatus === PaymentStatus.PAID
+          ? " Per our cancellation policy, no-shows are not eligible for a refund."
+          : "";
     const message = `${copy.message}${refundAppendix}`;
 
     let priceLabel: string | null = null;
