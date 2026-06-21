@@ -31,6 +31,16 @@ export function NavProgressProvider({ children }: { children: ReactNode }) {
     pathnameRef.current = pathname;
   }, [pathname, showBar]);
 
+  useEffect(() => {
+    function handlePageShow(event: PageTransitionEvent) {
+      if (event.persisted) {
+        setShowBar(false);
+      }
+    }
+    window.addEventListener("pageshow", handlePageShow);
+    return () => window.removeEventListener("pageshow", handlePageShow);
+  }, []);
+
   const startProgress = useCallback(() => {
     setShowBar(true);
   }, []);
