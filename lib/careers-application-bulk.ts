@@ -1,5 +1,8 @@
 import { ApplicationStatus } from "@/generated/prisma/client";
-import { sendApplicationStatusChangeEmail } from "@/lib/careers-application-status-email";
+import {
+  RESEND_BATCH_MAX,
+  sendApplicationStatusBatchChunk,
+} from "@/lib/careers-application-status-email";
 import { buildPendingScoreBandWhereInput } from "@/lib/careers-applications-query";
 import { prisma } from "@/lib/db";
 
@@ -62,20 +65,10 @@ export async function sendBulkStatusEmails(
   targets: BulkApplicationTarget[],
   status: BulkApplicationStatus,
 ): Promise<void> {
-  for (const target of targets) {
-    try {
-      await sendApplicationStatusChangeEmail({
-        status,
-        to: target.email,
-        candidateName: target.name,
-        jobTitle: target.jobPosting.title,
-      });
-    } catch (err) {
-      console.error(
-        "[careers-application-bulk] Failed to send status email:",
-        target.id,
-        err,
-      );
-    }
+  if (targets.length === 0) return;
+
+  const chunks = chunkArray(targets, RESEND_BATCH_MAX);
+  for (const chunk of chunks) {
+    await sendApplicationStatusBatchChunk(chunk, status);
   }
 }
