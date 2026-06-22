@@ -144,7 +144,8 @@ export default function AdminCareersApplicationsPage() {
   const [appsHasMore, setAppsHasMore] = useState(false);
   const [appsLoading, setAppsLoading] = useState(true);
   const appsRequestIdRef = useRef(0);
-  const skipNextAppsFetchRef = useRef(false);
+  const recentlyBulkActionedIdsRef = useRef<Set<string> | null>(null);
+  const bulkActionedIdsClearTimerRef = useRef<number | null>(null);
   const recentBulkStatusUpdateRef = useRef<{
     status: "REJECTED" | "SHORTLISTED";
     at: number;
@@ -239,7 +240,7 @@ export default function AdminCareersApplicationsPage() {
   const loadApplications = useCallback(
     async (cursor: string | null, append: boolean) => {
       const requestId = ++appsRequestIdRef.current;
-      if (!append) {
+      if (!append && !recentlyBulkActionedIdsRef.current?.size) {
         setApplications([]);
       }
       setAppsLoading(true);
@@ -275,7 +276,11 @@ export default function AdminCareersApplicationsPage() {
             item.canScheduleInterview ??
             (item.totalInterviewRoundCount ?? 0) < MAX_INTERVIEW_ROUNDS,
         }));
-        setApplications((cur) => (append ? [...cur, ...next] : next));
+        const hiddenIds = recentlyBulkActionedIdsRef.current;
+        const filtered = hiddenIds?.size
+          ? next.filter((item) => !hiddenIds.has(item.id))
+          : next;
+        setApplications((cur) => (append ? [...cur, ...filtered] : filtered));
         setAppsHasMore(Boolean(data.hasMore));
         setAppsCursor(data.nextCursor ?? null);
       } catch (err) {
@@ -291,10 +296,6 @@ export default function AdminCareersApplicationsPage() {
   );
 
   useEffect(() => {
-    if (skipNextAppsFetchRef.current) {
-      skipNextAppsFetchRef.current = false;
-      return;
-    }
     void loadApplications(null, false);
   }, [loadApplications]);
 
@@ -598,12 +599,21 @@ export default function AdminCareersApplicationsPage() {
         const scoreMin = Number(band.scoreMin);
         const scoreMax = Number(band.scoreMax);
 
-        setApplications((prev) =>
-          prev.filter((app) => !isBulkTarget(app, scoreMin, scoreMax)),
-        );
+        setApplications((prev) => {
+          const actionedIds = prev
+            .filter((app) => isBulkTarget(app, scoreMin, scoreMax))
+            .map((app) => app.id);
+          recentlyBulkActionedIdsRef.current = new Set(actionedIds);
+          return prev.filter((app) => !isBulkTarget(app, scoreMin, scoreMax));
+        });
+        if (bulkActionedIdsClearTimerRef.current !== null) {
+          window.clearTimeout(bulkActionedIdsClearTimerRef.current);
+        }
+        bulkActionedIdsClearTimerRef.current = window.setTimeout(() => {
+          recentlyBulkActionedIdsRef.current = null;
+          bulkActionedIdsClearTimerRef.current = null;
+        }, BULK_STATUS_FILTER_LOOKBACK_MS);
         setAppsCursor(null);
-        setAppsHasMore(false);
-        skipNextAppsFetchRef.current = true;
         setScoreBand("all");
         recentBulkStatusUpdateRef.current = {
           status: bulkConfirm.action === "reject" ? "REJECTED" : "SHORTLISTED",
