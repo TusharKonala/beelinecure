@@ -293,6 +293,8 @@ export default function BookAppointmentDoctorPage() {
     queryFn: () => getDoctor(doctorId),
     enabled: !!doctorId,
   });
+  const onlineConsultationAvailable =
+    doctor?.onlineConsultationAvailable ?? false;
 
   useLayoutEffect(() => {
     if (consultationType === null) {
@@ -450,6 +452,7 @@ export default function BookAppointmentDoctorPage() {
 
   const selectConsultationType = useCallback(
     (next: PatientConsultationChoice) => {
+      if (next === "ONLINE" && !onlineConsultationAvailable) return;
       if (consultationType !== null && consultationType !== next) {
         setSelectedSlot(null);
         setSelectedDate(todayYmdInTimeZone(patientTimezone));
@@ -461,8 +464,28 @@ export default function BookAppointmentDoctorPage() {
       }
       setConsultationType(next);
     },
-    [consultationType, doctorId, queryClient, patientTimezone],
+    [
+      consultationType,
+      doctorId,
+      onlineConsultationAvailable,
+      patientTimezone,
+      queryClient,
+    ],
   );
+
+  useEffect(() => {
+    if (onlineConsultationAvailable || consultationType !== "ONLINE") return;
+    const slotType = selectedSlotDetail?.consultationType;
+    if (slotType === "CLINIC" || slotType === "BOTH") {
+      setConsultationType("CLINIC");
+      return;
+    }
+    setConsultationType(null);
+  }, [
+    consultationType,
+    onlineConsultationAvailable,
+    selectedSlotDetail?.consultationType,
+  ]);
   // Lock the email field when the patient is signed in so they can't book
   // under an email different from their account; the field is prefilled from
   // the session above.
@@ -885,13 +908,21 @@ export default function BookAppointmentDoctorPage() {
                   variant={
                     consultationType === "ONLINE" ? "default" : "outline"
                   }
-                  className="flex h-11 w-full cursor-pointer items-center justify-center rounded-xl font-montserrat text-sm font-medium sm:h-12 md:text-base"
+                  className="flex h-11 w-full cursor-pointer items-center justify-center rounded-xl font-montserrat text-sm font-medium sm:h-12 md:text-base disabled:cursor-not-allowed disabled:opacity-50"
                   aria-pressed={consultationType === "ONLINE"}
+                  aria-disabled={!onlineConsultationAvailable}
+                  disabled={!onlineConsultationAvailable}
                   onClick={() => selectConsultationType("ONLINE")}
                 >
                   Online Consultation
                 </Button>
               </div>
+              {!onlineConsultationAvailable && (
+                <p className="mt-3 font-montserrat text-sm text-[#5E5E5E]">
+                  Online consultations are temporarily unavailable for this
+                  doctor.
+                </p>
+              )}
               {selectedSlotDetail?.consultationType === "BOTH" && (
                 <p className="mt-3 font-montserrat text-sm text-[#5E5E5E]">
                   This slot supports both clinic and online consultations.

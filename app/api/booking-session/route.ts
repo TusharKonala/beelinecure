@@ -22,6 +22,11 @@ import {
   isDoctorSlotInPast,
   PAST_OR_UNAVAILABLE_SLOT_MESSAGE,
 } from "@/lib/timezone-display";
+import {
+  DOCTOR_CALENDAR_NOT_CONNECTED_CODE,
+  DOCTOR_CALENDAR_NOT_CONNECTED_MESSAGE,
+  isDoctorGoogleCalendarConnected,
+} from "@/lib/doctor-online-booking";
 
 const bookingSessionSchema = z.object({
   doctorId: z.string().min(1),
@@ -95,6 +100,7 @@ export async function POST(request: NextRequest) {
       slotDurationMinutes: true,
       currency: true,
       consultationPriceCentsByDuration: true,
+      googleCalendarRefreshToken: true,
     },
   });
 
@@ -154,6 +160,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error: "This slot is not available for clinic visits",
+      },
+      { status: 409 },
+    );
+  }
+  if (consultationType === "ONLINE" && !isDoctorGoogleCalendarConnected(doctor)) {
+    return NextResponse.json(
+      {
+        error: DOCTOR_CALENDAR_NOT_CONNECTED_MESSAGE,
+        code: DOCTOR_CALENDAR_NOT_CONNECTED_CODE,
       },
       { status: 409 },
     );

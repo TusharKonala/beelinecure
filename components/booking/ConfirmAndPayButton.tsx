@@ -16,10 +16,12 @@ export function ConfirmAndPayButton({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showExpired, setShowExpired] = useState(false);
+  const [showCalendarUnavailable, setShowCalendarUnavailable] = useState(false);
 
   const handleClick = async () => {
     setError(null);
     setShowExpired(false);
+    setShowCalendarUnavailable(false);
     setIsLoading(true);
 
     try {
@@ -41,6 +43,11 @@ export function ConfirmAndPayButton({
       if (!res.ok || !json?.url) {
         if (json?.code === "BOOKING_SESSION_EXPIRED") {
           setShowExpired(true);
+          setIsLoading(false);
+          return;
+        }
+        if (json?.code === "DOCTOR_CALENDAR_NOT_CONNECTED") {
+          setShowCalendarUnavailable(true);
           setIsLoading(false);
           return;
         }
@@ -81,6 +88,20 @@ export function ConfirmAndPayButton({
             className="mt-3 inline-block font-montserrat text-sm font-medium text-[#2555F3] underline underline-offset-2 hover:text-[#1a45d9]"
           >
             Book again
+          </Link>
+        </div>
+      )}
+      {showCalendarUnavailable && (
+        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50/80 p-4">
+          <p className="font-montserrat text-sm text-[#333333]">
+            This doctor is not available for online consultations right now.
+            Please choose a clinic visit or start a new booking.
+          </p>
+          <Link
+            href={`/book-appointment/${doctorId}`}
+            className="mt-3 inline-block font-montserrat text-sm font-medium text-[#2555F3] underline underline-offset-2 hover:text-[#1a45d9]"
+          >
+            Back to booking
           </Link>
         </div>
       )}

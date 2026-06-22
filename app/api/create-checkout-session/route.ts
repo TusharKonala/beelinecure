@@ -20,6 +20,11 @@ import {
   isDoctorSlotInPast,
   PAST_OR_UNAVAILABLE_SLOT_MESSAGE,
 } from "@/lib/timezone-display";
+import {
+  DOCTOR_CALENDAR_NOT_CONNECTED_CODE,
+  DOCTOR_CALENDAR_NOT_CONNECTED_MESSAGE,
+  isDoctorGoogleCalendarConnected,
+} from "@/lib/doctor-online-booking";
 
 const schema = z.object({
   bookingSessionId: z.string().min(1),
@@ -97,10 +102,30 @@ export async function POST(request: NextRequest) {
 
     const doctor = await prisma.doctor.findFirst({
       where: publicDoctorByIdWhere(bookingSession.doctorId),
+      select: {
+        name: true,
+        currency: true,
+        consultationPriceCentsByDuration: true,
+        googleCalendarRefreshToken: true,
+      },
     });
 
     if (!doctor) {
       return NextResponse.json({ error: "Doctor not found" }, { status: 404 });
+    }
+
+    if (
+      bookingSession.consultationType === "ONLINE" &&
+      !isDoctorGoogleCalendarConnected(doctor)
+    ) {
+      return NextResponse.json(
+        {
+          error: DOCTOR_CALENDAR_NOT_CONNECTED_MESSAGE,
+          code: DOCTOR_CALENDAR_NOT_CONNECTED_CODE,
+          doctorId: bookingSession.doctorId,
+        },
+        { status: 409 },
+      );
     }
 
     // Hard server-side guard: reject slots that have already started in the
