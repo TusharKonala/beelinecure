@@ -39,20 +39,24 @@ export function CareersInterviewRescheduledCandidateEmailTemplate({
       </p>
       {meetLink ? (
         <>
-          <p style={{ color: "#333333", lineHeight: 1.6, marginTop: "1rem" }}>
-            Join the Google Meet link at the new scheduled time.
-          </p>
-          <p style={{ marginTop: "0.5rem" }}>
+          <div style={{ marginTop: "1.5rem", marginBottom: "1.5rem" }}>
             <a
               href={meetLink}
               style={{
-                color: "#2555F3",
+                display: "inline-block",
+                padding: "12px 16px",
+                backgroundColor: "#2555F3",
+                color: "#ffffff",
                 textDecoration: "none",
+                borderRadius: "8px",
                 fontWeight: 600,
               }}
             >
               Join Google Meet
             </a>
+          </div>
+          <p style={{ color: "#333333", lineHeight: 1.6 }}>
+            Join the Google Meet link at the new scheduled time.
           </p>
         </>
       ) : (

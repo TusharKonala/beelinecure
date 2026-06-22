@@ -35,28 +35,32 @@ export function CareersInterviewAttendeeConfirmedEmailTemplate({
       <p style={{ color: "#333333", lineHeight: 1.6, fontWeight: 600 }}>
         {scheduledAtLabel}
       </p>
-      <p style={{ color: "#333333", lineHeight: 1.6 }}>
-        Join the Google Meet link at the scheduled time. The candidate has been
-        notified with the same details.
-      </p>
       {meetLink ? (
-        <p style={{ marginTop: "1.5rem" }}>
+        <div style={{ marginTop: "1.5rem", marginBottom: "1.5rem" }}>
           <a
             href={meetLink}
             style={{
-              color: "#2555F3",
+              display: "inline-block",
+              padding: "12px 16px",
+              backgroundColor: "#2555F3",
+              color: "#ffffff",
               textDecoration: "none",
+              borderRadius: "8px",
               fontWeight: 600,
             }}
           >
             Join Google Meet
           </a>
-        </p>
+        </div>
       ) : (
         <p style={{ color: "#5e5e5e", lineHeight: 1.6 }}>
           The meeting link will be shared when available.
         </p>
       )}
+      <p style={{ color: "#333333", lineHeight: 1.6 }}>
+        Join the Google Meet link at the scheduled time. The candidate has been
+        notified with the same details.
+      </p>
       <CareersInterviewJdEmailBlock jobDescription={jobDescription} />
     </div>
   );
