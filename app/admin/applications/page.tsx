@@ -113,6 +113,8 @@ const SCORE_BAND_LABELS: Record<Exclude<ScoreBand, "all">, string> = {
   high: "8–10",
 };
 
+const BULK_STATUS_FILTER_LOOKBACK_MS = 30_000;
+
 function bulkConfirmMessage(
   action: BulkAction,
   count: number,
@@ -143,6 +145,10 @@ export default function AdminCareersApplicationsPage() {
   const [appsLoading, setAppsLoading] = useState(true);
   const appsRequestIdRef = useRef(0);
   const skipNextAppsFetchRef = useRef(false);
+  const recentBulkStatusUpdateRef = useRef<{
+    status: "REJECTED" | "SHORTLISTED";
+    at: number;
+  } | null>(null);
 
   const [statusFilter, setStatusFilter] = useState<ApplicationStatus | "ALL">(
     "ALL",
@@ -153,6 +159,7 @@ export default function AdminCareersApplicationsPage() {
 
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [bulkStatusNotice, setBulkStatusNotice] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
 
@@ -202,6 +209,25 @@ export default function AdminCareersApplicationsPage() {
     const timer = window.setTimeout(() => setSuccessMessage(null), 5000);
     return () => window.clearTimeout(timer);
   }, [successMessage]);
+
+  useEffect(() => {
+    const recent = recentBulkStatusUpdateRef.current;
+    if (!recent || statusFilter !== recent.status) {
+      setBulkStatusNotice(false);
+      return;
+    }
+    if (Date.now() - recent.at > BULK_STATUS_FILTER_LOOKBACK_MS) {
+      setBulkStatusNotice(false);
+      return;
+    }
+    setBulkStatusNotice(true);
+  }, [statusFilter]);
+
+  useEffect(() => {
+    if (!bulkStatusNotice) return;
+    const timer = window.setTimeout(() => setBulkStatusNotice(false), 5000);
+    return () => window.clearTimeout(timer);
+  }, [bulkStatusNotice]);
 
   function handleScoreBandChange(band: ScoreBand) {
     setScoreBand(band);
@@ -579,6 +605,10 @@ export default function AdminCareersApplicationsPage() {
         setAppsHasMore(false);
         skipNextAppsFetchRef.current = true;
         setScoreBand("all");
+        recentBulkStatusUpdateRef.current = {
+          status: bulkConfirm.action === "reject" ? "REJECTED" : "SHORTLISTED",
+          at: Date.now(),
+        };
         setSuccessMessage(
           `Started ${verb} ${count} application${count === 1 ? "" : "s"}. Emails will be sent in the background.`,
         );
@@ -759,6 +789,15 @@ export default function AdminCareersApplicationsPage() {
                 Shortlist all
               </Button>
             )}
+          </div>
+        ) : null}
+
+        {bulkStatusNotice ? (
+          <div className="mt-6 rounded-xl border border-dashed border-[#c7d7ff] bg-[#eef3ff] p-4">
+            <p className="font-montserrat text-sm text-[#2555F3]">
+              Still updating — refresh in a few seconds if you don&apos;t see all
+              results yet.
+            </p>
           </div>
         ) : null}
 
