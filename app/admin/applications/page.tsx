@@ -123,12 +123,26 @@ function bulkConfirmMessage(
   return `${verb.charAt(0).toUpperCase() + verb.slice(1)} ${count} pending ${noun} with AI scores ${bandLabel}? Candidates will be notified by email.`;
 }
 
+function isBulkTarget(
+  app: JobApplication,
+  scoreMin: number,
+  scoreMax: number,
+): boolean {
+  return (
+    app.status === "PENDING" &&
+    app.aiScore !== null &&
+    app.aiScore >= scoreMin &&
+    app.aiScore <= scoreMax
+  );
+}
+
 export default function AdminCareersApplicationsPage() {
   const [applications, setApplications] = useState<JobApplication[]>([]);
   const [appsCursor, setAppsCursor] = useState<string | null>(null);
   const [appsHasMore, setAppsHasMore] = useState(false);
   const [appsLoading, setAppsLoading] = useState(true);
   const appsRequestIdRef = useRef(0);
+  const skipNextAppsFetchRef = useRef(false);
 
   const [statusFilter, setStatusFilter] = useState<ApplicationStatus | "ALL">(
     "ALL",
@@ -251,6 +265,10 @@ export default function AdminCareersApplicationsPage() {
   );
 
   useEffect(() => {
+    if (skipNextAppsFetchRef.current) {
+      skipNextAppsFetchRef.current = false;
+      return;
+    }
     void loadApplications(null, false);
   }, [loadApplications]);
 
@@ -546,19 +564,26 @@ export default function AdminCareersApplicationsPage() {
       }
 
       setBulkConfirm(null);
-      setScoreBand("all");
 
       if (data.queued) {
         const verb =
           bulkConfirm.action === "reject" ? "rejecting" : "shortlisting";
         const count = typeof data.count === "number" ? data.count : 0;
-        setSuccessMessage(
-          `Started ${verb} ${count} application${count === 1 ? "" : "s"}. The list will update shortly.`,
+        const scoreMin = Number(band.scoreMin);
+        const scoreMax = Number(band.scoreMax);
+
+        setApplications((prev) =>
+          prev.filter((app) => !isBulkTarget(app, scoreMin, scoreMax)),
         );
-        window.setTimeout(() => {
-          void loadApplications(null, false);
-        }, 2500);
+        setAppsCursor(null);
+        setAppsHasMore(false);
+        skipNextAppsFetchRef.current = true;
+        setScoreBand("all");
+        setSuccessMessage(
+          `Started ${verb} ${count} application${count === 1 ? "" : "s"}. Emails will be sent in the background.`,
+        );
       } else {
+        setScoreBand("all");
         void loadApplications(null, false);
       }
     } catch (err) {
