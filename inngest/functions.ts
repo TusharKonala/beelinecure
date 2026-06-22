@@ -307,6 +307,7 @@ export const sendOnlineAppointmentT15Reminder = inngest.createFunction(
           heading: "Online consultation starting soon",
           message: `Your online consultation with ${appointment.patientName} starts in about 15 minutes. Use the Google Meet link below to join.`,
           showActionLinks: false,
+          showMeetLink: true,
           doctorName: appointment.doctor.name,
           appointmentDate: formatDateInDoctorTz(
             dateStr,

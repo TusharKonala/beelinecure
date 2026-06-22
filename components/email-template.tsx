@@ -14,6 +14,8 @@ export interface EmailTemplateProps {
   rescheduleUrl: string;
   /** Google Meet join URL for online consultations when available. */
   meetLink?: string | null;
+  /** When true, show Join Google Meet for ONLINE appointments even if showActionLinks is false. */
+  showMeetLink?: boolean;
   /** Formatted price in the doctor's currency, e.g. "₹1,500.00". */
   priceLabel?: string | null;
   /** Optional approx local-currency equivalent, e.g. "(approx $18.07)". */
@@ -164,6 +166,7 @@ export function EmailTemplate({
   cancelUrl,
   rescheduleUrl,
   meetLink,
+  showMeetLink = false,
   priceLabel,
   approxLocalPriceLabel,
   isPricePaid = false,
@@ -181,7 +184,9 @@ export function EmailTemplate({
   const usesDefaultPatientActions =
     primaryActionLabel === undefined && primaryActionUrl === undefined;
   const showMeetButton =
-    consultationType === "ONLINE" && showActionLinks && !!meetLink;
+    consultationType === "ONLINE" &&
+    !!meetLink &&
+    (showActionLinks || showMeetLink);
 
   return (
     <div
@@ -194,18 +199,20 @@ export function EmailTemplate({
         {" "}
         {message ?? getConfirmationMessage(consultationType)}
       </p>
-      {showActionLinks && (
+      {showMeetButton && meetLink && (
         <div style={{ marginTop: "1rem" }}>
-          {showMeetButton && meetLink && (
-            <EmailActionButton
-              href={meetLink}
-              label="Join Google Meet"
-              variant="primary"
-              isFirst
-            />
-          )}
+          <EmailActionButton
+            href={meetLink}
+            label="Join Google Meet"
+            variant="primary"
+            isFirst
+          />
+        </div>
+      )}
+      {showActionLinks && (
+        <div style={{ marginTop: showMeetButton ? "0.5rem" : "1rem" }}>
           {usesDefaultPatientActions ? (
-            <div style={{ marginTop: showMeetButton ? "0.5rem" : 0 }}>
+            <div>
               {secondActionUrl && firstActionUrl ? (
                 <EmailActionPair
                   firstHref={secondActionUrl}
@@ -243,7 +250,7 @@ export function EmailTemplate({
                   href={firstActionUrl}
                   label={firstActionLabel}
                   variant="primary"
-                  isFirst={!showMeetButton}
+                  isFirst
                 />
               )}
               {secondActionUrl && secondActionLabel && (
