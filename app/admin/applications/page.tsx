@@ -232,18 +232,25 @@ function AdminCareersApplicationsContent() {
     }
 
     const rawStatus = searchParams.get("status")?.trim();
-    if (
+    const resolvedStatus =
       rawStatus &&
       applicationStatusValues.includes(rawStatus as ApplicationStatus)
-    ) {
-      setStatusFilter(rawStatus as ApplicationStatus);
+        ? (rawStatus as ApplicationStatus)
+        : null;
+    if (resolvedStatus) {
+      setStatusFilter(resolvedStatus);
     }
 
+    const statusForConfirmation = resolvedStatus ?? "SHORTLISTED";
     const confirmedParam = searchParams.get("interviewConfirmed")?.trim();
-    if (confirmedParam === "true") {
-      setInterviewConfirmationFilter("confirmed");
-    } else if (confirmedParam === "false") {
-      setInterviewConfirmationFilter("non-confirmed");
+    if (statusForConfirmation === "SHORTLISTED") {
+      if (confirmedParam === "true") {
+        setInterviewConfirmationFilter("confirmed");
+      } else if (confirmedParam === "false") {
+        setInterviewConfirmationFilter("non-confirmed");
+      } else {
+        setInterviewConfirmationFilter("all");
+      }
     } else {
       setInterviewConfirmationFilter("all");
     }
@@ -261,10 +268,19 @@ function AdminCareersApplicationsContent() {
   }, []);
 
   useEffect(() => {
-    if (statusFilter !== "SHORTLISTED" && interviewRoundFilter !== "ALL") {
-      setInterviewRoundFilter("ALL");
+    if (statusFilter !== "SHORTLISTED") {
+      if (interviewRoundFilter !== "ALL") setInterviewRoundFilter("ALL");
+      if (interviewConfirmationFilter !== "all") {
+        setInterviewConfirmationFilter("all");
+      }
+      if (interviewDate) setInterviewDate("");
     }
-  }, [statusFilter, interviewRoundFilter]);
+  }, [
+    statusFilter,
+    interviewRoundFilter,
+    interviewConfirmationFilter,
+    interviewDate,
+  ]);
 
   useEffect(() => {
     if (!successMessage) return;
@@ -330,7 +346,7 @@ function AdminCareersApplicationsContent() {
         ) {
           params.set("interviewRound", interviewRoundFilter);
         }
-        if (interviewConfirmationActive) {
+        if (statusFilter === "SHORTLISTED" && interviewConfirmationActive) {
           params.set(
             "interviewConfirmed",
             interviewConfirmationFilter === "confirmed" ? "true" : "false",
@@ -820,53 +836,55 @@ function AdminCareersApplicationsContent() {
           </div>
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          {(
-            [
-              ["confirmed", "Confirmed"],
-              ["non-confirmed", "Non-confirmed"],
-            ] as const
-          ).map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => handleInterviewConfirmationFilterChange(value)}
-              className={`rounded-full border px-3 py-1 font-montserrat text-xs font-medium ${
-                interviewConfirmationFilter === value
-                  ? "cursor-pointer border-[#2555F3] bg-[#eef3ff] text-[#2555F3]"
-                  : "cursor-pointer border-[#e5e5e5] bg-white text-[#333333]"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-          {interviewConfirmationActive ? (
-            <div className="flex items-center gap-2">
-              <label
-                htmlFor="interview-date-filter"
-                className="font-montserrat text-xs font-medium text-[#5e5e5e]"
+        {statusFilter === "SHORTLISTED" ? (
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            {(
+              [
+                ["confirmed", "Confirmed"],
+                ["non-confirmed", "Non-confirmed"],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => handleInterviewConfirmationFilterChange(value)}
+                className={`rounded-full border px-3 py-1 font-montserrat text-xs font-medium ${
+                  interviewConfirmationFilter === value
+                    ? "cursor-pointer border-[#2555F3] bg-[#eef3ff] text-[#2555F3]"
+                    : "cursor-pointer border-[#e5e5e5] bg-white text-[#333333]"
+                }`}
               >
-                Interview date (UTC)
-              </label>
-              <input
-                id="interview-date-filter"
-                type="date"
-                value={interviewDate}
-                onChange={(e) => setInterviewDate(e.target.value)}
-                className="cursor-pointer rounded-full border border-[#e5e5e5] bg-white px-3 py-1 font-montserrat text-xs font-medium text-[#333333] outline-none focus:border-[#2555F3] focus:ring-2 focus:ring-[#2555F3]/20"
-              />
-              {interviewDate ? (
-                <button
-                  type="button"
-                  onClick={() => setInterviewDate("")}
-                  className="cursor-pointer font-montserrat text-xs text-[#5e5e5e] hover:text-[#2555F3]"
+                {label}
+              </button>
+            ))}
+            {interviewConfirmationActive ? (
+              <div className="flex items-center gap-2">
+                <label
+                  htmlFor="interview-date-filter"
+                  className="font-montserrat text-xs font-medium text-[#5e5e5e]"
                 >
-                  Clear date
-                </button>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
+                  Interview date (UTC)
+                </label>
+                <input
+                  id="interview-date-filter"
+                  type="date"
+                  value={interviewDate}
+                  onChange={(e) => setInterviewDate(e.target.value)}
+                  className="cursor-pointer rounded-full border border-[#e5e5e5] bg-white px-3 py-1 font-montserrat text-xs font-medium text-[#333333] outline-none focus:border-[#2555F3] focus:ring-2 focus:ring-[#2555F3]/20"
+                />
+                {interviewDate ? (
+                  <button
+                    type="button"
+                    onClick={() => setInterviewDate("")}
+                    className="cursor-pointer font-montserrat text-xs text-[#5e5e5e] hover:text-[#2555F3]"
+                  >
+                    Clear date
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <button

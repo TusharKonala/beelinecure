@@ -140,7 +140,10 @@ export function buildJobApplicationWhereInput(
     );
   }
 
-  if (interviewConfirmed !== null) {
+  if (
+    status === ApplicationStatus.SHORTLISTED &&
+    interviewConfirmed !== null
+  ) {
     const dateRange = interviewDate
       ? utcDayRangeFromDateParam(interviewDate)
       : null;
