@@ -1,12 +1,14 @@
 import { randomBytes } from "crypto";
-import { Resend } from "resend";
+import { Resend, type CreateBatchEmailOptions } from "resend";
 import { CareersInterviewAttendeeConfirmedEmailTemplate } from "@/components/careers-interview-attendee-confirmed-email-template";
 import { CareersInterviewAdminConfirmedEmailTemplate } from "@/components/careers-interview-admin-confirmed-email-template";
+import { CareersInterviewAdminReminderEmailTemplate } from "@/components/careers-interview-admin-reminder-email-template";
 import { CareersInterviewInterviewerCancelledAdminEmailTemplate } from "@/components/careers-interview-interviewer-cancelled-admin-email-template";
 import { CareersInterviewCancelledAttendeeEmailTemplate } from "@/components/careers-interview-cancelled-attendee-email-template";
 import { CareersInterviewCancelledCandidateEmailTemplate } from "@/components/careers-interview-cancelled-candidate-email-template";
 import { CareersInterviewConfirmedEmailTemplate } from "@/components/careers-interview-confirmed-email-template";
 import { CareersInterviewInviteEmailTemplate } from "@/components/careers-interview-invite-email-template";
+import { CareersInterviewReminderEmailTemplate } from "@/components/careers-interview-reminder-email-template";
 import { CareersInterviewRescheduledAttendeeEmailTemplate } from "@/components/careers-interview-rescheduled-attendee-email-template";
 import { CareersInterviewRescheduledCandidateEmailTemplate } from "@/components/careers-interview-rescheduled-candidate-email-template";
 import { inngest } from "@/inngest/client";
@@ -19,6 +21,10 @@ import {
 } from "@/lib/google-calendar-meet";
 import { prisma } from "@/lib/db";
 import { getEmailFrom } from "@/lib/email-from";
+import {
+  dedupeBatchPayloadsByTo,
+  sendResendEmailBatch,
+} from "@/lib/resend-batch";
 import {
   interviewReminder24hAtMs,
   interviewReminder30mAtMs,
@@ -114,34 +120,26 @@ export async function scheduleInterviewReminders(roundId: string) {
   const ts24h = interviewReminder24hAtMs(round.scheduledAt);
   const ts30m = interviewReminder30mAtMs(round.scheduledAt);
 
-  const recipients: Array<"candidate" | "attendee" | "admin"> = [
-    "candidate",
-    "attendee",
-    "admin",
-  ];
-
-  for (const recipient of recipients) {
-    if (ts24h !== null) {
-      try {
-        await inngest.send({
-          name: "interview/reminder-24h.scheduled",
-          data: { interviewRoundId: roundId, recipient },
-          ts: ts24h,
-        });
-      } catch (err) {
-        console.error("[careers-interview] Failed to schedule 24h reminder:", err);
-      }
+  if (ts24h !== null) {
+    try {
+      await inngest.send({
+        name: "interview/reminder-24h.scheduled",
+        data: { interviewRoundId: roundId },
+        ts: ts24h,
+      });
+    } catch (err) {
+      console.error("[careers-interview] Failed to schedule 24h reminder:", err);
     }
-    if (ts30m !== null) {
-      try {
-        await inngest.send({
-          name: "interview/reminder-30m.scheduled",
-          data: { interviewRoundId: roundId, recipient },
-          ts: ts30m,
-        });
-      } catch (err) {
-        console.error("[careers-interview] Failed to schedule 30m reminder:", err);
-      }
+  }
+  if (ts30m !== null) {
+    try {
+      await inngest.send({
+        name: "interview/reminder-30m.scheduled",
+        data: { interviewRoundId: roundId },
+        ts: ts30m,
+      });
+    } catch (err) {
+      console.error("[careers-interview] Failed to schedule 30m reminder:", err);
     }
   }
 }
@@ -185,41 +183,6 @@ export async function sendInterviewInviteEmail(params: {
   });
 }
 
-export async function sendInterviewConfirmedEmail(params: {
-  to: string;
-  candidateName: string;
-  jobTitle: string;
-  roundNumber: number;
-  scheduledAt: Date;
-  adminTimezone: string;
-  candidateTimezone?: string | null;
-  meetLink: string | null;
-}) {
-  const scheduledAtLabel = formatInterviewScheduledAt(
-    params.scheduledAt,
-    params.adminTimezone,
-    params.candidateTimezone,
-  );
-
-  if (!process.env.RESEND_API_KEY?.trim()) {
-    console.warn("[careers-interview] RESEND_API_KEY not set; skipping confirmed email");
-    return;
-  }
-
-  await resend.emails.send({
-    from: getEmailFrom(),
-    to: params.to,
-    subject: `Interview confirmed — ${params.jobTitle}`,
-    react: CareersInterviewConfirmedEmailTemplate({
-      candidateName: params.candidateName,
-      jobTitle: params.jobTitle,
-      roundNumber: params.roundNumber,
-      scheduledAtLabel,
-      meetLink: params.meetLink,
-    }),
-  });
-}
-
 export function formatAttendeeGreeting(
   attendeeName: string | null | undefined,
 ): string {
@@ -227,96 +190,334 @@ export function formatAttendeeGreeting(
   return name || "there";
 }
 
-export async function sendInterviewAttendeeConfirmedEmail(params: {
-  to: string;
-  attendeeName?: string | null;
+export type InterviewReminderRecipient = "candidate" | "attendee" | "admin";
+
+const interviewRoundReminderSelect = {
+  id: true,
+  roundNumber: true,
+  scheduledAt: true,
+  timezone: true,
+  meetLink: true,
+  confirmedAt: true,
+  cancelledAt: true,
+  jobDescriptionSnapshot: true,
+  attendeeEmail: true,
+  attendeeName: true,
+  attendeeCancelToken: true,
+  application: {
+    select: {
+      name: true,
+      email: true,
+      candidateTimezone: true,
+      jobPosting: { select: { title: true, description: true } },
+    },
+  },
+} as const;
+
+async function loadInterviewRoundForReminder(interviewRoundId: string) {
+  return prisma.interviewRound.findUnique({
+    where: { id: interviewRoundId },
+    select: interviewRoundReminderSelect,
+  });
+}
+
+export async function sendInterviewConfirmedEmailsBatch(params: {
+  candidateEmail: string;
   candidateName: string;
+  candidateTimezone: string | null;
   jobTitle: string;
   roundNumber: number;
   scheduledAt: Date;
   adminTimezone: string;
   meetLink: string | null;
   jobDescription?: string | null;
+  attendeeEmail?: string | null;
+  attendeeName?: string | null;
   attendeeCancelToken?: string | null;
 }) {
-  const scheduledAtLabel = formatInterviewScheduledAt(
+  const scheduledAtLabelCandidate = formatInterviewScheduledAt(
     params.scheduledAt,
     params.adminTimezone,
+    params.candidateTimezone,
   );
-  const cancelUrl = buildAttendeeCancelUrlFromToken(params.attendeeCancelToken);
-
-  if (!process.env.RESEND_API_KEY?.trim()) {
-    console.warn(
-      "[careers-interview] RESEND_API_KEY not set; skipping attendee confirmed email",
-    );
-    return;
-  }
-
-  await resend.emails.send({
-    from: getEmailFrom(),
-    to: params.to,
-    subject: `Interview scheduled — ${params.jobTitle} (Round ${params.roundNumber})`,
-    react: CareersInterviewAttendeeConfirmedEmailTemplate({
-      attendeeName: formatAttendeeGreeting(params.attendeeName),
-      candidateName: params.candidateName,
-      jobTitle: params.jobTitle,
-      roundNumber: params.roundNumber,
-      scheduledAtLabel,
-      meetLink: params.meetLink,
-      jobDescription: params.jobDescription,
-      cancelUrl,
-    }),
-  });
-}
-
-export async function sendInterviewAdminConfirmedEmails(params: {
-  candidateName: string;
-  candidateEmail: string;
-  jobTitle: string;
-  roundNumber: number;
-  scheduledAt: Date;
-  adminTimezone: string;
-  meetLink: string | null;
-}) {
-  const adminEmails = await getAdminEmails();
-  if (adminEmails.length === 0) return;
-
-  const scheduledAtLabel = formatInterviewScheduledAt(
+  const scheduledAtLabelAttendee = formatInterviewScheduledAt(
     params.scheduledAt,
     params.adminTimezone,
   );
   const applicationUrl = buildAdminApplicationSearchUrl(params.candidateEmail);
+  const from = getEmailFrom();
+  const payloads: CreateBatchEmailOptions[] = [
+    {
+      from,
+      to: params.candidateEmail,
+      subject: `Interview confirmed — ${params.jobTitle}`,
+      react: CareersInterviewConfirmedEmailTemplate({
+        candidateName: params.candidateName,
+        jobTitle: params.jobTitle,
+        roundNumber: params.roundNumber,
+        scheduledAtLabel: scheduledAtLabelCandidate,
+        meetLink: params.meetLink,
+      }),
+    },
+  ];
+
+  const attendeeEmail = params.attendeeEmail?.trim();
+  if (attendeeEmail) {
+    payloads.push({
+      from,
+      to: attendeeEmail,
+      subject: `Interview scheduled — ${params.jobTitle} (Round ${params.roundNumber})`,
+      react: CareersInterviewAttendeeConfirmedEmailTemplate({
+        attendeeName: formatAttendeeGreeting(params.attendeeName),
+        candidateName: params.candidateName,
+        jobTitle: params.jobTitle,
+        roundNumber: params.roundNumber,
+        scheduledAtLabel: scheduledAtLabelAttendee,
+        meetLink: params.meetLink,
+        jobDescription: params.jobDescription,
+        cancelUrl: buildAttendeeCancelUrlFromToken(params.attendeeCancelToken),
+      }),
+    });
+  }
+
+  const adminEmails = await getAdminEmails();
+  for (const to of adminEmails) {
+    payloads.push({
+      from,
+      to,
+      subject: `Interview confirmed — ${params.jobTitle} (Round ${params.roundNumber})`,
+      react: CareersInterviewAdminConfirmedEmailTemplate({
+        candidateName: params.candidateName,
+        candidateEmail: params.candidateEmail,
+        jobTitle: params.jobTitle,
+        roundNumber: params.roundNumber,
+        scheduledAtLabel: scheduledAtLabelAttendee,
+        meetLink: params.meetLink,
+        applicationUrl,
+      }),
+    });
+  }
+
+  const deduped = dedupeBatchPayloadsByTo(payloads, "interview-confirmed");
+  await sendResendEmailBatch(deduped, "interview-confirmed");
+}
+
+/** Legacy single-recipient reminder (pre-batch Inngest events with `recipient` in payload). */
+export async function sendInterviewReminderEmail(params: {
+  interviewRoundId: string;
+  recipient: InterviewReminderRecipient;
+  reminderLabel: string;
+}) {
+  const round = await loadInterviewRoundForReminder(params.interviewRoundId);
+
+  if (!round?.confirmedAt || round.cancelledAt) {
+    return {
+      skipped: true,
+      reason: round?.cancelledAt ? "cancelled" : "not_confirmed",
+    };
+  }
+
+  const jobDescription = resolveJobDescription(
+    round.jobDescriptionSnapshot,
+    round.application.jobPosting.description,
+  );
+
+  const scheduledAtLabel = formatInterviewScheduledAt(
+    round.scheduledAt,
+    round.timezone,
+    params.recipient === "candidate"
+      ? round.application.candidateTimezone
+      : undefined,
+  );
 
   if (!process.env.RESEND_API_KEY?.trim()) {
-    console.warn(
-      "[careers-interview] RESEND_API_KEY not set; skipping admin confirmed emails",
-    );
-    return;
+    console.warn("[interview-reminder] RESEND_API_KEY not set");
+    return { skipped: true, reason: "no_resend_key" };
   }
 
-  for (const to of adminEmails) {
-    try {
-      await resend.emails.send({
-        from: getEmailFrom(),
-        to,
-        subject: `Interview confirmed — ${params.jobTitle} (Round ${params.roundNumber})`,
-        react: CareersInterviewAdminConfirmedEmailTemplate({
-          candidateName: params.candidateName,
-          candidateEmail: params.candidateEmail,
-          jobTitle: params.jobTitle,
-          roundNumber: params.roundNumber,
-          scheduledAtLabel,
-          meetLink: params.meetLink,
-          applicationUrl,
-        }),
-      });
-    } catch (err) {
-      console.error(
-        `[careers-interview] Failed to send admin confirmed email to ${to}:`,
-        err,
-      );
+  const from = getEmailFrom();
+
+  if (params.recipient === "admin") {
+    const adminEmails = await getAdminEmails();
+    if (adminEmails.length === 0) {
+      return { skipped: true, reason: "no_recipient" };
     }
+
+    const applicationUrl = buildAdminApplicationSearchUrl(
+      round.application.email,
+    );
+
+    for (const to of adminEmails) {
+      try {
+        const { error } = await resend.emails.send({
+          from,
+          to,
+          subject: `Interview reminder (${params.reminderLabel}) — ${round.application.jobPosting.title}`,
+          react: CareersInterviewAdminReminderEmailTemplate({
+            jobTitle: round.application.jobPosting.title,
+            candidateName: round.application.name,
+            candidateEmail: round.application.email,
+            roundNumber: round.roundNumber,
+            scheduledAtLabel,
+            meetLink: round.meetLink,
+            reminderLabel: params.reminderLabel,
+            applicationUrl,
+          }),
+        });
+        if (error) {
+          console.error(
+            `[interview-reminder] Admin email failed for ${to}: ${JSON.stringify(error)}`,
+          );
+        }
+      } catch (err) {
+        console.error(
+          `[interview-reminder] Admin email failed for ${to}:`,
+          err,
+        );
+      }
+    }
+
+    return { sent: true, interviewRoundId: params.interviewRoundId };
   }
+
+  const to =
+    params.recipient === "attendee"
+      ? round.attendeeEmail?.trim()
+      : round.application.email;
+
+  if (!to) {
+    return { skipped: true, reason: "no_recipient" };
+  }
+
+  const recipientName =
+    params.recipient === "attendee"
+      ? round.attendeeName?.trim() || "there"
+      : round.application.name;
+
+  const cancelUrl =
+    params.recipient === "attendee"
+      ? buildAttendeeCancelUrlFromToken(round.attendeeCancelToken)
+      : null;
+
+  const { error } = await resend.emails.send({
+    from,
+    to,
+    subject: `Interview reminder (${params.reminderLabel}) — ${round.application.jobPosting.title}`,
+    react: CareersInterviewReminderEmailTemplate({
+      recipientName,
+      jobTitle: round.application.jobPosting.title,
+      roundNumber: round.roundNumber,
+      scheduledAtLabel,
+      meetLink: round.meetLink,
+      reminderLabel: params.reminderLabel,
+      jobDescription:
+        params.recipient === "attendee" ? jobDescription : undefined,
+      cancelUrl,
+    }),
+  });
+
+  if (error) {
+    console.error(
+      `[interview-reminder] Email failed: ${JSON.stringify(error)}`,
+    );
+    throw new Error("reminder_email_failed");
+  }
+
+  return { sent: true, interviewRoundId: params.interviewRoundId };
+}
+
+export async function sendInterviewReminderEmailsBatch(
+  interviewRoundId: string,
+  reminderLabel: string,
+) {
+  const round = await loadInterviewRoundForReminder(interviewRoundId);
+
+  if (!round?.confirmedAt || round.cancelledAt) {
+    return {
+      skipped: true,
+      reason: round?.cancelledAt ? "cancelled" : "not_confirmed",
+    };
+  }
+
+  const jobDescription = resolveJobDescription(
+    round.jobDescriptionSnapshot,
+    round.application.jobPosting.description,
+  );
+
+  const from = getEmailFrom();
+  const jobTitle = round.application.jobPosting.title;
+  const subject = `Interview reminder (${reminderLabel}) — ${jobTitle}`;
+  const applicationUrl = buildAdminApplicationSearchUrl(round.application.email);
+
+  const payloads: CreateBatchEmailOptions[] = [
+    {
+      from,
+      to: round.application.email,
+      subject,
+      react: CareersInterviewReminderEmailTemplate({
+        recipientName: round.application.name,
+        jobTitle,
+        roundNumber: round.roundNumber,
+        scheduledAtLabel: formatInterviewScheduledAt(
+          round.scheduledAt,
+          round.timezone,
+          round.application.candidateTimezone,
+        ),
+        meetLink: round.meetLink,
+        reminderLabel,
+      }),
+    },
+  ];
+
+  const attendeeEmail = round.attendeeEmail?.trim();
+  if (attendeeEmail) {
+    payloads.push({
+      from,
+      to: attendeeEmail,
+      subject,
+      react: CareersInterviewReminderEmailTemplate({
+        recipientName: round.attendeeName?.trim() || "there",
+        jobTitle,
+        roundNumber: round.roundNumber,
+        scheduledAtLabel: formatInterviewScheduledAt(
+          round.scheduledAt,
+          round.timezone,
+        ),
+        meetLink: round.meetLink,
+        reminderLabel,
+        jobDescription,
+        cancelUrl: buildAttendeeCancelUrlFromToken(round.attendeeCancelToken),
+      }),
+    });
+  }
+
+  const adminEmails = await getAdminEmails();
+  const adminScheduledAtLabel = formatInterviewScheduledAt(
+    round.scheduledAt,
+    round.timezone,
+  );
+  for (const to of adminEmails) {
+    payloads.push({
+      from,
+      to,
+      subject,
+      react: CareersInterviewAdminReminderEmailTemplate({
+        jobTitle,
+        candidateName: round.application.name,
+        candidateEmail: round.application.email,
+        roundNumber: round.roundNumber,
+        scheduledAtLabel: adminScheduledAtLabel,
+        meetLink: round.meetLink,
+        reminderLabel,
+        applicationUrl,
+      }),
+    });
+  }
+
+  const deduped = dedupeBatchPayloadsByTo(payloads, "interview-reminder");
+  await sendResendEmailBatch(deduped, "interview-reminder");
+
+  return { sent: true, interviewRoundId };
 }
 
 async function sendInterviewCancelledEmails(round: {
@@ -858,55 +1059,22 @@ export async function confirmInterviewRound(token: string) {
   const finalMeetLink = updated?.meetLink ?? meetLink;
 
   try {
-    await sendInterviewConfirmedEmail({
-      to: round.application.email,
-      candidateName: round.application.name,
-      jobTitle: round.application.jobPosting.title,
-      roundNumber: round.roundNumber,
-      scheduledAt: round.scheduledAt,
-      adminTimezone,
-      candidateTimezone,
-      meetLink: finalMeetLink,
-    });
-  } catch (err) {
-    console.error("[careers-interview] Failed to send confirmed email:", err);
-  }
-
-  const attendeeEmail = updated?.attendeeEmail?.trim();
-  if (attendeeEmail) {
-    try {
-      await sendInterviewAttendeeConfirmedEmail({
-        to: attendeeEmail,
-        attendeeName: updated?.attendeeName,
-        candidateName: round.application.name,
-        jobTitle: round.application.jobPosting.title,
-        roundNumber: round.roundNumber,
-        scheduledAt: round.scheduledAt,
-        adminTimezone,
-        meetLink: finalMeetLink,
-        jobDescription,
-        attendeeCancelToken: updated?.attendeeCancelToken,
-      });
-    } catch (err) {
-      console.error(
-        "[careers-interview] Failed to send attendee confirmed email:",
-        err,
-      );
-    }
-  }
-
-  try {
-    await sendInterviewAdminConfirmedEmails({
-      candidateName: round.application.name,
+    await sendInterviewConfirmedEmailsBatch({
       candidateEmail: round.application.email,
+      candidateName: round.application.name,
+      candidateTimezone: round.application.candidateTimezone,
       jobTitle: round.application.jobPosting.title,
       roundNumber: round.roundNumber,
       scheduledAt: round.scheduledAt,
       adminTimezone,
       meetLink: finalMeetLink,
+      jobDescription,
+      attendeeEmail: updated?.attendeeEmail,
+      attendeeName: updated?.attendeeName,
+      attendeeCancelToken: updated?.attendeeCancelToken,
     });
   } catch (err) {
-    console.error("[careers-interview] Failed to send admin confirmed emails:", err);
+    console.error("[careers-interview] Failed to send confirmed emails:", err);
   }
 
   try {

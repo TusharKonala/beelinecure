@@ -1,12 +1,9 @@
 import { EmailTemplate } from "@/components/email-template";
-import { CareersInterviewAdminReminderEmailTemplate } from "@/components/careers-interview-admin-reminder-email-template";
-import { CareersInterviewReminderEmailTemplate } from "@/components/careers-interview-reminder-email-template";
 import { MedicineReminderEmailTemplate } from "@/components/medicine-reminder-email-template";
 import {
-  buildAdminApplicationSearchUrl,
-  buildAttendeeCancelUrlFromToken,
-  formatInterviewScheduledAt,
-  resolveJobDescription,
+  sendInterviewReminderEmail,
+  sendInterviewReminderEmailsBatch,
+  type InterviewReminderRecipient,
 } from "@/lib/careers-interview";
 import { getAdminEmails } from "@/lib/careers-admin";
 import { prisma } from "@/lib/db";
@@ -818,154 +815,6 @@ export const sendCareersApplicationDigest = inngest.createFunction(
   },
 );
 
-type InterviewReminderRecipient = "candidate" | "attendee" | "admin";
-
-async function sendInterviewReminderEmail(params: {
-  interviewRoundId: string;
-  recipient: InterviewReminderRecipient;
-  reminderLabel: string;
-}) {
-  const round = await prisma.interviewRound.findUnique({
-    where: { id: params.interviewRoundId },
-    select: {
-      id: true,
-      roundNumber: true,
-      scheduledAt: true,
-      timezone: true,
-      meetLink: true,
-      confirmedAt: true,
-      cancelledAt: true,
-      jobDescriptionSnapshot: true,
-      attendeeEmail: true,
-      attendeeName: true,
-      attendeeCancelToken: true,
-      application: {
-        select: {
-          name: true,
-          email: true,
-          candidateTimezone: true,
-          jobPosting: { select: { title: true, description: true } },
-        },
-      },
-    },
-  });
-
-  if (!round?.confirmedAt || round.cancelledAt) {
-    return {
-      skipped: true,
-      reason: round?.cancelledAt ? "cancelled" : "not_confirmed",
-    };
-  }
-
-  const jobDescription = resolveJobDescription(
-    round.jobDescriptionSnapshot,
-    round.application.jobPosting.description,
-  );
-
-  const scheduledAtLabel = formatInterviewScheduledAt(
-    round.scheduledAt,
-    round.timezone,
-    params.recipient === "candidate"
-      ? round.application.candidateTimezone
-      : undefined,
-  );
-
-  if (!process.env.RESEND_API_KEY?.trim()) {
-    console.warn("[interview-reminder] RESEND_API_KEY not set");
-    return { skipped: true, reason: "no_resend_key" };
-  }
-
-  const from = getEmailFrom();
-
-  if (params.recipient === "admin") {
-    const adminEmails = await getAdminEmails();
-    if (adminEmails.length === 0) {
-      return { skipped: true, reason: "no_recipient" };
-    }
-
-    const applicationUrl = buildAdminApplicationSearchUrl(
-      round.application.email,
-    );
-
-    for (const to of adminEmails) {
-      try {
-        const { error } = await resend.emails.send({
-          from,
-          to,
-          subject: `Interview reminder (${params.reminderLabel}) — ${round.application.jobPosting.title}`,
-          react: CareersInterviewAdminReminderEmailTemplate({
-            jobTitle: round.application.jobPosting.title,
-            candidateName: round.application.name,
-            candidateEmail: round.application.email,
-            roundNumber: round.roundNumber,
-            scheduledAtLabel,
-            meetLink: round.meetLink,
-            reminderLabel: params.reminderLabel,
-            applicationUrl,
-          }),
-        });
-        if (error) {
-          console.error(
-            `[interview-reminder] Admin email failed for ${to}: ${JSON.stringify(error)}`,
-          );
-        }
-      } catch (err) {
-        console.error(
-          `[interview-reminder] Admin email failed for ${to}:`,
-          err,
-        );
-      }
-    }
-
-    return { sent: true, interviewRoundId: params.interviewRoundId };
-  }
-
-  const to =
-    params.recipient === "attendee"
-      ? round.attendeeEmail?.trim()
-      : round.application.email;
-
-  if (!to) {
-    return { skipped: true, reason: "no_recipient" };
-  }
-
-  const recipientName =
-    params.recipient === "attendee"
-      ? round.attendeeName?.trim() || "there"
-      : round.application.name;
-
-  const cancelUrl =
-    params.recipient === "attendee"
-      ? buildAttendeeCancelUrlFromToken(round.attendeeCancelToken)
-      : null;
-
-  const { error } = await resend.emails.send({
-    from,
-    to,
-    subject: `Interview reminder (${params.reminderLabel}) — ${round.application.jobPosting.title}`,
-    react: CareersInterviewReminderEmailTemplate({
-      recipientName,
-      jobTitle: round.application.jobPosting.title,
-      roundNumber: round.roundNumber,
-      scheduledAtLabel,
-      meetLink: round.meetLink,
-      reminderLabel: params.reminderLabel,
-      jobDescription:
-        params.recipient === "attendee" ? jobDescription : undefined,
-      cancelUrl,
-    }),
-  });
-
-  if (error) {
-    console.error(
-      `[interview-reminder] Email failed: ${JSON.stringify(error)}`,
-    );
-    throw new Error("reminder_email_failed");
-  }
-
-  return { sent: true, interviewRoundId: params.interviewRoundId };
-}
-
 export const sendInterviewReminder24h = inngest.createFunction(
   {
     id: "send-interview-reminder-24h",
@@ -981,13 +830,18 @@ export const sendInterviewReminder24h = inngest.createFunction(
   async ({ event }) => {
     const { interviewRoundId, recipient } = event.data as {
       interviewRoundId: string;
-      recipient: InterviewReminderRecipient;
+      recipient?: InterviewReminderRecipient;
     };
-    return sendInterviewReminderEmail({
-      interviewRoundId,
-      recipient,
-      reminderLabel: "24 hours",
-    });
+
+    if (recipient) {
+      return sendInterviewReminderEmail({
+        interviewRoundId,
+        recipient,
+        reminderLabel: "24 hours",
+      });
+    }
+
+    return sendInterviewReminderEmailsBatch(interviewRoundId, "24 hours");
   },
 );
 
@@ -1331,13 +1185,18 @@ export const sendInterviewReminder30m = inngest.createFunction(
   async ({ event }) => {
     const { interviewRoundId, recipient } = event.data as {
       interviewRoundId: string;
-      recipient: InterviewReminderRecipient;
+      recipient?: InterviewReminderRecipient;
     };
-    return sendInterviewReminderEmail({
-      interviewRoundId,
-      recipient,
-      reminderLabel: "30 minutes",
-    });
+
+    if (recipient) {
+      return sendInterviewReminderEmail({
+        interviewRoundId,
+        recipient,
+        reminderLabel: "30 minutes",
+      });
+    }
+
+    return sendInterviewReminderEmailsBatch(interviewRoundId, "30 minutes");
   },
 );
 
