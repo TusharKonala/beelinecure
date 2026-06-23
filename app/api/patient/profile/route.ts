@@ -5,10 +5,9 @@ import { UserRole } from "@/generated/prisma/client";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import {
-  PATIENT_ADDRESS_MAX_WORDS,
-  withinWordLimitRefine,
-  wordLimitErrorMessage,
-} from "@/lib/text-word-limit";
+  PATIENT_ADDRESS_MAX_CHARS,
+  charLimitErrorMessage,
+} from "@/lib/text-char-limit";
 
 const updateSchema = z.object({
   name: z.string().min(1).max(255),
@@ -19,15 +18,12 @@ const updateSchema = z.object({
     .or(z.literal("")),
   address: z
     .string()
-    .max(500)
+    .max(
+      PATIENT_ADDRESS_MAX_CHARS,
+      charLimitErrorMessage("Address", PATIENT_ADDRESS_MAX_CHARS),
+    )
     .optional()
-    .or(z.literal(""))
-    .refine(withinWordLimitRefine(PATIENT_ADDRESS_MAX_WORDS), {
-      message: wordLimitErrorMessage(
-        "Address",
-        PATIENT_ADDRESS_MAX_WORDS,
-      ),
-    }),
+    .or(z.literal("")),
 });
 
 export async function GET() {

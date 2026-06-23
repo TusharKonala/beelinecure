@@ -1,11 +1,9 @@
 import { z } from "zod";
 import { SUPPORTED_CURRENCIES } from "@/lib/currency";
 import {
-  countWords,
-  countWordsLive,
-  INTERVIEW_NOTES_MAX_WORDS,
-  isWithinWordLimit,
-} from "@/lib/text-word-limit";
+  countChars,
+  INTERVIEW_NOTES_MAX_CHARS,
+} from "@/lib/text-char-limit";
 
 export const jobTypeValues = ["FULL_TIME", "PART_TIME", "CONTRACT"] as const;
 
@@ -103,25 +101,18 @@ export const applicationStatusDropdownValues = applicationStatusValues.filter(
 
 export const MAX_INTERVIEW_ROUNDS = 4;
 
-export { INTERVIEW_NOTES_MAX_WORDS };
+export { INTERVIEW_NOTES_MAX_CHARS };
 
-export const countInterviewNotesWords = countWords;
-export const countInterviewNotesWordsLive = countWordsLive;
-
-function interviewNotesWithinWordLimit(
-  notes: string | null | undefined,
-): boolean {
-  return isWithinWordLimit(notes, INTERVIEW_NOTES_MAX_WORDS);
-}
+export const countInterviewNotesChars = countChars;
 
 const interviewNotesSchema = z
   .string()
-  .max(2000)
+  .max(
+    INTERVIEW_NOTES_MAX_CHARS,
+    `Notes must be ${INTERVIEW_NOTES_MAX_CHARS} characters or fewer.`,
+  )
   .optional()
-  .nullable()
-  .refine(interviewNotesWithinWordLimit, {
-    message: `Notes must be ${INTERVIEW_NOTES_MAX_WORDS} words or fewer.`,
-  });
+  .nullable();
 
 export const scheduleInterviewSchema = z.object({
   roundNumber: z.number().int().min(1).max(MAX_INTERVIEW_ROUNDS),

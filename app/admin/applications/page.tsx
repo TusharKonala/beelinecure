@@ -9,11 +9,11 @@ import { Button } from "@/components/ui/button";
 import {
   applicationStatusDropdownValues,
   applicationStatusValues,
-  countInterviewNotesWords,
-  INTERVIEW_NOTES_MAX_WORDS,
+  countInterviewNotesChars,
+  INTERVIEW_NOTES_MAX_CHARS,
   MAX_INTERVIEW_ROUNDS,
 } from "@/lib/careers-schemas";
-import { WordCountFooter } from "@/components/form/WordCountFooter";
+import { CharCountFooter } from "@/components/form/CharCountFooter";
 import {
   buildGmailComposeUrl,
   buildOfferEmailBody,
@@ -504,7 +504,7 @@ function AdminCareersApplicationsContent() {
     scheduleFormsEqual(scheduleFormCurrent, scheduleBaseline);
 
   const scheduleNotesOverLimit =
-    countInterviewNotesWords(scheduleNotes) > INTERVIEW_NOTES_MAX_WORDS;
+    countInterviewNotesChars(scheduleNotes) > INTERVIEW_NOTES_MAX_CHARS;
 
   async function handleScheduleInterview(e: React.FormEvent) {
     e.preventDefault();
@@ -1271,13 +1271,14 @@ function AdminCareersApplicationsContent() {
                     </label>
                     <textarea
                       rows={3}
+                      maxLength={INTERVIEW_NOTES_MAX_CHARS}
                       value={scheduleNotes}
                       onChange={(e) => setScheduleNotes(e.target.value)}
                       className="w-full rounded-xl border border-[#e5e5e5] px-3 py-2 font-montserrat text-sm"
                     />
-                    <WordCountFooter
+                    <CharCountFooter
                       value={scheduleNotes}
-                      maxWords={INTERVIEW_NOTES_MAX_WORDS}
+                      maxChars={INTERVIEW_NOTES_MAX_CHARS}
                       overLimitHint=" — shorten notes to save or schedule."
                     />
                   </div>

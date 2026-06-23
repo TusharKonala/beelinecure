@@ -8,10 +8,9 @@ import {
 import { SUPPORTED_CURRENCIES, coerceSupportedCurrency } from "@/lib/currency";
 import { DOCTOR_SPECIALIZATIONS } from "@/lib/doctor-specializations";
 import {
-  DOCTOR_BIO_MAX_WORDS,
-  withinWordLimitRefine,
-  wordLimitErrorMessage,
-} from "@/lib/text-word-limit";
+  DOCTOR_BIO_MAX_CHARS,
+  charLimitErrorMessage,
+} from "@/lib/text-char-limit";
 import { getServerSession } from "next-auth/next";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -31,12 +30,12 @@ const updateDoctorSettingsSchema = z.object({
   yearsExperience: z.number().int().min(0).max(80).nullable().optional(),
   bio: z
     .string()
-    .max(3000)
+    .max(
+      DOCTOR_BIO_MAX_CHARS,
+      charLimitErrorMessage("Bio", DOCTOR_BIO_MAX_CHARS),
+    )
     .nullable()
-    .optional()
-    .refine(withinWordLimitRefine(DOCTOR_BIO_MAX_WORDS), {
-      message: wordLimitErrorMessage("Bio", DOCTOR_BIO_MAX_WORDS),
-    }),
+    .optional(),
   profilePhotoUrl: z.string().min(1).max(100_000),
   timezone: z.string().min(1).max(128),
   currency: z.enum(SUPPORTED_CURRENCIES),

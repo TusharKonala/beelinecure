@@ -21,11 +21,11 @@ import {
 import { uploadDoctorPhoto } from "@/lib/uploads/uploadDoctorPhoto";
 import { DOCTOR_SPECIALIZATIONS } from "@/lib/doctor-specializations";
 import { DoctorPhotoCropper } from "@/components/doctor/DoctorPhotoCropper";
-import { WordCountFooter } from "@/components/form/WordCountFooter";
+import { CharCountFooter } from "@/components/form/CharCountFooter";
 import {
-  DOCTOR_BIO_MAX_WORDS,
-  isOverWordLimit,
-} from "@/lib/text-word-limit";
+  DOCTOR_BIO_MAX_CHARS,
+  isOverCharLimit,
+} from "@/lib/text-char-limit";
 
 const DURATION_KEYS = ["15", "30", "45", "60"] as const;
 type DurationKey = (typeof DURATION_KEYS)[number];
@@ -404,7 +404,7 @@ export function DoctorSettingsClient({
   const profilePhotoPreviewSrc =
     selectedPhotoPreviewUrl ?? doctor.profilePhotoUrl;
   const isPhoneInvalid = Boolean(phoneError);
-  const bioOverLimit = isOverWordLimit(doctor.bio ?? "", DOCTOR_BIO_MAX_WORDS);
+  const bioOverLimit = isOverCharLimit(doctor.bio ?? "", DOCTOR_BIO_MAX_CHARS);
 
   return (
     <div className="w-full bg-[#fafafa] py-6 md:py-8">
@@ -631,6 +631,7 @@ export function DoctorSettingsClient({
               </label>
               <textarea
                 rows={4}
+                maxLength={DOCTOR_BIO_MAX_CHARS}
                 value={doctor.bio ?? ""}
                 onChange={(e) => {
                   setSaveError(null);
@@ -639,9 +640,9 @@ export function DoctorSettingsClient({
                 }}
                 className={`${inputClassName} h-auto py-2`}
               />
-              <WordCountFooter
+              <CharCountFooter
                 value={doctor.bio ?? ""}
-                maxWords={DOCTOR_BIO_MAX_WORDS}
+                maxChars={DOCTOR_BIO_MAX_CHARS}
               />
             </div>
             <div className="flex flex-col gap-2">

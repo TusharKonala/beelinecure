@@ -12,11 +12,10 @@ import { DOCTOR_SPECIALIZATIONS } from "@/lib/doctor-specializations";
 import { currencyForTimezone } from "@/lib/currency";
 import { getEmailFrom } from "@/lib/email-from";
 import {
-  DOCTOR_BIO_MAX_WORDS,
-  PATIENT_ADDRESS_MAX_WORDS,
-  withinWordLimitRefine,
-  wordLimitErrorMessage,
-} from "@/lib/text-word-limit";
+  DOCTOR_BIO_MAX_CHARS,
+  PATIENT_ADDRESS_MAX_CHARS,
+  charLimitErrorMessage,
+} from "@/lib/text-char-limit";
 
 const doctorSignupSchema = z.object({
   phone: z
@@ -36,11 +35,11 @@ const doctorSignupSchema = z.object({
   yearsExperience: z.number().int().min(0).max(80).optional(),
   bio: z
     .string()
-    .max(3000)
-    .optional()
-    .refine(withinWordLimitRefine(DOCTOR_BIO_MAX_WORDS), {
-      message: wordLimitErrorMessage("Bio", DOCTOR_BIO_MAX_WORDS),
-    }),
+    .max(
+      DOCTOR_BIO_MAX_CHARS,
+      charLimitErrorMessage("Bio", DOCTOR_BIO_MAX_CHARS),
+    )
+    .optional(),
   profilePhotoUrl: z
     .string()
     .min(1, "Doctor profile photo is required")
@@ -57,14 +56,11 @@ const registerSchema = z
       .optional(),
     address: z
       .string()
-      .max(500)
-      .optional()
-      .refine(withinWordLimitRefine(PATIENT_ADDRESS_MAX_WORDS), {
-        message: wordLimitErrorMessage(
-          "Address",
-          PATIENT_ADDRESS_MAX_WORDS,
-        ),
-      }),
+      .max(
+        PATIENT_ADDRESS_MAX_CHARS,
+        charLimitErrorMessage("Address", PATIENT_ADDRESS_MAX_CHARS),
+      )
+      .optional(),
     email: z.string().email(),
     password: z.string().min(8, "Password must be at least 8 characters"),
     role: z.enum(["PATIENT", "DOCTOR"]).optional().default("PATIENT"),

@@ -1,16 +1,16 @@
-import { countWords, countWordsLive, isOverWordLimit } from "@/lib/text-word-limit";
+import { countChars, isOverCharLimit } from "@/lib/text-char-limit";
 
-export function WordCountFooter({
+export function CharCountFooter({
   value,
-  maxWords,
+  maxChars,
   overLimitHint = " — shorten to save.",
 }: {
   value: string;
-  maxWords: number;
+  maxChars: number;
   overLimitHint?: string;
 }) {
-  const liveCount = countWordsLive(value);
-  const overLimit = isOverWordLimit(value, maxWords);
+  const count = countChars(value);
+  const overLimit = isOverCharLimit(value, maxChars);
 
   return (
     <p
@@ -18,7 +18,7 @@ export function WordCountFooter({
         overLimit ? "text-[#b42318]" : "text-[#5e5e5e]"
       }`}
     >
-      {liveCount}/{maxWords} words
+      {count}/{maxChars} characters
       {overLimit ? overLimitHint : ""}
     </p>
   );

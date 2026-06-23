@@ -3,11 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import PhoneInput, { isValidPhoneNumber } from "react-phone-number-input";
 import { Button } from "@/components/ui/button";
-import { WordCountFooter } from "@/components/form/WordCountFooter";
+import { CharCountFooter } from "@/components/form/CharCountFooter";
 import {
-  isOverWordLimit,
-  PATIENT_ADDRESS_MAX_WORDS,
-} from "@/lib/text-word-limit";
+  isOverCharLimit,
+  PATIENT_ADDRESS_MAX_CHARS,
+} from "@/lib/text-char-limit";
 
 type Profile = {
   name: string | null;
@@ -134,7 +134,7 @@ export default function PatientSettingsPage() {
   }, [initialValues, name, phone, address]);
 
   const isPhoneInvalid = Boolean(phoneError);
-  const addressOverLimit = isOverWordLimit(address, PATIENT_ADDRESS_MAX_WORDS);
+  const addressOverLimit = isOverCharLimit(address, PATIENT_ADDRESS_MAX_CHARS);
 
   const phoneInputClassName =
     "h-11 w-full rounded-xl border border-[#e5e5e5] bg-white px-3 text-sm font-montserrat text-[#333333] shadow-sm placeholder:text-[#5E5E5E]/70 focus-within:border-[#2555F3] focus-within:ring-[3px] focus-within:ring-[#2555F3]/20 [&_.PhoneInputInput]:outline-none";
@@ -208,11 +208,12 @@ export default function PatientSettingsPage() {
             value={address}
             onChange={(e) => setAddress(e.target.value)}
             rows={3}
+            maxLength={PATIENT_ADDRESS_MAX_CHARS}
             className="mt-1 w-full rounded-xl border border-[#e5e5e5] px-3 py-2 font-montserrat text-sm"
           />
-          <WordCountFooter
+          <CharCountFooter
             value={address}
-            maxWords={PATIENT_ADDRESS_MAX_WORDS}
+            maxChars={PATIENT_ADDRESS_MAX_CHARS}
           />
         </div>
         {error ? (

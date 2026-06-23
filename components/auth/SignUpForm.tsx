@@ -12,12 +12,12 @@ import { useRedirectOverlay } from "@/components/nav/RedirectOverlayProvider";
 import { uploadDoctorPhoto } from "@/lib/uploads/uploadDoctorPhoto";
 import { DOCTOR_SPECIALIZATIONS } from "@/lib/doctor-specializations";
 import { DoctorPhotoCropper } from "@/components/doctor/DoctorPhotoCropper";
-import { WordCountFooter } from "@/components/form/WordCountFooter";
+import { CharCountFooter } from "@/components/form/CharCountFooter";
 import {
-  DOCTOR_BIO_MAX_WORDS,
-  isOverWordLimit,
-  PATIENT_ADDRESS_MAX_WORDS,
-} from "@/lib/text-word-limit";
+  DOCTOR_BIO_MAX_CHARS,
+  isOverCharLimit,
+  PATIENT_ADDRESS_MAX_CHARS,
+} from "@/lib/text-char-limit";
 
 export function SignUpForm({
   initialRole = "PATIENT",
@@ -241,9 +241,9 @@ export function SignUpForm({
     "h-11 w-full rounded-xl border border-[#e5e5e5] bg-white px-3 text-sm font-montserrat text-[#333333] shadow-sm placeholder:text-[#5E5E5E]/70 focus-within:border-[#2555F3] focus-within:ring-[3px] focus-within:ring-[#2555F3]/20 [&_.PhoneInputInput]:outline-none";
 
   const bioOverLimit =
-    role === "DOCTOR" && isOverWordLimit(bio, DOCTOR_BIO_MAX_WORDS);
+    role === "DOCTOR" && isOverCharLimit(bio, DOCTOR_BIO_MAX_CHARS);
   const addressOverLimit =
-    role === "PATIENT" && isOverWordLimit(address, PATIENT_ADDRESS_MAX_WORDS);
+    role === "PATIENT" && isOverCharLimit(address, PATIENT_ADDRESS_MAX_CHARS);
 
   return (
     <form onSubmit={onSubmit} className="flex w-full flex-col gap-5">
@@ -415,14 +415,15 @@ export function SignUpForm({
               id="signup-patient-address"
               name="address"
               rows={3}
+              maxLength={PATIENT_ADDRESS_MAX_CHARS}
               autoComplete="street-address"
               value={address}
               onChange={(e) => setAddress(e.target.value)}
               className={`${inputClassName} h-auto py-2`}
             />
-            <WordCountFooter
+            <CharCountFooter
               value={address}
-              maxWords={PATIENT_ADDRESS_MAX_WORDS}
+              maxChars={PATIENT_ADDRESS_MAX_CHARS}
             />
           </div>
         </>
@@ -635,11 +636,12 @@ export function SignUpForm({
               id="signup-doctor-bio"
               name="bio"
               rows={4}
+              maxLength={DOCTOR_BIO_MAX_CHARS}
               value={bio}
               onChange={(e) => setBio(e.target.value)}
               className={`${inputClassName} h-auto py-2`}
             />
-            <WordCountFooter value={bio} maxWords={DOCTOR_BIO_MAX_WORDS} />
+            <CharCountFooter value={bio} maxChars={DOCTOR_BIO_MAX_CHARS} />
           </div>
         </>
       )}
