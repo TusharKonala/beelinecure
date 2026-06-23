@@ -1537,21 +1537,3 @@ export default function AdminCareersApplicationsPage() {
     </Suspense>
   );
 }
-
-export default function AdminCareersApplicationsPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="py-8 lg:py-10">
-          <Container>
-            <p className="font-montserrat text-sm text-[#5e5e5e]">
-              Loading applications…
-            </p>
-          </Container>
-        </div>
-      }
-    >
-      <AdminCareersApplicationsContent />
-    </Suspense>
-  );
-}
