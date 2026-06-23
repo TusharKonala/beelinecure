@@ -1219,172 +1219,186 @@ function AdminCareersApplicationsContent() {
 
       {mounted && scheduleTarget
         ? createPortal(
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-              <form
-                onSubmit={handleScheduleInterview}
-                className="w-full max-w-md rounded-xl bg-white p-6 shadow-lg"
-              >
-                <h3 className="font-montserrat text-lg font-semibold text-[#333333]">
-                  {scheduleMode === "reschedule"
-                    ? "Reschedule interview"
-                    : "Schedule interview"}
-                </h3>
-                <p className="mt-1 font-montserrat text-sm text-[#5e5e5e]">
-                  {scheduleTarget.name} — {scheduleTarget.jobTitle}
-                  {scheduleMode === "reschedule" && rescheduleRound
-                    ? ` · Round ${rescheduleRound.roundNumber}`
-                    : ""}
-                </p>
-                <div className="mt-4 space-y-4">
-                  {scheduleMode === "create" ? (
-                    <div>
-                      <label className="mb-1 block font-montserrat text-sm font-medium text-[#333333]">
-                        Round number
-                      </label>
-                      <input
-                        type="number"
-                        min={1}
-                        max={MAX_INTERVIEW_ROUNDS}
-                        required
-                        value={scheduleRound}
-                        onChange={(e) => setScheduleRound(e.target.value)}
-                        className="w-full rounded-xl border border-[#e5e5e5] px-3 py-2 font-montserrat text-sm"
-                      />
-                    </div>
-                  ) : null}
-                  <div>
-                    <label
-                      htmlFor="schedule-timezone"
-                      className="mb-1 block font-montserrat text-sm font-medium text-[#333333]"
-                    >
-                      Timezone
-                    </label>
-                    <select
-                      id="schedule-timezone"
-                      value={scheduleTimezone}
-                      onChange={(e) => setScheduleTimezone(e.target.value)}
-                      className={`w-full cursor-pointer rounded-xl border border-[#e5e5e5] bg-white px-3 py-2 pr-10 font-montserrat text-sm text-[#333333] ${SELECT_CHEVRON}`}
-                    >
-                      {INTERVIEW_TIMEZONE_OPTIONS.map((tz) => (
-                        <option key={tz} value={tz}>
-                          {tz}
-                        </option>
-                      ))}
-                      {!INTERVIEW_TIMEZONE_OPTIONS.includes(
-                        scheduleTimezone as (typeof INTERVIEW_TIMEZONE_OPTIONS)[number],
-                      ) ? (
-                        <option value={scheduleTimezone}>{scheduleTimezone}</option>
-                      ) : null}
-                    </select>
-                  </div>
-                  <div>
-                    <label
-                      htmlFor="schedule-datetime"
-                      className="mb-1 block cursor-pointer font-montserrat text-sm font-medium text-[#333333]"
-                      onClick={openScheduleDatetimePicker}
-                    >
-                      Proposed date & time
-                    </label>
-                    <div
-                      className="relative cursor-pointer rounded-xl border border-[#e5e5e5] bg-white focus-within:border-[#2555F3] focus-within:ring-2 focus-within:ring-[#2555F3]/20"
-                      onClick={openScheduleDatetimePicker}
-                      role="presentation"
-                    >
-                      <input
-                        ref={scheduleDatetimeRef}
-                        id="schedule-datetime"
-                        type="datetime-local"
-                        required
-                        min={minDatetimeLocalForTimezone(scheduleTimezone)}
-                        value={scheduleAt}
-                        onChange={(e) => setScheduleAt(e.target.value)}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openScheduleDatetimePicker();
-                        }}
-                        className="w-full cursor-pointer rounded-xl border-0 bg-transparent px-3 py-2 pr-10 font-montserrat text-sm outline-none scheme-light [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-100"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="mb-1 block font-montserrat text-sm font-medium text-[#333333]">
-                      Interviewer name (optional)
-                    </label>
-                    <input
-                      type="text"
-                      value={scheduleAttendeeName}
-                      onChange={(e) => setScheduleAttendeeName(e.target.value)}
-                      placeholder="Jane Doe"
-                      maxLength={255}
-                      className="w-full rounded-xl border border-[#e5e5e5] px-3 py-2 font-montserrat text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block font-montserrat text-sm font-medium text-[#333333]">
-                      Interviewer email (optional)
-                    </label>
-                    <input
-                      type="email"
-                      value={scheduleAttendee}
-                      onChange={(e) => setScheduleAttendee(e.target.value)}
-                      placeholder="interviewer@company.com"
-                      className="w-full rounded-xl border border-[#e5e5e5] px-3 py-2 font-montserrat text-sm"
-                    />
-                    <p className="mt-1 font-montserrat text-xs text-[#5e5e5e]">
-                      Candidate is added automatically. Connect Google Calendar in
-                      Settings to generate Meet links after they confirm.
+            <div className="fixed inset-0 z-50 overflow-y-auto bg-black/40 p-4">
+              <div className="flex min-h-full items-center justify-center">
+                <form
+                  onSubmit={handleScheduleInterview}
+                  className="flex w-full max-w-md max-h-[90dvh] flex-col overflow-hidden rounded-xl bg-white shadow-lg sm:max-h-[90vh]"
+                >
+                  <div className="shrink-0 px-4 pt-4 pb-3 sm:px-6 sm:pt-6">
+                    <h3 className="font-montserrat text-lg font-semibold text-[#333333]">
+                      {scheduleMode === "reschedule"
+                        ? "Reschedule interview"
+                        : "Schedule interview"}
+                    </h3>
+                    <p className="mt-1 font-montserrat text-sm text-[#5e5e5e]">
+                      {scheduleTarget.name} — {scheduleTarget.jobTitle}
+                      {scheduleMode === "reschedule" && rescheduleRound
+                        ? ` · Round ${rescheduleRound.roundNumber}`
+                        : ""}
                     </p>
                   </div>
-                  <div>
-                    <label className="mb-1 block font-montserrat text-sm font-medium text-[#333333]">
-                      Notes (optional)
-                    </label>
-                    <textarea
-                      rows={3}
-                      maxLength={INTERVIEW_NOTES_MAX_CHARS}
-                      value={scheduleNotes}
-                      onChange={(e) => setScheduleNotes(e.target.value)}
-                      className="w-full rounded-xl border border-[#e5e5e5] px-3 py-2 font-montserrat text-sm"
-                    />
-                    <CharCountFooter
-                      value={scheduleNotes}
-                      maxChars={INTERVIEW_NOTES_MAX_CHARS}
-                      overLimitHint=" — shorten notes to save or schedule."
-                    />
+                  <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 sm:px-6 sm:py-4">
+                    <div className="space-y-3 sm:space-y-4">
+                      {scheduleMode === "create" ? (
+                        <div>
+                          <label className="mb-1 block font-montserrat text-sm font-medium text-[#333333]">
+                            Round number
+                          </label>
+                          <input
+                            type="number"
+                            min={1}
+                            max={MAX_INTERVIEW_ROUNDS}
+                            required
+                            value={scheduleRound}
+                            onChange={(e) => setScheduleRound(e.target.value)}
+                            className="w-full rounded-xl border border-[#e5e5e5] px-3 py-2 font-montserrat text-sm"
+                          />
+                        </div>
+                      ) : null}
+                      <div>
+                        <label
+                          htmlFor="schedule-timezone"
+                          className="mb-1 block font-montserrat text-sm font-medium text-[#333333]"
+                        >
+                          Timezone
+                        </label>
+                        <select
+                          id="schedule-timezone"
+                          value={scheduleTimezone}
+                          onChange={(e) => setScheduleTimezone(e.target.value)}
+                          className={`w-full cursor-pointer rounded-xl border border-[#e5e5e5] bg-white px-3 py-2 pr-10 font-montserrat text-sm text-[#333333] ${SELECT_CHEVRON}`}
+                        >
+                          {INTERVIEW_TIMEZONE_OPTIONS.map((tz) => (
+                            <option key={tz} value={tz}>
+                              {tz}
+                            </option>
+                          ))}
+                          {!INTERVIEW_TIMEZONE_OPTIONS.includes(
+                            scheduleTimezone as (typeof INTERVIEW_TIMEZONE_OPTIONS)[number],
+                          ) ? (
+                            <option value={scheduleTimezone}>
+                              {scheduleTimezone}
+                            </option>
+                          ) : null}
+                        </select>
+                      </div>
+                      <div>
+                        <label
+                          htmlFor="schedule-datetime"
+                          className="mb-1 block cursor-pointer font-montserrat text-sm font-medium text-[#333333]"
+                          onClick={openScheduleDatetimePicker}
+                        >
+                          Proposed date & time
+                        </label>
+                        <div
+                          className="relative cursor-pointer rounded-xl border border-[#e5e5e5] bg-white focus-within:border-[#2555F3] focus-within:ring-2 focus-within:ring-[#2555F3]/20"
+                          onClick={openScheduleDatetimePicker}
+                          role="presentation"
+                        >
+                          <input
+                            ref={scheduleDatetimeRef}
+                            id="schedule-datetime"
+                            type="datetime-local"
+                            required
+                            min={minDatetimeLocalForTimezone(scheduleTimezone)}
+                            value={scheduleAt}
+                            onChange={(e) => setScheduleAt(e.target.value)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openScheduleDatetimePicker();
+                            }}
+                            className="w-full cursor-pointer rounded-xl border-0 bg-transparent px-3 py-2 pr-10 font-montserrat text-sm outline-none scheme-light [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-100"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+                        <div>
+                          <label className="mb-1 block font-montserrat text-sm font-medium text-[#333333]">
+                            Interviewer name (optional)
+                          </label>
+                          <input
+                            type="text"
+                            value={scheduleAttendeeName}
+                            onChange={(e) =>
+                              setScheduleAttendeeName(e.target.value)
+                            }
+                            placeholder="Jane Doe"
+                            maxLength={255}
+                            className="w-full rounded-xl border border-[#e5e5e5] px-3 py-2 font-montserrat text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1 block font-montserrat text-sm font-medium text-[#333333]">
+                            Interviewer email (optional)
+                          </label>
+                          <input
+                            type="email"
+                            value={scheduleAttendee}
+                            onChange={(e) => setScheduleAttendee(e.target.value)}
+                            placeholder="interviewer@company.com"
+                            className="w-full rounded-xl border border-[#e5e5e5] px-3 py-2 font-montserrat text-sm"
+                          />
+                        </div>
+                      </div>
+                      <p className="font-montserrat text-xs text-[#5e5e5e]">
+                        Candidate is added automatically. Connect Google Calendar
+                        in Settings to generate Meet links after they confirm.
+                      </p>
+                      <div>
+                        <label className="mb-1 block font-montserrat text-sm font-medium text-[#333333]">
+                          Notes (optional)
+                        </label>
+                        <textarea
+                          rows={2}
+                          maxLength={INTERVIEW_NOTES_MAX_CHARS}
+                          value={scheduleNotes}
+                          onChange={(e) => setScheduleNotes(e.target.value)}
+                          className="w-full rounded-xl border border-[#e5e5e5] px-3 py-2 font-montserrat text-sm"
+                        />
+                        <CharCountFooter
+                          value={scheduleNotes}
+                          maxChars={INTERVIEW_NOTES_MAX_CHARS}
+                          overLimitHint=" — shorten notes to save or schedule."
+                        />
+                      </div>
+                    </div>
                   </div>
-                </div>
-                {scheduleError ? (
-                  <p className="mt-3 font-montserrat text-sm text-[#b42318]">
-                    {scheduleError}
-                  </p>
-                ) : null}
-                <div className="mt-6 flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={busyId === scheduleTarget.id}
-                    onClick={closeScheduleModal}
-                    className="cursor-pointer rounded-full font-montserrat text-sm"
-                  >
-                    Close
-                  </Button>
-                  <Button
-                    type="submit"
-                    disabled={
-                      busyId === scheduleTarget.id ||
-                      scheduleUnchanged ||
-                      scheduleNotesOverLimit
-                    }
-                    className="cursor-pointer rounded-full bg-[#2555F3] font-montserrat text-sm hover:bg-[#1e44c7] disabled:opacity-60"
-                  >
-                    {busyId === scheduleTarget.id
-                      ? "Saving..."
-                      : scheduleMode === "reschedule"
-                        ? "Save changes"
-                        : "Send invite"}
-                  </Button>
-                </div>
-              </form>
+                  <div className="shrink-0 border-t border-[#e5e5e5] px-4 py-3 sm:px-6 sm:pb-6">
+                    {scheduleError ? (
+                      <p className="mb-3 font-montserrat text-sm text-[#b42318]">
+                        {scheduleError}
+                      </p>
+                    ) : null}
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={busyId === scheduleTarget.id}
+                        onClick={closeScheduleModal}
+                        className="cursor-pointer rounded-full font-montserrat text-sm"
+                      >
+                        Close
+                      </Button>
+                      <Button
+                        type="submit"
+                        disabled={
+                          busyId === scheduleTarget.id ||
+                          scheduleUnchanged ||
+                          scheduleNotesOverLimit
+                        }
+                        className="cursor-pointer rounded-full bg-[#2555F3] font-montserrat text-sm hover:bg-[#1e44c7] disabled:opacity-60"
+                      >
+                        {busyId === scheduleTarget.id
+                          ? "Saving..."
+                          : scheduleMode === "reschedule"
+                            ? "Save changes"
+                            : "Send invite"}
+                      </Button>
+                    </div>
+                  </div>
+                </form>
+              </div>
             </div>,
             document.body,
           )
