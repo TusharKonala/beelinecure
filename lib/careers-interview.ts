@@ -520,7 +520,7 @@ export async function sendInterviewReminderEmailsBatch(
   return { sent: true, interviewRoundId };
 }
 
-async function sendInterviewCancelledEmails(round: {
+type InterviewCancelledRound = {
   roundNumber: number;
   scheduledAt: Date;
   timezone: string;
@@ -532,7 +532,13 @@ async function sendInterviewCancelledEmails(round: {
     candidateTimezone: string | null;
     jobPosting: { title: string };
   };
-}) {
+};
+
+function buildInterviewCancelledParticipantPayloads(
+  round: InterviewCancelledRound,
+): CreateBatchEmailOptions[] {
+  const from = getEmailFrom();
+  const jobTitle = round.application.jobPosting.title;
   const candidateScheduledAtLabel = formatInterviewScheduledAt(
     round.scheduledAt,
     round.timezone,
@@ -543,35 +549,86 @@ async function sendInterviewCancelledEmails(round: {
     round.timezone,
   );
 
-  if (!process.env.RESEND_API_KEY?.trim()) return;
-
-  await resend.emails.send({
-    from: getEmailFrom(),
-    to: round.application.email,
-    subject: `Interview cancelled — ${round.application.jobPosting.title}`,
-    react: CareersInterviewCancelledCandidateEmailTemplate({
-      candidateName: round.application.name,
-      jobTitle: round.application.jobPosting.title,
-      roundNumber: round.roundNumber,
-      scheduledAtLabel: candidateScheduledAtLabel,
-    }),
-  });
+  const payloads: CreateBatchEmailOptions[] = [
+    {
+      from,
+      to: round.application.email,
+      subject: `Interview cancelled — ${jobTitle}`,
+      react: CareersInterviewCancelledCandidateEmailTemplate({
+        candidateName: round.application.name,
+        jobTitle,
+        roundNumber: round.roundNumber,
+        scheduledAtLabel: candidateScheduledAtLabel,
+      }),
+    },
+  ];
 
   const attendee = round.attendeeEmail?.trim();
   if (attendee) {
-    await resend.emails.send({
-      from: getEmailFrom(),
+    payloads.push({
+      from,
       to: attendee,
-      subject: `Interview cancelled — ${round.application.jobPosting.title}`,
+      subject: `Interview cancelled — ${jobTitle}`,
       react: CareersInterviewCancelledAttendeeEmailTemplate({
         attendeeName: formatAttendeeGreeting(round.attendeeName),
         candidateName: round.application.name,
-        jobTitle: round.application.jobPosting.title,
+        jobTitle,
         roundNumber: round.roundNumber,
         scheduledAtLabel: attendeeScheduledAtLabel,
       }),
     });
   }
+
+  return payloads;
+}
+
+async function sendInterviewCancelledEmailsBatch(round: InterviewCancelledRound) {
+  const payloads = buildInterviewCancelledParticipantPayloads(round);
+  const deduped = dedupeBatchPayloadsByTo(payloads, "interview-cancelled");
+  await sendResendEmailBatch(deduped, "interview-cancelled");
+}
+
+async function sendInterviewerCancelledEmailsBatch(
+  round: InterviewCancelledRound,
+  includeParticipantCancellationEmails: boolean,
+) {
+  const from = getEmailFrom();
+  const jobTitle = round.application.jobPosting.title;
+  const scheduledAtLabel = formatInterviewScheduledAt(
+    round.scheduledAt,
+    round.timezone,
+  );
+  const applicationUrl = buildAdminApplicationSearchUrl(round.application.email);
+
+  const payloads: CreateBatchEmailOptions[] =
+    includeParticipantCancellationEmails
+      ? buildInterviewCancelledParticipantPayloads(round)
+      : [];
+
+  const adminEmails = await getAdminEmails();
+  for (const to of adminEmails) {
+    payloads.push({
+      from,
+      to,
+      subject: `Interview cancelled by interviewer — ${jobTitle}`,
+      react: CareersInterviewInterviewerCancelledAdminEmailTemplate({
+        candidateName: round.application.name,
+        candidateEmail: round.application.email,
+        interviewerName: round.attendeeName?.trim() || null,
+        interviewerEmail: round.attendeeEmail?.trim() || null,
+        jobTitle,
+        roundNumber: round.roundNumber,
+        scheduledAtLabel,
+        applicationUrl,
+      }),
+    });
+  }
+
+  const deduped = dedupeBatchPayloadsByTo(
+    payloads,
+    "interview-cancelled-by-interviewer",
+  );
+  await sendResendEmailBatch(deduped, "interview-cancelled-by-interviewer");
 }
 
 async function sendInterviewRescheduledEmails(params: {
@@ -663,55 +720,6 @@ export function generateAttendeeCancelToken() {
   return generateConfirmationToken();
 }
 
-async function sendInterviewerCancelledAdminEmails(round: {
-  roundNumber: number;
-  scheduledAt: Date;
-  timezone: string;
-  attendeeEmail: string | null;
-  attendeeName: string | null;
-  application: {
-    name: string;
-    email: string;
-    jobPosting: { title: string };
-  };
-}) {
-  const adminEmails = await getAdminEmails();
-  if (adminEmails.length === 0) return;
-
-  const scheduledAtLabel = formatInterviewScheduledAt(
-    round.scheduledAt,
-    round.timezone,
-  );
-  const applicationUrl = buildAdminApplicationSearchUrl(round.application.email);
-
-  if (!process.env.RESEND_API_KEY?.trim()) return;
-
-  for (const to of adminEmails) {
-    try {
-      await resend.emails.send({
-        from: getEmailFrom(),
-        to,
-        subject: `Interview cancelled by interviewer — ${round.application.jobPosting.title}`,
-        react: CareersInterviewInterviewerCancelledAdminEmailTemplate({
-          candidateName: round.application.name,
-          candidateEmail: round.application.email,
-          interviewerName: round.attendeeName?.trim() || null,
-          interviewerEmail: round.attendeeEmail?.trim() || null,
-          jobTitle: round.application.jobPosting.title,
-          roundNumber: round.roundNumber,
-          scheduledAtLabel,
-          applicationUrl,
-        }),
-      });
-    } catch (err) {
-      console.error(
-        `[careers-interview] Failed to send interviewer-cancelled admin email to ${to}:`,
-        err,
-      );
-    }
-  }
-}
-
 export type AttendeeCancelPreviewStatus =
   | "valid"
   | "interview_started"
@@ -778,7 +786,11 @@ export async function cancelInterviewRoundByAttendeeToken(token: string) {
     return { status: "interview_started" as const };
   }
 
-  const result = await cancelInterviewRound(round.id);
+  const wasConfirmed = Boolean(round.confirmedAt);
+
+  const result = await cancelInterviewRound(round.id, {
+    skipParticipantCancellationEmails: true,
+  });
   if ("error" in result) {
     if (result.error === "already_cancelled") {
       return { status: "already_cancelled" as const };
@@ -787,10 +799,10 @@ export async function cancelInterviewRoundByAttendeeToken(token: string) {
   }
 
   try {
-    await sendInterviewerCancelledAdminEmails(round);
+    await sendInterviewerCancelledEmailsBatch(round, wasConfirmed);
   } catch (err) {
     console.error(
-      "[careers-interview] Failed to send interviewer-cancelled admin emails:",
+      "[careers-interview] Failed to send interviewer-cancelled emails:",
       err,
     );
   }
@@ -798,7 +810,10 @@ export async function cancelInterviewRoundByAttendeeToken(token: string) {
   return { status: "success" as const };
 }
 
-export async function cancelInterviewRound(roundId: string) {
+export async function cancelInterviewRound(
+  roundId: string,
+  options?: { skipParticipantCancellationEmails?: boolean },
+) {
   const round = await prisma.interviewRound.findUnique({
     where: { id: roundId },
     include: {
@@ -834,10 +849,15 @@ export async function cancelInterviewRound(roundId: string) {
       round.googleCalendarEventId,
     );
 
-    try {
-      await sendInterviewCancelledEmails(round);
-    } catch (err) {
-      console.error("[careers-interview] Failed to send cancellation emails:", err);
+    if (!options?.skipParticipantCancellationEmails) {
+      try {
+        await sendInterviewCancelledEmailsBatch(round);
+      } catch (err) {
+        console.error(
+          "[careers-interview] Failed to send cancellation emails:",
+          err,
+        );
+      }
     }
   }
 
