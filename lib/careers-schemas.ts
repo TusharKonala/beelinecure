@@ -97,18 +97,42 @@ export const applicationStatusDropdownValues = applicationStatusValues.filter(
 
 export const MAX_INTERVIEW_ROUNDS = 4;
 
+export const INTERVIEW_NOTES_MAX_WORDS = 50;
+
+export function countInterviewNotesWords(text: string): number {
+  const trimmed = text.trim();
+  if (!trimmed) return 0;
+  return trimmed.split(/\s+/).length;
+}
+
+function interviewNotesWithinWordLimit(
+  notes: string | null | undefined,
+): boolean {
+  if (notes == null || notes === "") return true;
+  return countInterviewNotesWords(notes) <= INTERVIEW_NOTES_MAX_WORDS;
+}
+
+const interviewNotesSchema = z
+  .string()
+  .max(2000)
+  .optional()
+  .nullable()
+  .refine(interviewNotesWithinWordLimit, {
+    message: `Notes must be ${INTERVIEW_NOTES_MAX_WORDS} words or fewer.`,
+  });
+
 export const scheduleInterviewSchema = z.object({
   roundNumber: z.number().int().min(1).max(MAX_INTERVIEW_ROUNDS),
   scheduledAt: z.iso.datetime({ message: "Invalid date and time" }),
   timezone: z.string().min(1, "Timezone is required").max(100),
-  notes: z.string().max(2000).optional().nullable(),
+  notes: interviewNotesSchema,
   attendeeEmail: z.email("Invalid attendee email").optional().nullable(),
 });
 
 export const rescheduleInterviewSchema = z.object({
   scheduledAt: z.iso.datetime({ message: "Invalid date and time" }),
   timezone: z.string().min(1, "Timezone is required").max(100),
-  notes: z.string().max(2000).optional().nullable(),
+  notes: interviewNotesSchema,
   attendeeEmail: z.email("Invalid attendee email").optional().nullable(),
 });
 

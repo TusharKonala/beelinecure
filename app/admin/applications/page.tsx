@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import {
   applicationStatusDropdownValues,
   applicationStatusValues,
+  countInterviewNotesWords,
+  INTERVIEW_NOTES_MAX_WORDS,
   MAX_INTERVIEW_ROUNDS,
 } from "@/lib/careers-schemas";
 import {
@@ -431,6 +433,10 @@ export default function AdminCareersApplicationsPage() {
     scheduleMode === "reschedule" &&
     scheduleBaseline !== null &&
     scheduleFormsEqual(scheduleFormCurrent, scheduleBaseline);
+
+  const scheduleNotesWordCount = countInterviewNotesWords(scheduleNotes);
+  const scheduleNotesOverLimit =
+    scheduleNotesWordCount > INTERVIEW_NOTES_MAX_WORDS;
 
   async function handleScheduleInterview(e: React.FormEvent) {
     e.preventDefault();
@@ -1095,9 +1101,30 @@ export default function AdminCareersApplicationsPage() {
                     <textarea
                       rows={3}
                       value={scheduleNotes}
-                      onChange={(e) => setScheduleNotes(e.target.value)}
+                      onChange={(e) => {
+                        const next = e.target.value;
+                        if (
+                          countInterviewNotesWords(next) >
+                          INTERVIEW_NOTES_MAX_WORDS
+                        ) {
+                          return;
+                        }
+                        setScheduleNotes(next);
+                      }}
                       className="w-full rounded-xl border border-[#e5e5e5] px-3 py-2 font-montserrat text-sm"
                     />
+                    <p
+                      className={`mt-1 font-montserrat text-xs ${
+                        scheduleNotesOverLimit
+                          ? "text-[#b42318]"
+                          : "text-[#5e5e5e]"
+                      }`}
+                    >
+                      {scheduleNotesWordCount}/{INTERVIEW_NOTES_MAX_WORDS} words
+                      {scheduleNotesOverLimit
+                        ? " — shorten notes to save or schedule."
+                        : ""}
+                    </p>
                   </div>
                 </div>
                 {scheduleError ? (
@@ -1118,7 +1145,9 @@ export default function AdminCareersApplicationsPage() {
                   <Button
                     type="submit"
                     disabled={
-                      busyId === scheduleTarget.id || scheduleUnchanged
+                      busyId === scheduleTarget.id ||
+                      scheduleUnchanged ||
+                      scheduleNotesOverLimit
                     }
                     className="cursor-pointer rounded-full bg-[#2555F3] font-montserrat text-sm hover:bg-[#1e44c7] disabled:opacity-60"
                   >

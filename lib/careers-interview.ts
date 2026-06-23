@@ -399,12 +399,12 @@ export async function cancelInterviewRound(roundId: string) {
       round.scheduledByAdminId,
       round.googleCalendarEventId,
     );
-  }
 
-  try {
-    await sendInterviewCancelledEmails(round);
-  } catch (err) {
-    console.error("[careers-interview] Failed to send cancellation emails:", err);
+    try {
+      await sendInterviewCancelledEmails(round);
+    } catch (err) {
+      console.error("[careers-interview] Failed to send cancellation emails:", err);
+    }
   }
 
   return { ok: true as const };

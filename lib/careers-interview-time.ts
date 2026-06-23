@@ -169,6 +169,21 @@ function formatInTimezone(date: Date, timezone: string): string {
   return `${dateTime} ${abbrev}`;
 }
 
+function areEquivalentTimezones(
+  date: Date,
+  tzA: string,
+  tzB: string,
+): boolean {
+  const a = tzA.trim();
+  const b = tzB.trim();
+  if (!a || !b) return a === b;
+  if (a === b) return true;
+  const offsetA = getOffsetKey(date, a);
+  const offsetB = getOffsetKey(date, b);
+  if (offsetA && offsetB) return offsetA === offsetB;
+  return false;
+}
+
 /**
  * Primary label in admin timezone; append candidate time in brackets only when TZ differs.
  */
@@ -178,13 +193,11 @@ export function formatInterviewTime(
   candidateTimezone?: string | null,
 ): string {
   const primary = formatInTimezone(date, adminTimezone);
-  if (
-    !candidateTimezone?.trim() ||
-    candidateTimezone.trim() === adminTimezone
-  ) {
+  const candidateTz = candidateTimezone?.trim();
+  if (!candidateTz || areEquivalentTimezones(date, adminTimezone, candidateTz)) {
     return primary;
   }
-  const candidate = formatInTimezone(date, candidateTimezone.trim());
+  const candidate = formatInTimezone(date, candidateTz);
   return `${primary} (${candidate})`;
 }
 
