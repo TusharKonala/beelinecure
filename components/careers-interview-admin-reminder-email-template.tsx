@@ -4,6 +4,8 @@ export interface CareersInterviewAdminReminderEmailProps {
   jobTitle: string;
   candidateName: string;
   candidateEmail: string;
+  interviewerName: string | null;
+  interviewerEmail: string | null;
   roundNumber: number;
   scheduledAtLabel: string;
   meetLink: string | null;
@@ -15,6 +17,8 @@ export function CareersInterviewAdminReminderEmailTemplate({
   jobTitle,
   candidateName,
   candidateEmail,
+  interviewerName,
+  interviewerEmail,
   roundNumber,
   scheduledAtLabel,
   meetLink,
@@ -33,6 +37,12 @@ export function CareersInterviewAdminReminderEmailTemplate({
         <strong>{jobTitle}</strong> with <strong>{candidateName}</strong> (
         {candidateEmail}) is scheduled for:
       </p>
+      {interviewerName || interviewerEmail ? (
+        <p style={{ color: "#333333", lineHeight: 1.6 }}>
+          <strong>Interviewer:</strong> {interviewerName ?? "Unknown"}
+          {interviewerEmail ? ` (${interviewerEmail})` : ""}
+        </p>
+      ) : null}
       <p style={{ color: "#333333", lineHeight: 1.6, fontWeight: 600 }}>
         {scheduledAtLabel}
       </p>

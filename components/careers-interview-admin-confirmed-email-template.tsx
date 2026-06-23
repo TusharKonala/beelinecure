@@ -3,6 +3,8 @@ import * as React from "react";
 export interface CareersInterviewAdminConfirmedEmailProps {
   candidateName: string;
   candidateEmail: string;
+  interviewerName: string | null;
+  interviewerEmail: string | null;
   jobTitle: string;
   roundNumber: number;
   scheduledAtLabel: string;
@@ -13,6 +15,8 @@ export interface CareersInterviewAdminConfirmedEmailProps {
 export function CareersInterviewAdminConfirmedEmailTemplate({
   candidateName,
   candidateEmail,
+  interviewerName,
+  interviewerEmail,
   jobTitle,
   roundNumber,
   scheduledAtLabel,
@@ -31,6 +35,12 @@ export function CareersInterviewAdminConfirmedEmailTemplate({
         <strong>Round {roundNumber}</strong> interview for{" "}
         <strong>{jobTitle}</strong>.
       </p>
+      {interviewerName || interviewerEmail ? (
+        <p style={{ color: "#333333", lineHeight: 1.6 }}>
+          <strong>Interviewer:</strong> {interviewerName ?? "Unknown"}
+          {interviewerEmail ? ` (${interviewerEmail})` : ""}
+        </p>
+      ) : null}
       <p style={{ color: "#333333", lineHeight: 1.6, fontWeight: 600 }}>
         {scheduledAtLabel}
       </p>
