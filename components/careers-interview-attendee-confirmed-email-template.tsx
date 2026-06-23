@@ -8,6 +8,7 @@ export interface CareersInterviewAttendeeConfirmedEmailProps {
   scheduledAtLabel: string;
   meetLink: string | null;
   jobDescription?: string | null;
+  cancelUrl?: string | null;
 }
 
 export function CareersInterviewAttendeeConfirmedEmailTemplate({
@@ -17,6 +18,7 @@ export function CareersInterviewAttendeeConfirmedEmailTemplate({
   scheduledAtLabel,
   meetLink,
   jobDescription,
+  cancelUrl,
 }: CareersInterviewAttendeeConfirmedEmailProps) {
   return (
     <div
@@ -62,6 +64,14 @@ export function CareersInterviewAttendeeConfirmedEmailTemplate({
         notified with the same details.
       </p>
       <CareersInterviewJdEmailBlock jobDescription={jobDescription} />
+      {cancelUrl ? (
+        <p style={{ marginTop: "1.5rem", color: "#5e5e5e", lineHeight: 1.6, fontSize: "14px" }}>
+          Need to cancel?{" "}
+          <a href={cancelUrl} style={{ color: "#b42318", fontWeight: 600 }}>
+            Cancel this interview
+          </a>
+        </p>
+      ) : null}
     </div>
   );
 }

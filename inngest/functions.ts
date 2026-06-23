@@ -1,10 +1,14 @@
 import { EmailTemplate } from "@/components/email-template";
+import { CareersInterviewAdminReminderEmailTemplate } from "@/components/careers-interview-admin-reminder-email-template";
 import { CareersInterviewReminderEmailTemplate } from "@/components/careers-interview-reminder-email-template";
 import { MedicineReminderEmailTemplate } from "@/components/medicine-reminder-email-template";
 import {
+  buildAdminApplicationSearchUrl,
+  buildAttendeeCancelUrlFromToken,
   formatInterviewScheduledAt,
   resolveJobDescription,
 } from "@/lib/careers-interview";
+import { getAdminEmails } from "@/lib/careers-admin";
 import { prisma } from "@/lib/db";
 import { getEmailFrom } from "@/lib/email-from";
 import {
@@ -814,7 +818,7 @@ export const sendCareersApplicationDigest = inngest.createFunction(
   },
 );
 
-type InterviewReminderRecipient = "candidate" | "attendee";
+type InterviewReminderRecipient = "candidate" | "attendee" | "admin";
 
 async function sendInterviewReminderEmail(params: {
   interviewRoundId: string;
@@ -833,6 +837,7 @@ async function sendInterviewReminderEmail(params: {
       cancelledAt: true,
       jobDescriptionSnapshot: true,
       attendeeEmail: true,
+      attendeeCancelToken: true,
       application: {
         select: {
           name: true,
@@ -864,6 +869,56 @@ async function sendInterviewReminderEmail(params: {
       : undefined,
   );
 
+  if (!process.env.RESEND_API_KEY?.trim()) {
+    console.warn("[interview-reminder] RESEND_API_KEY not set");
+    return { skipped: true, reason: "no_resend_key" };
+  }
+
+  const from = getEmailFrom();
+
+  if (params.recipient === "admin") {
+    const adminEmails = await getAdminEmails();
+    if (adminEmails.length === 0) {
+      return { skipped: true, reason: "no_recipient" };
+    }
+
+    const applicationUrl = buildAdminApplicationSearchUrl(
+      round.application.email,
+    );
+
+    for (const to of adminEmails) {
+      try {
+        const { error } = await resend.emails.send({
+          from,
+          to,
+          subject: `Interview reminder (${params.reminderLabel}) — ${round.application.jobPosting.title}`,
+          react: CareersInterviewAdminReminderEmailTemplate({
+            jobTitle: round.application.jobPosting.title,
+            candidateName: round.application.name,
+            candidateEmail: round.application.email,
+            roundNumber: round.roundNumber,
+            scheduledAtLabel,
+            meetLink: round.meetLink,
+            reminderLabel: params.reminderLabel,
+            applicationUrl,
+          }),
+        });
+        if (error) {
+          console.error(
+            `[interview-reminder] Admin email failed for ${to}: ${JSON.stringify(error)}`,
+          );
+        }
+      } catch (err) {
+        console.error(
+          `[interview-reminder] Admin email failed for ${to}:`,
+          err,
+        );
+      }
+    }
+
+    return { sent: true, interviewRoundId: params.interviewRoundId };
+  }
+
   const to =
     params.recipient === "attendee"
       ? round.attendeeEmail?.trim()
@@ -876,13 +931,10 @@ async function sendInterviewReminderEmail(params: {
   const recipientName =
     params.recipient === "attendee" ? "there" : round.application.name;
 
-  if (!process.env.RESEND_API_KEY?.trim()) {
-    console.warn("[interview-reminder] RESEND_API_KEY not set");
-    return { skipped: true, reason: "no_resend_key" };
-  }
-
-  const from =
-    getEmailFrom();
+  const cancelUrl =
+    params.recipient === "attendee"
+      ? buildAttendeeCancelUrlFromToken(round.attendeeCancelToken)
+      : null;
 
   const { error } = await resend.emails.send({
     from,
@@ -897,6 +949,7 @@ async function sendInterviewReminderEmail(params: {
       reminderLabel: params.reminderLabel,
       jobDescription:
         params.recipient === "attendee" ? jobDescription : undefined,
+      cancelUrl,
     }),
   });
 

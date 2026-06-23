@@ -12,6 +12,7 @@ import {
 export type JobType = (typeof jobTypeValues)[number];
 export type ApplicationStatus = (typeof applicationStatusValues)[number];
 export type ScoreBand = "all" | "low" | "mid" | "high";
+export type ShortlistedScore = "all" | "5" | "6" | "7" | "8" | "9" | "10";
 
 export type PostingForm = {
   title: string;
@@ -95,6 +96,14 @@ export function scoreBandParams(band: ScoreBand): {
   if (band === "mid") return { scoreMin: "5", scoreMax: "7" };
   if (band === "high") return { scoreMin: "8", scoreMax: "10" };
   return {};
+}
+
+export function shortlistedScoreParams(score: ShortlistedScore): {
+  scoreMin?: string;
+  scoreMax?: string;
+} {
+  if (score === "all") return {};
+  return { scoreMin: score, scoreMax: score };
 }
 
 export function formatCreatedDate(value: string) {

@@ -220,3 +220,49 @@ export function minDatetimeLocalForTimezone(timezone: string): string {
 export function formatDatetimeLocalInTimezone(date: Date, timezone: string): string {
   return formatInTimeZone(date, timezone, "yyyy-MM-dd'T'HH:mm");
 }
+
+/** Current UTC instant as epoch ms. */
+export function utcNowMs(): number {
+  return Date.now();
+}
+
+/** True when `instant` (UTC DateTime from DB) is strictly after now. */
+export function isUtcInstantInFuture(instant: Date): boolean {
+  return instant.getTime() > utcNowMs();
+}
+
+/** True when interview has started or is in progress (cancel link expired). */
+export function isUtcInstantStartedOrPast(instant: Date): boolean {
+  return instant.getTime() <= utcNowMs();
+}
+
+/**
+ * Parse YYYY-MM-DD as a UTC calendar day → [dayStart, nextDayStart).
+ * Returns null if invalid.
+ */
+export function utcDayRangeFromDateParam(
+  yyyyMmDd: string,
+): { gte: Date; lt: Date } | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(yyyyMmDd.trim());
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (
+    !Number.isInteger(year) ||
+    !Number.isInteger(month) ||
+    !Number.isInteger(day) ||
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > 31
+  ) {
+    return null;
+  }
+  const gte = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+  const lt = new Date(Date.UTC(year, month - 1, day + 1, 0, 0, 0, 0));
+  if (gte.getUTCFullYear() !== year || gte.getUTCMonth() !== month - 1 || gte.getUTCDate() !== day) {
+    return null;
+  }
+  return { gte, lt };
+}

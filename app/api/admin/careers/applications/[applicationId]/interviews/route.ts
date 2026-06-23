@@ -7,6 +7,7 @@ import {
 } from "@/lib/careers-schemas";
 import {
   confirmationTokenExpiresAtFromNow,
+  generateAttendeeCancelToken,
   generateConfirmationToken,
   sendInterviewInviteEmail,
 } from "@/lib/careers-interview";
@@ -127,6 +128,7 @@ export async function POST(
   }
 
   const confirmationToken = generateConfirmationToken();
+  const attendeeCancelToken = generateAttendeeCancelToken();
   const confirmationTokenExpiresAt = confirmationTokenExpiresAtFromNow();
   const timezone = parsed.data.timezone.trim();
 
@@ -138,6 +140,7 @@ export async function POST(
       timezone,
       confirmationToken,
       confirmationTokenExpiresAt,
+      attendeeCancelToken,
       notes: parsed.data.notes?.trim() || null,
       attendeeEmail: parsed.data.attendeeEmail?.trim() || null,
       jobDescriptionSnapshot: application.jobPosting.description,

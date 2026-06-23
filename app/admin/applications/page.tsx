@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import useInfiniteScroll from "react-infinite-scroll-hook";
 import { Container } from "@/components/layout/Container";
@@ -22,10 +23,12 @@ import {
   aiScoreBadgeClass,
   formatCreatedDate,
   scoreBandParams,
+  shortlistedScoreParams,
   SELECT_CHEVRON,
   statusBadgeClass,
   type ApplicationStatus,
   type ScoreBand,
+  type ShortlistedScore,
 } from "@/lib/admin-careers-ui";
 import {
   defaultInterviewTimezone,
@@ -68,6 +71,7 @@ type JobApplication = {
 };
 
 type InterviewRoundFilter = "ALL" | "1" | "2" | "3" | "4";
+type InterviewConfirmationFilter = "all" | "confirmed" | "non-confirmed";
 
 type ScheduleMode = "create" | "reschedule";
 
@@ -91,7 +95,7 @@ function scheduleFormsEqual(
 }
 
 function roundStatusLabel(round: ActiveInterviewRound): string {
-  return round.confirmedAt ? "Confirmed" : "Pending";
+  return round.confirmedAt ? "Confirmed" : "Non-confirmed";
 }
 
 function activeFutureInterviewRounds(app: JobApplication): ActiveInterviewRound[] {
@@ -140,7 +144,8 @@ function isBulkTarget(
   );
 }
 
-export default function AdminCareersApplicationsPage() {
+function AdminCareersApplicationsContent() {
+  const searchParams = useSearchParams();
   const [applications, setApplications] = useState<JobApplication[]>([]);
   const [appsCursor, setAppsCursor] = useState<string | null>(null);
   const [appsHasMore, setAppsHasMore] = useState(false);
@@ -154,11 +159,18 @@ export default function AdminCareersApplicationsPage() {
   } | null>(null);
 
   const [statusFilter, setStatusFilter] = useState<ApplicationStatus | "ALL">(
-    "ALL",
+    "SHORTLISTED",
   );
   const [scoreBand, setScoreBand] = useState<ScoreBand>("all");
+  const [shortlistedScore, setShortlistedScore] =
+    useState<ShortlistedScore>("all");
   const [interviewRoundFilter, setInterviewRoundFilter] =
     useState<InterviewRoundFilter>("ALL");
+  const [interviewConfirmationFilter, setInterviewConfirmationFilter] =
+    useState<InterviewConfirmationFilter>("non-confirmed");
+  const [interviewDate, setInterviewDate] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -196,6 +208,35 @@ export default function AdminCareersApplicationsPage() {
   const [bulkBusy, setBulkBusy] = useState(false);
 
   const scoreBandActive = scoreBand !== "all";
+  const interviewConfirmationActive = interviewConfirmationFilter !== "all";
+  const filtersLocked = interviewConfirmationActive;
+
+  useEffect(() => {
+    const fromUrl = searchParams.get("search")?.trim() ?? "";
+    if (fromUrl) {
+      setSearchInput(fromUrl);
+      setDebouncedSearch(fromUrl);
+    }
+    const confirmedParam = searchParams.get("interviewConfirmed")?.trim();
+    if (confirmedParam === "true") {
+      setInterviewConfirmationFilter("confirmed");
+    } else if (confirmedParam === "false") {
+      setInterviewConfirmationFilter("non-confirmed");
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      setDebouncedSearch(searchInput.trim());
+    }, 500);
+    return () => window.clearTimeout(handle);
+  }, [searchInput]);
+
+  useEffect(() => {
+    if (interviewConfirmationActive) {
+      setStatusFilter("SHORTLISTED");
+    }
+  }, [interviewConfirmationActive]);
 
   useEffect(() => {
     setMounted(true);
@@ -253,13 +294,30 @@ export default function AdminCareersApplicationsPage() {
         if (statusFilter !== "ALL") params.set("status", statusFilter);
         if (
           statusFilter === "SHORTLISTED" &&
-          interviewRoundFilter !== "ALL"
+          interviewRoundFilter !== "ALL" &&
+          !interviewConfirmationActive
         ) {
           params.set("interviewRound", interviewRoundFilter);
         }
-        const band = scoreBandParams(scoreBand);
-        if (band.scoreMin) params.set("scoreMin", band.scoreMin);
-        if (band.scoreMax) params.set("scoreMax", band.scoreMax);
+        if (interviewConfirmationActive) {
+          params.set(
+            "interviewConfirmed",
+            interviewConfirmationFilter === "confirmed" ? "true" : "false",
+          );
+          if (interviewDate) params.set("interviewDate", interviewDate);
+        }
+        if (debouncedSearch) params.set("search", debouncedSearch);
+        if (!filtersLocked) {
+          if (statusFilter === "SHORTLISTED") {
+            const score = shortlistedScoreParams(shortlistedScore);
+            if (score.scoreMin) params.set("scoreMin", score.scoreMin);
+            if (score.scoreMax) params.set("scoreMax", score.scoreMax);
+          } else {
+            const band = scoreBandParams(scoreBand);
+            if (band.scoreMin) params.set("scoreMin", band.scoreMin);
+            if (band.scoreMax) params.set("scoreMax", band.scoreMax);
+          }
+        }
         const res = await fetch(
           `/api/admin/careers/applications?${params}`,
           { cache: "no-store" },
@@ -294,7 +352,17 @@ export default function AdminCareersApplicationsPage() {
         if (appsRequestIdRef.current === requestId) setAppsLoading(false);
       }
     },
-    [statusFilter, scoreBand, interviewRoundFilter],
+    [
+      statusFilter,
+      scoreBand,
+      shortlistedScore,
+      interviewRoundFilter,
+      interviewConfirmationFilter,
+      interviewConfirmationActive,
+      interviewDate,
+      debouncedSearch,
+      filtersLocked,
+    ],
   );
 
   useEffect(() => {
@@ -692,13 +760,88 @@ export default function AdminCareersApplicationsPage() {
           </div>
         ) : null}
 
-        <div className="mt-6 flex flex-wrap items-center gap-2">
+        <div className="mt-6">
+          <label className="sr-only" htmlFor="admin-applications-search">
+            Search by candidate email
+          </label>
+          <div className="relative w-full max-w-md">
+            <input
+              id="admin-applications-search"
+              type="search"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Search by candidate email..."
+              className="w-full rounded-xl border border-[#e5e5e5] bg-white py-2 pl-3 pr-14 font-montserrat text-sm text-[#333333] outline-none focus:border-[#2555F3] focus:ring-2 focus:ring-[#2555F3]/20 [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-results-button]:hidden"
+            />
+            {searchInput ? (
+              <button
+                type="button"
+                onClick={() => setSearchInput("")}
+                aria-label="Clear search"
+                className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer font-montserrat text-sm text-[#5E5E5E] transition hover:text-[#2555F3]"
+              >
+                Clear
+              </button>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          {(
+            [
+              ["all", "All interviews"],
+              ["confirmed", "Confirmed"],
+              ["non-confirmed", "Non-confirmed"],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setInterviewConfirmationFilter(value)}
+              className={`rounded-full border px-3 py-1 font-montserrat text-xs font-medium ${
+                interviewConfirmationFilter === value
+                  ? "cursor-pointer border-[#2555F3] bg-[#eef3ff] text-[#2555F3]"
+                  : "cursor-pointer border-[#e5e5e5] bg-white text-[#333333]"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+          {interviewConfirmationActive ? (
+            <div className="flex items-center gap-2">
+              <label
+                htmlFor="interview-date-filter"
+                className="font-montserrat text-xs font-medium text-[#5e5e5e]"
+              >
+                Interview date (UTC)
+              </label>
+              <input
+                id="interview-date-filter"
+                type="date"
+                value={interviewDate}
+                onChange={(e) => setInterviewDate(e.target.value)}
+                className="cursor-pointer rounded-full border border-[#e5e5e5] bg-white px-3 py-1 font-montserrat text-xs font-medium text-[#333333] outline-none focus:border-[#2555F3] focus:ring-2 focus:ring-[#2555F3]/20"
+              />
+              {interviewDate ? (
+                <button
+                  type="button"
+                  onClick={() => setInterviewDate("")}
+                  className="cursor-pointer font-montserrat text-xs text-[#5e5e5e] hover:text-[#2555F3]"
+                >
+                  Clear date
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center gap-2">
           <button
             type="button"
-            disabled={scoreBandActive}
+            disabled={scoreBandActive || filtersLocked}
             onClick={() => setStatusFilter("ALL")}
             className={`rounded-full border px-3 py-1 font-montserrat text-xs font-medium ${
-              scoreBandActive
+              scoreBandActive || filtersLocked
                 ? "cursor-not-allowed border-[#e5e5e5] bg-[#f5f5f5] text-[#9e9e9e] opacity-60"
                 : statusFilter === "ALL"
                   ? "cursor-pointer border-[#2555F3] bg-[#eef3ff] text-[#2555F3]"
@@ -709,7 +852,8 @@ export default function AdminCareersApplicationsPage() {
           </button>
           {applicationStatusValues.map((s) => {
             const isPending = s === "PENDING";
-            const disabled = scoreBandActive && !isPending;
+            const disabled =
+              filtersLocked || (scoreBandActive && !isPending);
             return (
               <button
                 key={s}
@@ -728,7 +872,7 @@ export default function AdminCareersApplicationsPage() {
               </button>
             );
           })}
-          {statusFilter === "SHORTLISTED" ? (
+          {statusFilter === "SHORTLISTED" && !filtersLocked ? (
             <div className="flex items-center gap-2 sm:ml-1">
               <label
                 htmlFor="interview-round-filter"
@@ -759,31 +903,58 @@ export default function AdminCareersApplicationsPage() {
             </div>
           ) : null}
         </div>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {(
-            [
-              ["all", "All scores"],
-              ["low", "1–4"],
-              ["mid", "5–7"],
-              ["high", "8–10"],
-            ] as const
-          ).map(([band, label]) => (
-            <button
-              key={band}
-              type="button"
-              onClick={() => handleScoreBandChange(band)}
-              className={`cursor-pointer rounded-full border px-3 py-1 font-montserrat text-xs font-medium ${
-                scoreBand === band
-                  ? "border-[#2555F3] bg-[#eef3ff] text-[#2555F3]"
-                  : "border-[#e5e5e5] bg-white text-[#333333]"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
-        {scoreBandActive ? (
+        {!filtersLocked ? (
+          statusFilter === "SHORTLISTED" ? (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <label
+                htmlFor="shortlisted-score-filter"
+                className="font-montserrat text-xs font-medium text-[#5e5e5e]"
+              >
+                AI score
+              </label>
+              <select
+                id="shortlisted-score-filter"
+                value={shortlistedScore}
+                onChange={(e) =>
+                  setShortlistedScore(e.target.value as ShortlistedScore)
+                }
+                className={`${SELECT_CHEVRON} cursor-pointer rounded-full border border-[#e5e5e5] bg-white py-1 pl-3 pr-9 font-montserrat text-xs font-medium text-[#333333] outline-none focus:border-[#2555F3] focus:ring-2 focus:ring-[#2555F3]/20`}
+              >
+                <option value="all">All scores</option>
+                {(["5", "6", "7", "8", "9", "10"] as const).map((score) => (
+                  <option key={score} value={score}>
+                    {score}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {(
+                [
+                  ["all", "All scores"],
+                  ["low", "1–4"],
+                  ["mid", "5–7"],
+                  ["high", "8–10"],
+                ] as const
+              ).map(([band, label]) => (
+                <button
+                  key={band}
+                  type="button"
+                  onClick={() => handleScoreBandChange(band)}
+                  className={`cursor-pointer rounded-full border px-3 py-1 font-montserrat text-xs font-medium ${
+                    scoreBand === band
+                      ? "border-[#2555F3] bg-[#eef3ff] text-[#2555F3]"
+                      : "border-[#e5e5e5] bg-white text-[#333333]"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )
+        ) : null}
+        {scoreBandActive && !filtersLocked && statusFilter !== "SHORTLISTED" ? (
           <div className="mt-3 flex flex-wrap gap-2">
             {(scoreBand === "low" || scoreBand === "mid") && (
               <Button
@@ -1346,5 +1517,41 @@ export default function AdminCareersApplicationsPage() {
           )
         : null}
     </div>
+  );
+}
+
+export default function AdminCareersApplicationsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="py-8 lg:py-10">
+          <Container>
+            <p className="font-montserrat text-sm text-[#5e5e5e]">
+              Loading applications…
+            </p>
+          </Container>
+        </div>
+      }
+    >
+      <AdminCareersApplicationsContent />
+    </Suspense>
+  );
+}
+
+export default function AdminCareersApplicationsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="py-8 lg:py-10">
+          <Container>
+            <p className="font-montserrat text-sm text-[#5e5e5e]">
+              Loading applications…
+            </p>
+          </Container>
+        </div>
+      }
+    >
+      <AdminCareersApplicationsContent />
+    </Suspense>
   );
 }

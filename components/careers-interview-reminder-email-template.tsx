@@ -9,6 +9,7 @@ export interface CareersInterviewReminderEmailProps {
   meetLink: string | null;
   reminderLabel: string;
   jobDescription?: string | null;
+  cancelUrl?: string | null;
 }
 
 export function CareersInterviewReminderEmailTemplate({
@@ -19,6 +20,7 @@ export function CareersInterviewReminderEmailTemplate({
   meetLink,
   reminderLabel,
   jobDescription,
+  cancelUrl,
 }: CareersInterviewReminderEmailProps) {
   return (
     <div
@@ -60,6 +62,14 @@ export function CareersInterviewReminderEmailTemplate({
         internet connection and join a few minutes early if possible.
       </p>
       <CareersInterviewJdEmailBlock jobDescription={jobDescription} />
+      {cancelUrl ? (
+        <p style={{ marginTop: "1.5rem", color: "#5e5e5e", lineHeight: 1.6, fontSize: "14px" }}>
+          Need to cancel?{" "}
+          <a href={cancelUrl} style={{ color: "#b42318", fontWeight: 600 }}>
+            Cancel this interview
+          </a>
+        </p>
+      ) : null}
     </div>
   );
 }

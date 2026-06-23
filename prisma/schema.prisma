@@ -489,6 +489,7 @@ model InterviewRound {
   meetLink                    String?
   confirmationToken           String         @unique
   confirmationTokenExpiresAt  DateTime?
+  attendeeCancelToken         String?        @unique
   confirmedAt                 DateTime?
   notes                       String?        @db.Text
   attendeeEmail               String?

@@ -1,6 +1,8 @@
 import { randomBytes } from "crypto";
 import { Resend } from "resend";
 import { CareersInterviewAttendeeConfirmedEmailTemplate } from "@/components/careers-interview-attendee-confirmed-email-template";
+import { CareersInterviewAdminConfirmedEmailTemplate } from "@/components/careers-interview-admin-confirmed-email-template";
+import { CareersInterviewInterviewerCancelledAdminEmailTemplate } from "@/components/careers-interview-interviewer-cancelled-admin-email-template";
 import { CareersInterviewCancelledAttendeeEmailTemplate } from "@/components/careers-interview-cancelled-attendee-email-template";
 import { CareersInterviewCancelledCandidateEmailTemplate } from "@/components/careers-interview-cancelled-candidate-email-template";
 import { CareersInterviewConfirmedEmailTemplate } from "@/components/careers-interview-confirmed-email-template";
@@ -8,7 +10,8 @@ import { CareersInterviewInviteEmailTemplate } from "@/components/careers-interv
 import { CareersInterviewRescheduledAttendeeEmailTemplate } from "@/components/careers-interview-rescheduled-attendee-email-template";
 import { CareersInterviewRescheduledCandidateEmailTemplate } from "@/components/careers-interview-rescheduled-candidate-email-template";
 import { inngest } from "@/inngest/client";
-import { formatInterviewTime } from "@/lib/careers-interview-time";
+import { formatInterviewTime, isUtcInstantInFuture, isUtcInstantStartedOrPast } from "@/lib/careers-interview-time";
+import { getAdminEmails } from "@/lib/careers-admin";
 import {
   createMeetEventForInterviewRound,
   deleteAdminInterviewCalendarEvent,
@@ -47,6 +50,22 @@ export function resolveAppOrigin() {
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
     "http://localhost:3000"
   ).replace(/\/$/, "");
+}
+
+export function buildAdminApplicationSearchUrl(candidateEmail: string): string {
+  return `${resolveAppOrigin()}/admin/applications?search=${encodeURIComponent(candidateEmail)}`;
+}
+
+export function buildAttendeeCancelUrl(attendeeCancelToken: string): string {
+  return `${resolveAppOrigin()}/careers/interview/interviewer-cancel?token=${encodeURIComponent(attendeeCancelToken)}`;
+}
+
+export function buildAttendeeCancelUrlFromToken(
+  attendeeCancelToken: string | null | undefined,
+): string | null {
+  const token = attendeeCancelToken?.trim();
+  if (!token) return null;
+  return buildAttendeeCancelUrl(token);
 }
 
 export function confirmationTokenExpiresAtFromNow() {
@@ -91,7 +110,11 @@ export async function scheduleInterviewReminders(roundId: string) {
   const ts24h = interviewReminder24hAtMs(round.scheduledAt);
   const ts30m = interviewReminder30mAtMs(round.scheduledAt);
 
-  const recipients: Array<"candidate" | "attendee"> = ["candidate", "attendee"];
+  const recipients: Array<"candidate" | "attendee" | "admin"> = [
+    "candidate",
+    "attendee",
+    "admin",
+  ];
 
   for (const recipient of recipients) {
     if (ts24h !== null) {
@@ -202,11 +225,13 @@ export async function sendInterviewAttendeeConfirmedEmail(params: {
   adminTimezone: string;
   meetLink: string | null;
   jobDescription?: string | null;
+  attendeeCancelToken?: string | null;
 }) {
   const scheduledAtLabel = formatInterviewScheduledAt(
     params.scheduledAt,
     params.adminTimezone,
   );
+  const cancelUrl = buildAttendeeCancelUrlFromToken(params.attendeeCancelToken);
 
   if (!process.env.RESEND_API_KEY?.trim()) {
     console.warn(
@@ -226,8 +251,59 @@ export async function sendInterviewAttendeeConfirmedEmail(params: {
       scheduledAtLabel,
       meetLink: params.meetLink,
       jobDescription: params.jobDescription,
+      cancelUrl,
     }),
   });
+}
+
+export async function sendInterviewAdminConfirmedEmails(params: {
+  candidateName: string;
+  candidateEmail: string;
+  jobTitle: string;
+  roundNumber: number;
+  scheduledAt: Date;
+  adminTimezone: string;
+  meetLink: string | null;
+}) {
+  const adminEmails = await getAdminEmails();
+  if (adminEmails.length === 0) return;
+
+  const scheduledAtLabel = formatInterviewScheduledAt(
+    params.scheduledAt,
+    params.adminTimezone,
+  );
+  const applicationUrl = buildAdminApplicationSearchUrl(params.candidateEmail);
+
+  if (!process.env.RESEND_API_KEY?.trim()) {
+    console.warn(
+      "[careers-interview] RESEND_API_KEY not set; skipping admin confirmed emails",
+    );
+    return;
+  }
+
+  for (const to of adminEmails) {
+    try {
+      await resend.emails.send({
+        from: getEmailFrom(),
+        to,
+        subject: `Interview confirmed — ${params.jobTitle} (Round ${params.roundNumber})`,
+        react: CareersInterviewAdminConfirmedEmailTemplate({
+          candidateName: params.candidateName,
+          candidateEmail: params.candidateEmail,
+          jobTitle: params.jobTitle,
+          roundNumber: params.roundNumber,
+          scheduledAtLabel,
+          meetLink: params.meetLink,
+          applicationUrl,
+        }),
+      });
+    } catch (err) {
+      console.error(
+        `[careers-interview] Failed to send admin confirmed email to ${to}:`,
+        err,
+      );
+    }
+  }
 }
 
 async function sendInterviewCancelledEmails(round: {
@@ -291,6 +367,7 @@ async function sendInterviewRescheduledEmails(params: {
     confirmationToken: string;
     jobDescriptionSnapshot: string;
     attendeeEmail: string | null;
+    attendeeCancelToken?: string | null;
   };
   previousScheduledAt: Date;
   application: {
@@ -362,6 +439,141 @@ async function sendInterviewRescheduledEmails(params: {
 
 export function generateConfirmationToken() {
   return randomBytes(32).toString("hex");
+}
+
+export function generateAttendeeCancelToken() {
+  return generateConfirmationToken();
+}
+
+async function sendInterviewerCancelledAdminEmails(round: {
+  roundNumber: number;
+  scheduledAt: Date;
+  timezone: string;
+  application: {
+    name: string;
+    email: string;
+    jobPosting: { title: string };
+  };
+}) {
+  const adminEmails = await getAdminEmails();
+  if (adminEmails.length === 0) return;
+
+  const scheduledAtLabel = formatInterviewScheduledAt(
+    round.scheduledAt,
+    round.timezone,
+  );
+  const applicationUrl = buildAdminApplicationSearchUrl(round.application.email);
+
+  if (!process.env.RESEND_API_KEY?.trim()) return;
+
+  for (const to of adminEmails) {
+    try {
+      await resend.emails.send({
+        from: getEmailFrom(),
+        to,
+        subject: `Interview cancelled by interviewer — ${round.application.jobPosting.title}`,
+        react: CareersInterviewInterviewerCancelledAdminEmailTemplate({
+          candidateName: round.application.name,
+          candidateEmail: round.application.email,
+          jobTitle: round.application.jobPosting.title,
+          roundNumber: round.roundNumber,
+          scheduledAtLabel,
+          applicationUrl,
+        }),
+      });
+    } catch (err) {
+      console.error(
+        `[careers-interview] Failed to send interviewer-cancelled admin email to ${to}:`,
+        err,
+      );
+    }
+  }
+}
+
+export type AttendeeCancelPreviewStatus =
+  | "valid"
+  | "interview_started"
+  | "invalid_link"
+  | "already_cancelled";
+
+export async function getAttendeeCancelPreview(token: string) {
+  const round = await prisma.interviewRound.findUnique({
+    where: { attendeeCancelToken: token },
+    include: {
+      application: {
+        select: {
+          name: true,
+          jobPosting: { select: { title: true } },
+        },
+      },
+    },
+  });
+
+  if (!round?.attendeeCancelToken) {
+    return { status: "invalid_link" as const };
+  }
+  if (round.cancelledAt) {
+    return { status: "already_cancelled" as const };
+  }
+  if (isUtcInstantStartedOrPast(round.scheduledAt)) {
+    return { status: "interview_started" as const };
+  }
+
+  return {
+    status: "valid" as const,
+    jobTitle: round.application.jobPosting.title,
+    candidateName: round.application.name,
+    roundNumber: round.roundNumber,
+    scheduledAtLabel: formatInterviewScheduledAt(
+      round.scheduledAt,
+      round.timezone,
+    ),
+  };
+}
+
+export async function cancelInterviewRoundByAttendeeToken(token: string) {
+  const round = await prisma.interviewRound.findUnique({
+    where: { attendeeCancelToken: token },
+    include: {
+      application: {
+        select: {
+          name: true,
+          email: true,
+          candidateTimezone: true,
+          jobPosting: { select: { title: true, description: true } },
+        },
+      },
+    },
+  });
+
+  if (!round?.attendeeCancelToken) {
+    return { status: "invalid_link" as const };
+  }
+  if (round.cancelledAt) {
+    return { status: "already_cancelled" as const };
+  }
+  if (!isUtcInstantInFuture(round.scheduledAt)) {
+    return { status: "interview_started" as const };
+  }
+
+  const result = await cancelInterviewRound(round.id);
+  if ("error" in result) {
+    if (result.error === "already_cancelled") {
+      return { status: "already_cancelled" as const };
+    }
+    return { status: "invalid_link" as const };
+  }
+
+  try {
+    await sendInterviewerCancelledAdminEmails(round);
+  } catch (err) {
+    console.error(
+      "[careers-interview] Failed to send interviewer-cancelled admin emails:",
+      err,
+    );
+  }
+
+  return { status: "success" as const };
 }
 
 export async function cancelInterviewRound(roundId: string) {
@@ -495,6 +707,7 @@ export async function rescheduleInterviewRound(
       timezone,
       notes,
       attendeeEmail,
+      attendeeCancelToken: generateAttendeeCancelToken(),
       ...(!wasConfirmed
         ? { confirmationTokenExpiresAt: confirmationTokenExpiresAtFromNow() }
         : {}),
@@ -516,6 +729,7 @@ export async function rescheduleInterviewRound(
           confirmationToken: updated.confirmationToken,
           jobDescriptionSnapshot: updated.jobDescriptionSnapshot,
           attendeeEmail: updated.attendeeEmail,
+          attendeeCancelToken: updated.attendeeCancelToken,
         },
         previousScheduledAt,
         application: round.application,
@@ -612,7 +826,7 @@ export async function confirmInterviewRound(token: string) {
 
   const updated = await prisma.interviewRound.findUnique({
     where: { id: round.id },
-    select: { meetLink: true, attendeeEmail: true },
+    select: { meetLink: true, attendeeEmail: true, attendeeCancelToken: true },
   });
 
   const finalMeetLink = updated?.meetLink ?? meetLink;
@@ -644,6 +858,7 @@ export async function confirmInterviewRound(token: string) {
         adminTimezone,
         meetLink: finalMeetLink,
         jobDescription,
+        attendeeCancelToken: updated?.attendeeCancelToken,
       });
     } catch (err) {
       console.error(
@@ -651,6 +866,20 @@ export async function confirmInterviewRound(token: string) {
         err,
       );
     }
+  }
+
+  try {
+    await sendInterviewAdminConfirmedEmails({
+      candidateName: round.application.name,
+      candidateEmail: round.application.email,
+      jobTitle: round.application.jobPosting.title,
+      roundNumber: round.roundNumber,
+      scheduledAt: round.scheduledAt,
+      adminTimezone,
+      meetLink: finalMeetLink,
+    });
+  } catch (err) {
+    console.error("[careers-interview] Failed to send admin confirmed emails:", err);
   }
 
   try {

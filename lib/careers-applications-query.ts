@@ -2,6 +2,8 @@ import {
   ApplicationStatus,
   type Prisma,
 } from "@/generated/prisma/client";
+import { utcDayRangeFromDateParam } from "@/lib/careers-interview-time";
+import { MAX_INTERVIEW_ROUNDS } from "@/lib/careers-schemas";
 
 const statusValues = new Set<string>(Object.values(ApplicationStatus));
 
@@ -10,6 +12,9 @@ export type ApplicationsListParams = {
   scoreMin: number | null;
   scoreMax: number | null;
   interviewRound: number | null;
+  search: string | null;
+  interviewConfirmed: boolean | null;
+  interviewDate: string | null;
 };
 
 export function parseApplicationsListParams(
@@ -40,17 +45,75 @@ export function parseApplicationsListParams(
       ? Number(interviewRoundRaw)
       : null;
 
-  return { status, scoreMin, scoreMax, interviewRound };
+  const searchRaw = searchParams.get("search")?.trim();
+  const search = searchRaw ? searchRaw : null;
+
+  const interviewConfirmedRaw = searchParams.get("interviewConfirmed")?.trim();
+  const interviewConfirmed =
+    interviewConfirmedRaw === "true"
+      ? true
+      : interviewConfirmedRaw === "false"
+        ? false
+        : null;
+
+  const interviewDateRaw = searchParams.get("interviewDate")?.trim();
+  const interviewDate = interviewDateRaw ? interviewDateRaw : null;
+
+  return {
+    status,
+    scoreMin,
+    scoreMax,
+    interviewRound,
+    search,
+    interviewConfirmed,
+    interviewDate,
+  };
+}
+
+function buildLatestActiveRoundWhereInput(
+  roundNumber: number,
+  extra: Prisma.InterviewRoundWhereInput,
+): Prisma.JobApplicationWhereInput {
+  const activeRoundWhere = { cancelledAt: null };
+  return {
+    AND: [
+      {
+        interviewRounds: {
+          some: { roundNumber, ...activeRoundWhere, ...extra },
+        },
+      },
+      {
+        NOT: {
+          interviewRounds: {
+            some: { roundNumber: { gt: roundNumber }, ...activeRoundWhere },
+          },
+        },
+      },
+    ],
+  };
 }
 
 export function buildJobApplicationWhereInput(
   params: ApplicationsListParams,
 ): Prisma.JobApplicationWhereInput {
-  const { status, scoreMin, scoreMax, interviewRound } = params;
+  const {
+    status,
+    scoreMin,
+    scoreMax,
+    interviewRound,
+    search,
+    interviewConfirmed,
+    interviewDate,
+  } = params;
   const activeRoundWhere = { cancelledAt: null };
 
   const where: Prisma.JobApplicationWhereInput = {};
+  const andClauses: Prisma.JobApplicationWhereInput[] = [];
+
   if (status) where.status = status;
+  if (search) {
+    where.email = { contains: search, mode: "insensitive" };
+  }
   if (scoreMin !== null && Number.isFinite(scoreMin)) {
     where.aiScore = { ...(where.aiScore as Prisma.IntFilter), gte: scoreMin };
   }
@@ -72,21 +135,33 @@ export function buildJobApplicationWhereInput(
     Number.isInteger(interviewRound) &&
     interviewRound >= 1
   ) {
-    where.AND = [
-      ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
-      {
-        interviewRounds: {
-          some: { roundNumber: interviewRound, ...activeRoundWhere },
-        },
-      },
-      {
-        NOT: {
-          interviewRounds: {
-            some: { roundNumber: { gt: interviewRound }, ...activeRoundWhere },
-          },
-        },
-      },
-    ];
+    andClauses.push(
+      buildLatestActiveRoundWhereInput(interviewRound, activeRoundWhere),
+    );
+  }
+
+  if (interviewConfirmed !== null) {
+    const dateRange = interviewDate
+      ? utcDayRangeFromDateParam(interviewDate)
+      : null;
+    const roundExtra: Prisma.InterviewRoundWhereInput = {
+      confirmedAt: interviewConfirmed ? { not: null } : null,
+      ...(dateRange
+        ? { scheduledAt: { gte: dateRange.gte, lt: dateRange.lt } }
+        : {}),
+    };
+
+    const latestRoundClauses: Prisma.JobApplicationWhereInput[] = [];
+    for (let round = MAX_INTERVIEW_ROUNDS; round >= 1; round -= 1) {
+      latestRoundClauses.push(
+        buildLatestActiveRoundWhereInput(round, roundExtra),
+      );
+    }
+    andClauses.push({ OR: latestRoundClauses });
+  }
+
+  if (andClauses.length > 0) {
+    where.AND = andClauses;
   }
 
   return where;
@@ -116,5 +191,8 @@ export function buildPendingScoreBandWhereInput(
     scoreMin,
     scoreMax,
     interviewRound: null,
+    search: null,
+    interviewConfirmed: null,
+    interviewDate: null,
   });
 }
