@@ -11,6 +11,12 @@ import { formatDoctorStoredName } from "@/lib/doctor-name";
 import { DOCTOR_SPECIALIZATIONS } from "@/lib/doctor-specializations";
 import { currencyForTimezone } from "@/lib/currency";
 import { getEmailFrom } from "@/lib/email-from";
+import {
+  DOCTOR_BIO_MAX_WORDS,
+  PATIENT_ADDRESS_MAX_WORDS,
+  withinWordLimitRefine,
+  wordLimitErrorMessage,
+} from "@/lib/text-word-limit";
 
 const doctorSignupSchema = z.object({
   phone: z
@@ -28,7 +34,13 @@ const doctorSignupSchema = z.object({
     .max(255, "Qualification is too long"),
   licenseNumber: z.string().min(3, "License number is required"),
   yearsExperience: z.number().int().min(0).max(80).optional(),
-  bio: z.string().max(3000).optional(),
+  bio: z
+    .string()
+    .max(3000)
+    .optional()
+    .refine(withinWordLimitRefine(DOCTOR_BIO_MAX_WORDS), {
+      message: wordLimitErrorMessage("Bio", DOCTOR_BIO_MAX_WORDS),
+    }),
   profilePhotoUrl: z
     .string()
     .min(1, "Doctor profile photo is required")
@@ -43,7 +55,16 @@ const registerSchema = z
       .string()
       .regex(/^\+[1-9]\d{6,14}$/, "Invalid phone number")
       .optional(),
-    address: z.string().max(500).optional(),
+    address: z
+      .string()
+      .max(500)
+      .optional()
+      .refine(withinWordLimitRefine(PATIENT_ADDRESS_MAX_WORDS), {
+        message: wordLimitErrorMessage(
+          "Address",
+          PATIENT_ADDRESS_MAX_WORDS,
+        ),
+      }),
     email: z.string().email(),
     password: z.string().min(8, "Password must be at least 8 characters"),
     role: z.enum(["PATIENT", "DOCTOR"]).optional().default("PATIENT"),

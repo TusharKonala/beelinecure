@@ -3,6 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import PhoneInput, { isValidPhoneNumber } from "react-phone-number-input";
 import { Button } from "@/components/ui/button";
+import { WordCountFooter } from "@/components/form/WordCountFooter";
+import {
+  isOverWordLimit,
+  PATIENT_ADDRESS_MAX_WORDS,
+} from "@/lib/text-word-limit";
 
 type Profile = {
   name: string | null;
@@ -129,6 +134,7 @@ export default function PatientSettingsPage() {
   }, [initialValues, name, phone, address]);
 
   const isPhoneInvalid = Boolean(phoneError);
+  const addressOverLimit = isOverWordLimit(address, PATIENT_ADDRESS_MAX_WORDS);
 
   const phoneInputClassName =
     "h-11 w-full rounded-xl border border-[#e5e5e5] bg-white px-3 text-sm font-montserrat text-[#333333] shadow-sm placeholder:text-[#5E5E5E]/70 focus-within:border-[#2555F3] focus-within:ring-[3px] focus-within:ring-[#2555F3]/20 [&_.PhoneInputInput]:outline-none";
@@ -198,10 +204,15 @@ export default function PatientSettingsPage() {
           <label className="font-montserrat text-sm font-medium text-[#333333]">
             Address (optional)
           </label>
-          <input
+          <textarea
             value={address}
             onChange={(e) => setAddress(e.target.value)}
-            className="mt-1 h-11 w-full rounded-xl border border-[#e5e5e5] px-3 font-montserrat text-sm"
+            rows={3}
+            className="mt-1 w-full rounded-xl border border-[#e5e5e5] px-3 py-2 font-montserrat text-sm"
+          />
+          <WordCountFooter
+            value={address}
+            maxWords={PATIENT_ADDRESS_MAX_WORDS}
           />
         </div>
         {error ? (
@@ -213,7 +224,7 @@ export default function PatientSettingsPage() {
         <div className="flex flex-wrap gap-2">
           <Button
             onClick={() => void save()}
-            disabled={pending || !isDirty || isPhoneInvalid}
+            disabled={pending || !isDirty || isPhoneInvalid || addressOverLimit}
             className="cursor-pointer"
           >
             Save changes

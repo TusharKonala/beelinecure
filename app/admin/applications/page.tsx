@@ -10,10 +10,10 @@ import {
   applicationStatusDropdownValues,
   applicationStatusValues,
   countInterviewNotesWords,
-  countInterviewNotesWordsLive,
   INTERVIEW_NOTES_MAX_WORDS,
   MAX_INTERVIEW_ROUNDS,
 } from "@/lib/careers-schemas";
+import { WordCountFooter } from "@/components/form/WordCountFooter";
 import {
   buildGmailComposeUrl,
   buildOfferEmailBody,
@@ -503,7 +503,6 @@ function AdminCareersApplicationsContent() {
     scheduleBaseline !== null &&
     scheduleFormsEqual(scheduleFormCurrent, scheduleBaseline);
 
-  const scheduleNotesWordCount = countInterviewNotesWordsLive(scheduleNotes);
   const scheduleNotesOverLimit =
     countInterviewNotesWords(scheduleNotes) > INTERVIEW_NOTES_MAX_WORDS;
 
@@ -1276,18 +1275,11 @@ function AdminCareersApplicationsContent() {
                       onChange={(e) => setScheduleNotes(e.target.value)}
                       className="w-full rounded-xl border border-[#e5e5e5] px-3 py-2 font-montserrat text-sm"
                     />
-                    <p
-                      className={`mt-1 font-montserrat text-xs ${
-                        scheduleNotesOverLimit
-                          ? "text-[#b42318]"
-                          : "text-[#5e5e5e]"
-                      }`}
-                    >
-                      {scheduleNotesWordCount}/{INTERVIEW_NOTES_MAX_WORDS} words
-                      {scheduleNotesOverLimit
-                        ? " — shorten notes to save or schedule."
-                        : ""}
-                    </p>
+                    <WordCountFooter
+                      value={scheduleNotes}
+                      maxWords={INTERVIEW_NOTES_MAX_WORDS}
+                      overLimitHint=" — shorten notes to save or schedule."
+                    />
                   </div>
                 </div>
                 {scheduleError ? (

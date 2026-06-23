@@ -12,6 +12,12 @@ import { useRedirectOverlay } from "@/components/nav/RedirectOverlayProvider";
 import { uploadDoctorPhoto } from "@/lib/uploads/uploadDoctorPhoto";
 import { DOCTOR_SPECIALIZATIONS } from "@/lib/doctor-specializations";
 import { DoctorPhotoCropper } from "@/components/doctor/DoctorPhotoCropper";
+import { WordCountFooter } from "@/components/form/WordCountFooter";
+import {
+  DOCTOR_BIO_MAX_WORDS,
+  isOverWordLimit,
+  PATIENT_ADDRESS_MAX_WORDS,
+} from "@/lib/text-word-limit";
 
 export function SignUpForm({
   initialRole = "PATIENT",
@@ -234,6 +240,11 @@ export function SignUpForm({
   const phoneInputClassName =
     "h-11 w-full rounded-xl border border-[#e5e5e5] bg-white px-3 text-sm font-montserrat text-[#333333] shadow-sm placeholder:text-[#5E5E5E]/70 focus-within:border-[#2555F3] focus-within:ring-[3px] focus-within:ring-[#2555F3]/20 [&_.PhoneInputInput]:outline-none";
 
+  const bioOverLimit =
+    role === "DOCTOR" && isOverWordLimit(bio, DOCTOR_BIO_MAX_WORDS);
+  const addressOverLimit =
+    role === "PATIENT" && isOverWordLimit(address, PATIENT_ADDRESS_MAX_WORDS);
+
   return (
     <form onSubmit={onSubmit} className="flex w-full flex-col gap-5">
       <div>
@@ -400,14 +411,18 @@ export function SignUpForm({
             >
               Address <span className="font-normal text-[#5E5E5E]">(optional)</span>
             </label>
-            <input
+            <textarea
               id="signup-patient-address"
               name="address"
-              type="text"
+              rows={3}
               autoComplete="street-address"
               value={address}
               onChange={(e) => setAddress(e.target.value)}
-              className={inputClassName}
+              className={`${inputClassName} h-auto py-2`}
+            />
+            <WordCountFooter
+              value={address}
+              maxWords={PATIENT_ADDRESS_MAX_WORDS}
             />
           </div>
         </>
@@ -624,13 +639,14 @@ export function SignUpForm({
               onChange={(e) => setBio(e.target.value)}
               className={`${inputClassName} h-auto py-2`}
             />
+            <WordCountFooter value={bio} maxWords={DOCTOR_BIO_MAX_WORDS} />
           </div>
         </>
       )}
 
       <Button
         type="submit"
-        disabled={pending || photoUploadPending}
+        disabled={pending || photoUploadPending || bioOverLimit || addressOverLimit}
         className="h-11 w-full cursor-pointer rounded-xl bg-[#2555F3] font-montserrat text-sm font-medium hover:bg-[#1e44c7] md:h-12 md:text-base"
       >
         {pending

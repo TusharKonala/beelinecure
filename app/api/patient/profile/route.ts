@@ -4,6 +4,11 @@ import { z } from "zod";
 import { UserRole } from "@/generated/prisma/client";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import {
+  PATIENT_ADDRESS_MAX_WORDS,
+  withinWordLimitRefine,
+  wordLimitErrorMessage,
+} from "@/lib/text-word-limit";
 
 const updateSchema = z.object({
   name: z.string().min(1).max(255),
@@ -12,7 +17,17 @@ const updateSchema = z.object({
     .regex(/^\+[1-9]\d{6,14}$/, "Invalid phone number")
     .optional()
     .or(z.literal("")),
-  address: z.string().max(500).optional().or(z.literal("")),
+  address: z
+    .string()
+    .max(500)
+    .optional()
+    .or(z.literal(""))
+    .refine(withinWordLimitRefine(PATIENT_ADDRESS_MAX_WORDS), {
+      message: wordLimitErrorMessage(
+        "Address",
+        PATIENT_ADDRESS_MAX_WORDS,
+      ),
+    }),
 });
 
 export async function GET() {

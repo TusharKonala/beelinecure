@@ -1,5 +1,11 @@
 import { z } from "zod";
 import { SUPPORTED_CURRENCIES } from "@/lib/currency";
+import {
+  countWords,
+  countWordsLive,
+  INTERVIEW_NOTES_MAX_WORDS,
+  isWithinWordLimit,
+} from "@/lib/text-word-limit";
 
 export const jobTypeValues = ["FULL_TIME", "PART_TIME", "CONTRACT"] as const;
 
@@ -97,27 +103,15 @@ export const applicationStatusDropdownValues = applicationStatusValues.filter(
 
 export const MAX_INTERVIEW_ROUNDS = 4;
 
-export const INTERVIEW_NOTES_MAX_WORDS = 50;
+export { INTERVIEW_NOTES_MAX_WORDS };
 
-export function countInterviewNotesWords(text: string): number {
-  const trimmed = text.trim();
-  if (!trimmed) return 0;
-  return trimmed.split(/\s+/).filter(Boolean).length;
-}
-
-/** Live display count — includes in-progress word after trailing space. */
-export function countInterviewNotesWordsLive(text: string): number {
-  const strict = countInterviewNotesWords(text);
-  if (!text) return 0;
-  const startingNextWord = /\S\s+$/.test(text);
-  return strict + (startingNextWord ? 1 : 0);
-}
+export const countInterviewNotesWords = countWords;
+export const countInterviewNotesWordsLive = countWordsLive;
 
 function interviewNotesWithinWordLimit(
   notes: string | null | undefined,
 ): boolean {
-  if (notes == null || notes === "") return true;
-  return countInterviewNotesWords(notes) <= INTERVIEW_NOTES_MAX_WORDS;
+  return isWithinWordLimit(notes, INTERVIEW_NOTES_MAX_WORDS);
 }
 
 const interviewNotesSchema = z

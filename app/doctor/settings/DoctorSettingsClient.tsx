@@ -21,6 +21,11 @@ import {
 import { uploadDoctorPhoto } from "@/lib/uploads/uploadDoctorPhoto";
 import { DOCTOR_SPECIALIZATIONS } from "@/lib/doctor-specializations";
 import { DoctorPhotoCropper } from "@/components/doctor/DoctorPhotoCropper";
+import { WordCountFooter } from "@/components/form/WordCountFooter";
+import {
+  DOCTOR_BIO_MAX_WORDS,
+  isOverWordLimit,
+} from "@/lib/text-word-limit";
 
 const DURATION_KEYS = ["15", "30", "45", "60"] as const;
 type DurationKey = (typeof DURATION_KEYS)[number];
@@ -399,6 +404,7 @@ export function DoctorSettingsClient({
   const profilePhotoPreviewSrc =
     selectedPhotoPreviewUrl ?? doctor.profilePhotoUrl;
   const isPhoneInvalid = Boolean(phoneError);
+  const bioOverLimit = isOverWordLimit(doctor.bio ?? "", DOCTOR_BIO_MAX_WORDS);
 
   return (
     <div className="w-full bg-[#fafafa] py-6 md:py-8">
@@ -633,6 +639,10 @@ export function DoctorSettingsClient({
                 }}
                 className={`${inputClassName} h-auto py-2`}
               />
+              <WordCountFooter
+                value={doctor.bio ?? ""}
+                maxWords={DOCTOR_BIO_MAX_WORDS}
+              />
             </div>
             <div className="flex flex-col gap-2">
               <label className="font-montserrat text-sm font-medium text-[#333333]">
@@ -812,7 +822,11 @@ export function DoctorSettingsClient({
                 type="button"
                 onClick={() => void onSave()}
                 disabled={
-                  savePending || photoUploadPending || !isDirty || isPhoneInvalid
+                  savePending ||
+                  photoUploadPending ||
+                  !isDirty ||
+                  isPhoneInvalid ||
+                  bioOverLimit
                 }
                 className="cursor-pointer"
               >

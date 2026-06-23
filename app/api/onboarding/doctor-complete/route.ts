@@ -10,6 +10,11 @@ import { formatDoctorStoredName } from "@/lib/doctor-name";
 import { DOCTOR_SPECIALIZATIONS } from "@/lib/doctor-specializations";
 import { currencyForTimezone } from "@/lib/currency";
 import { getEmailFrom } from "@/lib/email-from";
+import {
+  DOCTOR_BIO_MAX_WORDS,
+  withinWordLimitRefine,
+  wordLimitErrorMessage,
+} from "@/lib/text-word-limit";
 
 const doctorCompleteSchema = z.object({
   name: z.string().min(1).max(255),
@@ -25,7 +30,13 @@ const doctorCompleteSchema = z.object({
   qualification: z.string().min(2).max(255),
   licenseNumber: z.string().min(3),
   yearsExperience: z.number().int().min(0).max(80).optional(),
-  bio: z.string().max(3000).optional(),
+  bio: z
+    .string()
+    .max(3000)
+    .optional()
+    .refine(withinWordLimitRefine(DOCTOR_BIO_MAX_WORDS), {
+      message: wordLimitErrorMessage("Bio", DOCTOR_BIO_MAX_WORDS),
+    }),
   profilePhotoUrl: z.string().min(1).max(100_000),
   timezone: z.string().min(1).max(128),
 });
