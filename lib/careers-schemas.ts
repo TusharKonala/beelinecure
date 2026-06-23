@@ -102,7 +102,15 @@ export const INTERVIEW_NOTES_MAX_WORDS = 50;
 export function countInterviewNotesWords(text: string): number {
   const trimmed = text.trim();
   if (!trimmed) return 0;
-  return trimmed.split(/\s+/).length;
+  return trimmed.split(/\s+/).filter(Boolean).length;
+}
+
+/** Live display count — includes in-progress word after trailing space. */
+export function countInterviewNotesWordsLive(text: string): number {
+  const strict = countInterviewNotesWords(text);
+  if (!text) return 0;
+  const startingNextWord = /\S\s+$/.test(text);
+  return strict + (startingNextWord ? 1 : 0);
 }
 
 function interviewNotesWithinWordLimit(

@@ -10,6 +10,7 @@ import {
   applicationStatusDropdownValues,
   applicationStatusValues,
   countInterviewNotesWords,
+  countInterviewNotesWordsLive,
   INTERVIEW_NOTES_MAX_WORDS,
   MAX_INTERVIEW_ROUNDS,
 } from "@/lib/careers-schemas";
@@ -502,9 +503,9 @@ function AdminCareersApplicationsContent() {
     scheduleBaseline !== null &&
     scheduleFormsEqual(scheduleFormCurrent, scheduleBaseline);
 
-  const scheduleNotesWordCount = countInterviewNotesWords(scheduleNotes);
+  const scheduleNotesWordCount = countInterviewNotesWordsLive(scheduleNotes);
   const scheduleNotesOverLimit =
-    scheduleNotesWordCount > INTERVIEW_NOTES_MAX_WORDS;
+    countInterviewNotesWords(scheduleNotes) > INTERVIEW_NOTES_MAX_WORDS;
 
   async function handleScheduleInterview(e: React.FormEvent) {
     e.preventDefault();
@@ -1272,16 +1273,7 @@ function AdminCareersApplicationsContent() {
                     <textarea
                       rows={3}
                       value={scheduleNotes}
-                      onChange={(e) => {
-                        const next = e.target.value;
-                        if (
-                          countInterviewNotesWords(next) >
-                          INTERVIEW_NOTES_MAX_WORDS
-                        ) {
-                          return;
-                        }
-                        setScheduleNotes(next);
-                      }}
+                      onChange={(e) => setScheduleNotes(e.target.value)}
                       className="w-full rounded-xl border border-[#e5e5e5] px-3 py-2 font-montserrat text-sm"
                     />
                     <p
@@ -1383,9 +1375,10 @@ function AdminCareersApplicationsContent() {
                 </h3>
                 <p className="mt-2 font-montserrat text-sm text-[#5e5e5e]">
                   Round {cancelTarget.round.roundNumber} for{" "}
-                  {cancelTarget.app.name} will be cancelled. The candidate
-                  {cancelTarget.round.confirmedAt ? " and interviewer" : ""}{" "}
-                  will be notified by email.
+                  {cancelTarget.app.name} will be cancelled.
+                  {cancelTarget.round.confirmedAt
+                    ? " The candidate and interviewer will be notified by email."
+                    : " No emails will be sent because the interview was not confirmed."}
                 </p>
                 <div className="mt-6 flex justify-end gap-2">
                   <Button
