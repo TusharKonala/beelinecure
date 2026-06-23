@@ -53,6 +53,7 @@ export async function PATCH(
     timezone: parsed.data.timezone.trim(),
     notes: parsed.data.notes,
     attendeeEmail: parsed.data.attendeeEmail,
+    attendeeName: parsed.data.attendeeName,
   });
 
   if ("error" in result) {

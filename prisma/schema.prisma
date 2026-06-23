@@ -493,6 +493,7 @@ model InterviewRound {
   confirmedAt                 DateTime?
   notes                       String?        @db.Text
   attendeeEmail               String?
+  attendeeName                String?
   jobDescriptionSnapshot      String         @db.Text
   googleCalendarEventId       String?
   scheduledByAdminId          String

@@ -1,6 +1,7 @@
 import * as React from "react";
 
 export interface CareersInterviewCancelledAttendeeEmailProps {
+  attendeeName: string;
   candidateName: string;
   jobTitle: string;
   roundNumber: number;
@@ -8,6 +9,7 @@ export interface CareersInterviewCancelledAttendeeEmailProps {
 }
 
 export function CareersInterviewCancelledAttendeeEmailTemplate({
+  attendeeName,
   candidateName,
   jobTitle,
   roundNumber,
@@ -21,7 +23,7 @@ export function CareersInterviewCancelledAttendeeEmailTemplate({
         Interview cancelled
       </h1>
       <p style={{ color: "#333333", lineHeight: 1.6, fontStyle: "normal" }}>
-        Hi,
+        Hi {attendeeName},
       </p>
       <p style={{ color: "#333333", lineHeight: 1.6 }}>
         The <strong>Round {roundNumber}</strong> interview for{" "}

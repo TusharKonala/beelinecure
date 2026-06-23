@@ -837,6 +837,7 @@ async function sendInterviewReminderEmail(params: {
       cancelledAt: true,
       jobDescriptionSnapshot: true,
       attendeeEmail: true,
+      attendeeName: true,
       attendeeCancelToken: true,
       application: {
         select: {
@@ -929,7 +930,9 @@ async function sendInterviewReminderEmail(params: {
   }
 
   const recipientName =
-    params.recipient === "attendee" ? "there" : round.application.name;
+    params.recipient === "attendee"
+      ? round.attendeeName?.trim() || "there"
+      : round.application.name;
 
   const cancelUrl =
     params.recipient === "attendee"

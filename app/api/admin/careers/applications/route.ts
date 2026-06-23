@@ -56,6 +56,7 @@ export async function GET(request: NextRequest) {
           timezone: true,
           confirmedAt: true,
           attendeeEmail: true,
+          attendeeName: true,
           notes: true,
         },
         orderBy: { roundNumber: "asc" },
@@ -100,6 +101,7 @@ export async function GET(request: NextRequest) {
           timezone: r.timezone,
           confirmedAt: r.confirmedAt?.toISOString() ?? null,
           attendeeEmail: r.attendeeEmail,
+          attendeeName: r.attendeeName,
           notes: r.notes,
         })),
       };

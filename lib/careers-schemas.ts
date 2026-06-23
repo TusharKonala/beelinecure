@@ -114,12 +114,23 @@ const interviewNotesSchema = z
   .optional()
   .nullable();
 
+const optionalAttendeeNameSchema = z
+  .string()
+  .max(255, "Interviewer name is too long")
+  .optional()
+  .nullable()
+  .transform((value) => {
+    const trimmed = value?.trim();
+    return trimmed ? trimmed : null;
+  });
+
 export const scheduleInterviewSchema = z.object({
   roundNumber: z.number().int().min(1).max(MAX_INTERVIEW_ROUNDS),
   scheduledAt: z.iso.datetime({ message: "Invalid date and time" }),
   timezone: z.string().min(1, "Timezone is required").max(100),
   notes: interviewNotesSchema,
   attendeeEmail: z.email("Invalid attendee email").optional().nullable(),
+  attendeeName: optionalAttendeeNameSchema,
 });
 
 export const rescheduleInterviewSchema = z.object({
@@ -127,6 +138,7 @@ export const rescheduleInterviewSchema = z.object({
   timezone: z.string().min(1, "Timezone is required").max(100),
   notes: interviewNotesSchema,
   attendeeEmail: z.email("Invalid attendee email").optional().nullable(),
+  attendeeName: optionalAttendeeNameSchema,
 });
 
 export function formatSalaryDisplay(

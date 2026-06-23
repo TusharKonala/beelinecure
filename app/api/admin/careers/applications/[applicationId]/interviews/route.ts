@@ -143,6 +143,7 @@ export async function POST(
       attendeeCancelToken,
       notes: parsed.data.notes?.trim() || null,
       attendeeEmail: parsed.data.attendeeEmail?.trim() || null,
+      attendeeName: parsed.data.attendeeName,
       jobDescriptionSnapshot: application.jobPosting.description,
       scheduledByAdminId: auth.session.user.id,
     },

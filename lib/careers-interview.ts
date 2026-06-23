@@ -53,7 +53,11 @@ export function resolveAppOrigin() {
 }
 
 export function buildAdminApplicationSearchUrl(candidateEmail: string): string {
-  return `${resolveAppOrigin()}/admin/applications?search=${encodeURIComponent(candidateEmail)}`;
+  const params = new URLSearchParams({
+    search: candidateEmail,
+    status: "SHORTLISTED",
+  });
+  return `${resolveAppOrigin()}/admin/applications?${params.toString()}`;
 }
 
 export function buildAttendeeCancelUrl(attendeeCancelToken: string): string {
@@ -216,8 +220,16 @@ export async function sendInterviewConfirmedEmail(params: {
   });
 }
 
+export function formatAttendeeGreeting(
+  attendeeName: string | null | undefined,
+): string {
+  const name = attendeeName?.trim();
+  return name || "there";
+}
+
 export async function sendInterviewAttendeeConfirmedEmail(params: {
   to: string;
+  attendeeName?: string | null;
   candidateName: string;
   jobTitle: string;
   roundNumber: number;
@@ -245,6 +257,7 @@ export async function sendInterviewAttendeeConfirmedEmail(params: {
     to: params.to,
     subject: `Interview scheduled — ${params.jobTitle} (Round ${params.roundNumber})`,
     react: CareersInterviewAttendeeConfirmedEmailTemplate({
+      attendeeName: formatAttendeeGreeting(params.attendeeName),
       candidateName: params.candidateName,
       jobTitle: params.jobTitle,
       roundNumber: params.roundNumber,
@@ -311,6 +324,7 @@ async function sendInterviewCancelledEmails(round: {
   scheduledAt: Date;
   timezone: string;
   attendeeEmail: string | null;
+  attendeeName: string | null;
   application: {
     name: string;
     email: string;
@@ -349,6 +363,7 @@ async function sendInterviewCancelledEmails(round: {
       to: attendee,
       subject: `Interview cancelled — ${round.application.jobPosting.title}`,
       react: CareersInterviewCancelledAttendeeEmailTemplate({
+        attendeeName: formatAttendeeGreeting(round.attendeeName),
         candidateName: round.application.name,
         jobTitle: round.application.jobPosting.title,
         roundNumber: round.roundNumber,
@@ -367,6 +382,7 @@ async function sendInterviewRescheduledEmails(params: {
     confirmationToken: string;
     jobDescriptionSnapshot: string;
     attendeeEmail: string | null;
+    attendeeName: string | null;
     attendeeCancelToken?: string | null;
   };
   previousScheduledAt: Date;
@@ -425,6 +441,7 @@ async function sendInterviewRescheduledEmails(params: {
       to: attendee,
       subject: `Interview rescheduled — ${application.jobPosting.title}`,
       react: CareersInterviewRescheduledAttendeeEmailTemplate({
+        attendeeName: formatAttendeeGreeting(round.attendeeName),
         candidateName: application.name,
         jobTitle: application.jobPosting.title,
         roundNumber: round.roundNumber,
@@ -449,6 +466,8 @@ async function sendInterviewerCancelledAdminEmails(round: {
   roundNumber: number;
   scheduledAt: Date;
   timezone: string;
+  attendeeEmail: string | null;
+  attendeeName: string | null;
   application: {
     name: string;
     email: string;
@@ -475,6 +494,8 @@ async function sendInterviewerCancelledAdminEmails(round: {
         react: CareersInterviewInterviewerCancelledAdminEmailTemplate({
           candidateName: round.application.name,
           candidateEmail: round.application.email,
+          interviewerName: round.attendeeName?.trim() || null,
+          interviewerEmail: round.attendeeEmail?.trim() || null,
           jobTitle: round.application.jobPosting.title,
           roundNumber: round.roundNumber,
           scheduledAtLabel,
@@ -652,6 +673,7 @@ export type RescheduleInterviewInput = {
   timezone: string;
   notes?: string | null;
   attendeeEmail?: string | null;
+  attendeeName?: string | null;
 };
 
 export async function rescheduleInterviewRound(
@@ -681,13 +703,15 @@ export async function rescheduleInterviewRound(
 
   const notes = input.notes?.trim() || null;
   const attendeeEmail = input.attendeeEmail?.trim() || null;
+  const attendeeName = input.attendeeName?.trim() || null;
   const timezone = input.timezone.trim();
 
   const unchanged =
     round.scheduledAt.getTime() === input.scheduledAt.getTime() &&
     round.timezone === timezone &&
     (round.notes?.trim() || null) === notes &&
-    (round.attendeeEmail?.trim() || null) === attendeeEmail;
+    (round.attendeeEmail?.trim() || null) === attendeeEmail &&
+    (round.attendeeName?.trim() || null) === attendeeName;
 
   if (unchanged) {
     return { error: "unchanged" as const };
@@ -707,6 +731,7 @@ export async function rescheduleInterviewRound(
       timezone,
       notes,
       attendeeEmail,
+      attendeeName,
       attendeeCancelToken: generateAttendeeCancelToken(),
       ...(!wasConfirmed
         ? { confirmationTokenExpiresAt: confirmationTokenExpiresAtFromNow() }
@@ -729,6 +754,7 @@ export async function rescheduleInterviewRound(
           confirmationToken: updated.confirmationToken,
           jobDescriptionSnapshot: updated.jobDescriptionSnapshot,
           attendeeEmail: updated.attendeeEmail,
+          attendeeName: updated.attendeeName,
           attendeeCancelToken: updated.attendeeCancelToken,
         },
         previousScheduledAt,
@@ -826,7 +852,7 @@ export async function confirmInterviewRound(token: string) {
 
   const updated = await prisma.interviewRound.findUnique({
     where: { id: round.id },
-    select: { meetLink: true, attendeeEmail: true, attendeeCancelToken: true },
+    select: { meetLink: true, attendeeEmail: true, attendeeName: true, attendeeCancelToken: true },
   });
 
   const finalMeetLink = updated?.meetLink ?? meetLink;
@@ -851,6 +877,7 @@ export async function confirmInterviewRound(token: string) {
     try {
       await sendInterviewAttendeeConfirmedEmail({
         to: attendeeEmail,
+        attendeeName: updated?.attendeeName,
         candidateName: round.application.name,
         jobTitle: round.application.jobPosting.title,
         roundNumber: round.roundNumber,

@@ -2,6 +2,7 @@ import * as React from "react";
 import { CareersInterviewJdEmailBlock } from "@/components/careers-interview-jd-email-block";
 
 export interface CareersInterviewRescheduledAttendeeEmailProps {
+  attendeeName: string;
   candidateName: string;
   jobTitle: string;
   roundNumber: number;
@@ -12,6 +13,7 @@ export interface CareersInterviewRescheduledAttendeeEmailProps {
 }
 
 export function CareersInterviewRescheduledAttendeeEmailTemplate({
+  attendeeName,
   candidateName,
   jobTitle,
   roundNumber,
@@ -28,7 +30,7 @@ export function CareersInterviewRescheduledAttendeeEmailTemplate({
         Interview rescheduled
       </h1>
       <p style={{ color: "#333333", lineHeight: 1.6, fontStyle: "normal" }}>
-        Hi,
+        Hi {attendeeName},
       </p>
       <p style={{ color: "#333333", lineHeight: 1.6 }}>
         The <strong>Round {roundNumber}</strong> interview for{" "}

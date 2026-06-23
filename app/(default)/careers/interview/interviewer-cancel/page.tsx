@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -176,15 +175,9 @@ function InterviewerCancelContent() {
             )}
 
             {(state === "success" || state === "already_cancelled") && (
-              <div className="mt-8">
-                <Button
-                  asChild
-                  variant="outline"
-                  className="h-11 w-full cursor-pointer rounded-xl font-montserrat text-sm font-medium sm:h-12 md:text-base"
-                >
-                  <Link href="/careers">Back to careers</Link>
-                </Button>
-              </div>
+              <p className="mt-8 font-montserrat text-sm text-[#5E5E5E] md:text-base">
+                You can close this page.
+              </p>
             )}
           </div>
         </section>

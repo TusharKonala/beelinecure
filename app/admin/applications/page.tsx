@@ -47,6 +47,7 @@ type ActiveInterviewRound = {
   timezone: string;
   confirmedAt: string | null;
   attendeeEmail: string | null;
+  attendeeName: string | null;
   notes: string | null;
 };
 
@@ -81,6 +82,7 @@ type ScheduleFormBaseline = {
   timezone: string;
   notes: string;
   attendeeEmail: string;
+  attendeeName: string;
 };
 
 function scheduleFormsEqual(
@@ -91,12 +93,22 @@ function scheduleFormsEqual(
     a.scheduledAt === b.scheduledAt &&
     a.timezone === b.timezone &&
     a.notes === b.notes &&
-    a.attendeeEmail === b.attendeeEmail
+    a.attendeeEmail === b.attendeeEmail &&
+    a.attendeeName === b.attendeeName
   );
 }
 
 function roundStatusLabel(round: ActiveInterviewRound): string {
   return round.confirmedAt ? "Confirmed" : "Non-confirmed";
+}
+
+function formatInterviewerLabel(round: ActiveInterviewRound): string | null {
+  const name = round.attendeeName?.trim();
+  const email = round.attendeeEmail?.trim();
+  if (name && email) return `${name} (${email})`;
+  if (name) return name;
+  if (email) return email;
+  return null;
 }
 
 function activeFutureInterviewRounds(app: JobApplication): ActiveInterviewRound[] {
@@ -168,7 +180,7 @@ function AdminCareersApplicationsContent() {
   const [interviewRoundFilter, setInterviewRoundFilter] =
     useState<InterviewRoundFilter>("ALL");
   const [interviewConfirmationFilter, setInterviewConfirmationFilter] =
-    useState<InterviewConfirmationFilter>("non-confirmed");
+    useState<InterviewConfirmationFilter>("all");
   const [interviewDate, setInterviewDate] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -194,6 +206,7 @@ function AdminCareersApplicationsContent() {
   );
   const [scheduleNotes, setScheduleNotes] = useState("");
   const [scheduleAttendee, setScheduleAttendee] = useState("");
+  const [scheduleAttendeeName, setScheduleAttendeeName] = useState("");
   const [scheduleError, setScheduleError] = useState<string | null>(null);
   const scheduleDatetimeRef = useRef<HTMLInputElement>(null);
   const [cancelTarget, setCancelTarget] = useState<{
@@ -210,7 +223,6 @@ function AdminCareersApplicationsContent() {
 
   const scoreBandActive = scoreBand !== "all";
   const interviewConfirmationActive = interviewConfirmationFilter !== "all";
-  const filtersLocked = interviewConfirmationActive;
 
   useEffect(() => {
     const fromUrl = searchParams.get("search")?.trim() ?? "";
@@ -218,11 +230,22 @@ function AdminCareersApplicationsContent() {
       setSearchInput(fromUrl);
       setDebouncedSearch(fromUrl);
     }
+
+    const rawStatus = searchParams.get("status")?.trim();
+    if (
+      rawStatus &&
+      applicationStatusValues.includes(rawStatus as ApplicationStatus)
+    ) {
+      setStatusFilter(rawStatus as ApplicationStatus);
+    }
+
     const confirmedParam = searchParams.get("interviewConfirmed")?.trim();
     if (confirmedParam === "true") {
       setInterviewConfirmationFilter("confirmed");
     } else if (confirmedParam === "false") {
       setInterviewConfirmationFilter("non-confirmed");
+    } else {
+      setInterviewConfirmationFilter("all");
     }
   }, [searchParams]);
 
@@ -232,12 +255,6 @@ function AdminCareersApplicationsContent() {
     }, 500);
     return () => window.clearTimeout(handle);
   }, [searchInput]);
-
-  useEffect(() => {
-    if (interviewConfirmationActive) {
-      setStatusFilter("SHORTLISTED");
-    }
-  }, [interviewConfirmationActive]);
 
   useEffect(() => {
     setMounted(true);
@@ -281,6 +298,20 @@ function AdminCareersApplicationsContent() {
     }
   }
 
+  function handleStatusAllClick() {
+    setStatusFilter("ALL");
+    setInterviewConfirmationFilter("all");
+    setInterviewDate("");
+  }
+
+  function handleInterviewConfirmationFilterChange(
+    value: Exclude<InterviewConfirmationFilter, "all">,
+  ) {
+    setInterviewConfirmationFilter((current) =>
+      current === value ? "all" : value,
+    );
+  }
+
   const loadApplications = useCallback(
     async (cursor: string | null, append: boolean) => {
       const requestId = ++appsRequestIdRef.current;
@@ -295,8 +326,7 @@ function AdminCareersApplicationsContent() {
         if (statusFilter !== "ALL") params.set("status", statusFilter);
         if (
           statusFilter === "SHORTLISTED" &&
-          interviewRoundFilter !== "ALL" &&
-          !interviewConfirmationActive
+          interviewRoundFilter !== "ALL"
         ) {
           params.set("interviewRound", interviewRoundFilter);
         }
@@ -308,16 +338,14 @@ function AdminCareersApplicationsContent() {
           if (interviewDate) params.set("interviewDate", interviewDate);
         }
         if (debouncedSearch) params.set("search", debouncedSearch);
-        if (!filtersLocked) {
-          if (statusFilter === "SHORTLISTED") {
-            const score = shortlistedScoreParams(shortlistedScore);
-            if (score.scoreMin) params.set("scoreMin", score.scoreMin);
-            if (score.scoreMax) params.set("scoreMax", score.scoreMax);
-          } else {
-            const band = scoreBandParams(scoreBand);
-            if (band.scoreMin) params.set("scoreMin", band.scoreMin);
-            if (band.scoreMax) params.set("scoreMax", band.scoreMax);
-          }
+        if (statusFilter === "SHORTLISTED") {
+          const score = shortlistedScoreParams(shortlistedScore);
+          if (score.scoreMin) params.set("scoreMin", score.scoreMin);
+          if (score.scoreMax) params.set("scoreMax", score.scoreMax);
+        } else {
+          const band = scoreBandParams(scoreBand);
+          if (band.scoreMin) params.set("scoreMin", band.scoreMin);
+          if (band.scoreMax) params.set("scoreMax", band.scoreMax);
         }
         const res = await fetch(
           `/api/admin/careers/applications?${params}`,
@@ -362,7 +390,6 @@ function AdminCareersApplicationsContent() {
       interviewConfirmationActive,
       interviewDate,
       debouncedSearch,
-      filtersLocked,
     ],
   );
 
@@ -436,6 +463,7 @@ function AdminCareersApplicationsContent() {
     setScheduleTimezone(defaultInterviewTimezone());
     setScheduleNotes("");
     setScheduleAttendee("");
+    setScheduleAttendeeName("");
     setScheduleError(null);
   }
 
@@ -451,6 +479,7 @@ function AdminCareersApplicationsContent() {
     setScheduleTimezone(defaultInterviewTimezone());
     setScheduleNotes("");
     setScheduleAttendee("");
+    setScheduleAttendeeName("");
     setScheduleError(null);
   }
 
@@ -474,11 +503,13 @@ function AdminCareersApplicationsContent() {
     );
     const notes = round.notes ?? "";
     const attendee = round.attendeeEmail ?? "";
+    const attendeeName = round.attendeeName ?? "";
     const baseline: ScheduleFormBaseline = {
       scheduledAt: at,
       timezone: round.timezone,
       notes,
       attendeeEmail: attendee,
+      attendeeName,
     };
     setScheduleTarget(app);
     setScheduleMode("reschedule");
@@ -488,6 +519,7 @@ function AdminCareersApplicationsContent() {
     setScheduleTimezone(round.timezone);
     setScheduleNotes(notes);
     setScheduleAttendee(attendee);
+    setScheduleAttendeeName(attendeeName);
     setScheduleError(null);
   }
 
@@ -496,6 +528,7 @@ function AdminCareersApplicationsContent() {
     timezone: scheduleTimezone,
     notes: scheduleNotes,
     attendeeEmail: scheduleAttendee,
+    attendeeName: scheduleAttendeeName,
   };
 
   const scheduleUnchanged =
@@ -525,6 +558,7 @@ function AdminCareersApplicationsContent() {
         timezone: scheduleTimezone,
         notes: scheduleNotes.trim() || null,
         attendeeEmail: scheduleAttendee.trim() || null,
+        attendeeName: scheduleAttendeeName.trim() || null,
       };
 
       if (scheduleMode === "reschedule" && rescheduleRound) {
@@ -789,7 +823,6 @@ function AdminCareersApplicationsContent() {
         <div className="mt-4 flex flex-wrap items-center gap-2">
           {(
             [
-              ["all", "All interviews"],
               ["confirmed", "Confirmed"],
               ["non-confirmed", "Non-confirmed"],
             ] as const
@@ -797,7 +830,7 @@ function AdminCareersApplicationsContent() {
             <button
               key={value}
               type="button"
-              onClick={() => setInterviewConfirmationFilter(value)}
+              onClick={() => handleInterviewConfirmationFilterChange(value)}
               className={`rounded-full border px-3 py-1 font-montserrat text-xs font-medium ${
                 interviewConfirmationFilter === value
                   ? "cursor-pointer border-[#2555F3] bg-[#eef3ff] text-[#2555F3]"
@@ -838,10 +871,10 @@ function AdminCareersApplicationsContent() {
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <button
             type="button"
-            disabled={scoreBandActive || filtersLocked}
-            onClick={() => setStatusFilter("ALL")}
+            disabled={scoreBandActive}
+            onClick={handleStatusAllClick}
             className={`rounded-full border px-3 py-1 font-montserrat text-xs font-medium ${
-              scoreBandActive || filtersLocked
+              scoreBandActive
                 ? "cursor-not-allowed border-[#e5e5e5] bg-[#f5f5f5] text-[#9e9e9e] opacity-60"
                 : statusFilter === "ALL"
                   ? "cursor-pointer border-[#2555F3] bg-[#eef3ff] text-[#2555F3]"
@@ -852,8 +885,7 @@ function AdminCareersApplicationsContent() {
           </button>
           {applicationStatusValues.map((s) => {
             const isPending = s === "PENDING";
-            const disabled =
-              filtersLocked || (scoreBandActive && !isPending);
+            const disabled = scoreBandActive && !isPending;
             return (
               <button
                 key={s}
@@ -872,7 +904,7 @@ function AdminCareersApplicationsContent() {
               </button>
             );
           })}
-          {statusFilter === "SHORTLISTED" && !filtersLocked ? (
+          {statusFilter === "SHORTLISTED" ? (
             <div className="flex items-center gap-2 sm:ml-1">
               <label
                 htmlFor="interview-round-filter"
@@ -903,8 +935,7 @@ function AdminCareersApplicationsContent() {
             </div>
           ) : null}
         </div>
-        {!filtersLocked ? (
-          statusFilter === "SHORTLISTED" ? (
+        {statusFilter === "SHORTLISTED" ? (
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <label
                 htmlFor="shortlisted-score-filter"
@@ -952,9 +983,8 @@ function AdminCareersApplicationsContent() {
                 </button>
               ))}
             </div>
-          )
-        ) : null}
-        {scoreBandActive && !filtersLocked && statusFilter !== "SHORTLISTED" ? (
+          )}
+        {scoreBandActive && statusFilter !== "SHORTLISTED" ? (
           <div className="mt-3 flex flex-wrap gap-2">
             {(scoreBand === "low" || scoreBand === "mid") && (
               <Button
@@ -1022,7 +1052,11 @@ function AdminCareersApplicationsContent() {
                     {app.interviewRounds.length > 0 ? (
                       <span className="inline-flex items-center rounded-full border border-[#d7e4ff] bg-[#eef3ff] px-2.5 py-1 font-montserrat text-xs font-medium text-[#2555F3]">
                         {app.interviewRounds.length === 1
-                          ? `Round ${app.interviewRounds[0]!.roundNumber} · ${roundStatusLabel(app.interviewRounds[0]!)}`
+                          ? `Round ${app.interviewRounds[0]!.roundNumber} · ${roundStatusLabel(app.interviewRounds[0]!)}${
+                              app.interviewRounds[0]!.attendeeName?.trim()
+                                ? ` · ${app.interviewRounds[0]!.attendeeName!.trim()}`
+                                : ""
+                            }`
                           : `${app.interviewRounds.length} active interviews`}
                       </span>
                     ) : null}
@@ -1073,6 +1107,11 @@ function AdminCareersApplicationsContent() {
                               round.timezone,
                             )}
                           </p>
+                          {formatInterviewerLabel(round) ? (
+                            <p className="font-montserrat text-xs text-[#5e5e5e]">
+                              Interviewer: {formatInterviewerLabel(round)}
+                            </p>
+                          ) : null}
                         </div>
                         <div className="flex flex-wrap gap-2">
                           <button
@@ -1251,6 +1290,19 @@ function AdminCareersApplicationsContent() {
                   </div>
                   <div>
                     <label className="mb-1 block font-montserrat text-sm font-medium text-[#333333]">
+                      Interviewer name (optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={scheduleAttendeeName}
+                      onChange={(e) => setScheduleAttendeeName(e.target.value)}
+                      placeholder="Jane Doe"
+                      maxLength={255}
+                      className="w-full rounded-xl border border-[#e5e5e5] px-3 py-2 font-montserrat text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block font-montserrat text-sm font-medium text-[#333333]">
                       Interviewer email (optional)
                     </label>
                     <input
@@ -1369,6 +1421,12 @@ function AdminCareersApplicationsContent() {
                 <p className="mt-2 font-montserrat text-sm text-[#5e5e5e]">
                   Round {cancelTarget.round.roundNumber} for{" "}
                   {cancelTarget.app.name} will be cancelled.
+                  {formatInterviewerLabel(cancelTarget.round) ? (
+                    <>
+                      {" "}
+                      Interviewer: {formatInterviewerLabel(cancelTarget.round)}.
+                    </>
+                  ) : null}
                   {cancelTarget.round.confirmedAt
                     ? " The candidate and interviewer will be notified by email."
                     : " No emails will be sent because the interview was not confirmed."}

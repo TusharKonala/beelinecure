@@ -3,6 +3,8 @@ import * as React from "react";
 export interface CareersInterviewInterviewerCancelledAdminEmailProps {
   candidateName: string;
   candidateEmail: string;
+  interviewerName: string | null;
+  interviewerEmail: string | null;
   jobTitle: string;
   roundNumber: number;
   scheduledAtLabel: string;
@@ -12,6 +14,8 @@ export interface CareersInterviewInterviewerCancelledAdminEmailProps {
 export function CareersInterviewInterviewerCancelledAdminEmailTemplate({
   candidateName,
   candidateEmail,
+  interviewerName,
+  interviewerEmail,
   jobTitle,
   roundNumber,
   scheduledAtLabel,
@@ -29,6 +33,13 @@ export function CareersInterviewInterviewerCancelledAdminEmailTemplate({
         <strong>{jobTitle}</strong> with candidate{" "}
         <strong>{candidateName}</strong> ({candidateEmail}).
       </p>
+      {interviewerName || interviewerEmail ? (
+        <p style={{ color: "#333333", lineHeight: 1.6 }}>
+          <strong>Interviewer:</strong>{" "}
+          {interviewerName ?? "Unknown"}
+          {interviewerEmail ? ` (${interviewerEmail})` : ""}
+        </p>
+      ) : null}
       <p style={{ color: "#333333", lineHeight: 1.6, fontWeight: 600 }}>
         Was scheduled for: {scheduledAtLabel}
       </p>
