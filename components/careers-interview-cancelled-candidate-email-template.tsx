@@ -66,8 +66,7 @@ export function CareersInterviewCancelledCandidateEmailTemplate({
         {cancellationReason}
       </p>
       <p style={{ color: "#333333", lineHeight: 1.6 }}>
-        Thank you for your interest in BeelineCure. If you have questions, please
-        reply to this email.
+        Thank you for your interest in BeelineCure.
       </p>
     </div>
   );
