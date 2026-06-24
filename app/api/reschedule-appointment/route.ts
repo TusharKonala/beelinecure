@@ -1,12 +1,12 @@
 import { prisma } from "@/lib/db";
-import { AppointmentStatus } from "@/generated/prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { headers } from "next/headers";
-import { fromZonedTime } from "date-fns-tz";
 import { reschedulePatientAppointment } from "@/lib/appointment-reschedule";
-
-const RESCHEDULE_MIN_LEAD_TIME_MS = 24 * 60 * 60 * 1000;
+import {
+  evaluateRescheduleEligibility,
+  type RescheduleEligibilityCode,
+} from "@/lib/appointment-reschedule-eligibility";
 
 const rescheduleTokenSchema = z.object({
   appointmentId: z.string().min(1),
@@ -41,9 +41,23 @@ function formatDateOnly(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
-function getAppointmentStartMs(dateParam: string, time: string, timezone: string): number {
-  const timeWithSeconds = time.length === 5 ? `${time}:00` : time;
-  return fromZonedTime(`${dateParam}T${timeWithSeconds}`, timezone).getTime();
+function patientStatusFromEligibility(
+  code: RescheduleEligibilityCode,
+): RescheduleResponse["status"] {
+  switch (code) {
+    case "eligible":
+      return "success";
+    case "cancelled":
+      return "already_cancelled";
+    case "appointment_passed":
+      return "appointment_passed";
+    case "too_close_to_reschedule":
+      return "too_close_to_reschedule";
+    case "completed":
+    case "missing_tokens":
+    default:
+      return "invalid_link";
+  }
 }
 
 export async function GET(request: NextRequest) {
@@ -74,32 +88,12 @@ export async function GET(request: NextRequest) {
     } satisfies RescheduleResponse);
   }
 
-  if (appointment.status === AppointmentStatus.CANCELLED) {
+  const eligibility = evaluateRescheduleEligibility(appointment, {
+    requireTokens: true,
+  });
+  if (eligibility !== "eligible") {
     return NextResponse.json({
-      status: "already_cancelled",
-    } satisfies RescheduleResponse);
-  }
-
-  if (appointment.status === AppointmentStatus.COMPLETED) {
-    return NextResponse.json({
-      status: "invalid_link",
-    } satisfies RescheduleResponse);
-  }
-
-  const appointmentDateParam = appointment.date.toISOString().slice(0, 10);
-  const appointmentStartMs = getAppointmentStartMs(
-    appointmentDateParam,
-    appointment.time,
-    appointment.timezone,
-  );
-  if (appointmentStartMs <= Date.now()) {
-    return NextResponse.json({
-      status: "appointment_passed",
-    } satisfies RescheduleResponse);
-  }
-  if (appointmentStartMs - Date.now() < RESCHEDULE_MIN_LEAD_TIME_MS) {
-    return NextResponse.json({
-      status: "too_close_to_reschedule",
+      status: patientStatusFromEligibility(eligibility),
     } satisfies RescheduleResponse);
   }
 
@@ -155,32 +149,12 @@ export async function POST(request: NextRequest) {
     } satisfies RescheduleResponse);
   }
 
-  if (appointment.status === AppointmentStatus.CANCELLED) {
+  const eligibility = evaluateRescheduleEligibility(appointment, {
+    requireTokens: true,
+  });
+  if (eligibility !== "eligible") {
     return NextResponse.json({
-      status: "already_cancelled",
-    } satisfies RescheduleResponse);
-  }
-
-  if (appointment.status === AppointmentStatus.COMPLETED) {
-    return NextResponse.json({
-      status: "invalid_link",
-    } satisfies RescheduleResponse);
-  }
-
-  const appointmentDateParam = appointment.date.toISOString().slice(0, 10);
-  const appointmentStartMs = getAppointmentStartMs(
-    appointmentDateParam,
-    appointment.time,
-    appointment.timezone,
-  );
-  if (appointmentStartMs <= Date.now()) {
-    return NextResponse.json({
-      status: "appointment_passed",
-    } satisfies RescheduleResponse);
-  }
-  if (appointmentStartMs - Date.now() < RESCHEDULE_MIN_LEAD_TIME_MS) {
-    return NextResponse.json({
-      status: "too_close_to_reschedule",
+      status: patientStatusFromEligibility(eligibility),
     } satisfies RescheduleResponse);
   }
 
@@ -191,8 +165,6 @@ export async function POST(request: NextRequest) {
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ??
     "http://localhost:3000";
 
-  // Patient reschedule via tokenized link — set the patient as the actor so
-  // their toaster suppresses the live toast for their own action.
   const patientUser = await prisma.user.findUnique({
     where: { email: appointment.email },
     select: { id: true },
@@ -215,6 +187,7 @@ export async function POST(request: NextRequest) {
     patientTimezoneOverride: patientTimezone,
     requestOrigin,
     actorUserId: patientUser?.id ?? null,
+    initiatedBy: "patient",
   });
 
   if (!result.ok) {

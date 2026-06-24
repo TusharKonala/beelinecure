@@ -11,6 +11,7 @@ import { inngest } from "@/inngest/client";
 import { createAppointmentNotificationForEmail } from "@/lib/notifications";
 import { buildEmailPriceLabels } from "@/lib/email-price-labels";
 import { rescheduleConfirmationEmailMessage } from "@/lib/reschedule-policy-copy";
+import type { RescheduleInitiator } from "@/lib/appointment-reschedule-eligibility";
 import {
   clinicT120ReminderAtMs,
   onlineT15ReminderAtMs,
@@ -57,6 +58,7 @@ export async function reschedulePatientAppointment(input: {
    * is also the actor.
    */
   actorUserId?: string | null;
+  initiatedBy?: RescheduleInitiator;
 }): Promise<{ ok: true } | { ok: false; code: "slot_unavailable" }> {
   const {
     appointment,
@@ -66,6 +68,7 @@ export async function reschedulePatientAppointment(input: {
     patientTimezoneOverride,
     requestOrigin,
     actorUserId,
+    initiatedBy = "patient",
   } = input;
 
   const conflict = await prisma.appointment.findFirst({
@@ -218,6 +221,7 @@ export async function reschedulePatientAppointment(input: {
             updatedAppointment.consultationType === ConsultationType.ONLINE
               ? "ONLINE"
               : "CLINIC",
+            initiatedBy,
           ),
           doctorName: doctor.name,
           appointmentDate: formatDateInPatientTz(
@@ -270,13 +274,19 @@ export async function reschedulePatientAppointment(input: {
     const doctorDisplayName = doctor?.name
       ? formatDoctorDisplayName(doctor.name)
       : null;
+    const rescheduleNotifyMessage =
+      initiatedBy === "admin"
+        ? `Our team rescheduled your appointment${
+            doctorDisplayName ? ` with ${doctorDisplayName}` : ""
+          } to ${formattedDate} at ${formattedTime}.`
+        : `Your appointment${
+            doctorDisplayName ? ` with ${doctorDisplayName}` : ""
+          } is now set for ${formattedDate} at ${formattedTime}.`;
     await createAppointmentNotificationForEmail({
       patientEmail: updatedAppointment.email,
       type: NotificationType.APPOINTMENT_RESCHEDULED,
       title: "Appointment rescheduled",
-      message: `Your appointment${
-        doctorDisplayName ? ` with ${doctorDisplayName}` : ""
-      } is now set for ${formattedDate} at ${formattedTime}.`,
+      message: rescheduleNotifyMessage,
       actorUserId: actorUserId ?? null,
     });
   } catch (err) {

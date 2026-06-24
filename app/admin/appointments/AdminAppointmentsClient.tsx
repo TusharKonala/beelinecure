@@ -20,6 +20,8 @@ import { formatDoctorDisplayName } from "@/lib/doctor-name";
 import { currencyForTimezone } from "@/lib/currency";
 import { useAppointmentsListPoll } from "@/lib/use-appointments-list-poll";
 import { APPOINTMENT_CANCELLATION_NOTE_MAX_CHARS } from "@/lib/appointment-schemas";
+import { isAppointmentReschedulableFromParts } from "@/lib/appointment-reschedule-eligibility";
+import { RESCHEDULE_ONLY_MORE_THAN_24H } from "@/lib/reschedule-policy-copy";
 import { countChars } from "@/lib/text-char-limit";
 
 type ConsultationType = "CLINIC" | "ONLINE";
@@ -385,6 +387,16 @@ export default function AdminAppointmentsClient() {
     hasSelectionInteraction && isCurrentAppointmentSlot;
 
   function openReschedule(a: AdminAppointmentItem) {
+    if (
+      !isAppointmentReschedulableFromParts({
+        status: a.status,
+        dateParam: a.date,
+        time: a.time,
+        timezone: a.timezone,
+      })
+    ) {
+      return;
+    }
     setRescheduleTarget(a);
     setRescheduleStep("pick");
     setSelectedDate(a.date);
@@ -675,14 +687,21 @@ export default function AdminAppointmentsClient() {
                     >
                       Cancel
                     </Button>
-                    <Button
-                      type="button"
-                      className="cursor-pointer rounded-xl font-montserrat"
-                      size="sm"
-                      onClick={() => openReschedule(a)}
-                    >
-                      Reschedule
-                    </Button>
+                    {isAppointmentReschedulableFromParts({
+                      status: a.status,
+                      dateParam: a.date,
+                      time: a.time,
+                      timezone: a.timezone,
+                    }) ? (
+                      <Button
+                        type="button"
+                        className="cursor-pointer rounded-xl font-montserrat"
+                        size="sm"
+                        onClick={() => openReschedule(a)}
+                      >
+                        Reschedule
+                      </Button>
+                    ) : null}
                   </div>
                 )}
                 {tab === "pending-review" && (
@@ -868,7 +887,7 @@ export default function AdminAppointmentsClient() {
               </h2>
               <p className="mt-2 font-montserrat text-sm text-[#5E5E5E]">
                 {rescheduleStep === "pick"
-                  ? `Choose a new slot for ${rescheduleTarget.patientName} with ${formatDoctorDisplayName(rescheduleTarget.doctor.name)}. Only ${rescheduleTarget.durationMinutes}-minute slots are shown.`
+                  ? `Choose a new slot for ${rescheduleTarget.patientName} with ${formatDoctorDisplayName(rescheduleTarget.doctor.name)}. Only ${rescheduleTarget.durationMinutes}-minute slots are shown. ${RESCHEDULE_ONLY_MORE_THAN_24H}`
                   : slotTzView === "patient"
                     ? `Move this appointment to ${formatDateInPatientTz(selectedDate, selectedSlot!, doctorTz, rescheduleTarget.patientTimezone)} at ${formatTimeInPatientTz(selectedDate, selectedSlot!, doctorTz, rescheduleTarget.patientTimezone)} (${rescheduleTarget.patientTimezone})?`
                     : `Move this appointment to ${formatDateInDoctorTz(selectedDate, selectedSlot!, doctorTz)} at ${formatTimeInDoctorTz(selectedDate, selectedSlot!, doctorTz)} (${doctorTz})?`}

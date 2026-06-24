@@ -1,10 +1,10 @@
 import { getServerSession } from "next-auth/next";
 import { NextRequest, NextResponse } from "next/server";
-import { AppointmentStatus, UserRole } from "@/generated/prisma/client";
+import { UserRole } from "@/generated/prisma/client";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { reschedulePatientAppointment } from "@/lib/appointment-reschedule";
-import { fromZonedTime } from "date-fns-tz";
+import { evaluateRescheduleEligibility } from "@/lib/appointment-reschedule-eligibility";
 import { z } from "zod";
 import { headers } from "next/headers";
 
@@ -19,6 +19,32 @@ function parseDateOnly(value: string): Date | null {
   if (Number.isNaN(date.getTime())) return null;
   date.setUTCHours(0, 0, 0, 0);
   return date;
+}
+
+function adminErrorFromEligibility(
+  code: ReturnType<typeof evaluateRescheduleEligibility>,
+): { error: string; status: number } {
+  switch (code) {
+    case "cancelled":
+      return { error: "Appointment is cancelled", status: 409 };
+    case "completed":
+      return { error: "Appointment is completed", status: 409 };
+    case "appointment_passed":
+      return { error: "Cannot reschedule a past appointment", status: 409 };
+    case "too_close_to_reschedule":
+      return {
+        error:
+          "Cannot reschedule within 24 hours of the appointment. Cancel and ask the patient to book again.",
+        status: 409,
+      };
+    case "missing_tokens":
+      return {
+        error: "Appointment is missing cancel/reschedule tokens",
+        status: 409,
+      };
+    default:
+      return { error: "Appointment cannot be rescheduled", status: 409 };
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -50,39 +76,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Appointment not found" }, { status: 404 });
   }
 
-  if (appointment.status === AppointmentStatus.CANCELLED) {
-    return NextResponse.json(
-      { error: "Appointment is cancelled" },
-      { status: 409 },
-    );
-  }
-
-  if (appointment.status === AppointmentStatus.COMPLETED) {
-    return NextResponse.json(
-      { error: "Appointment is completed" },
-      { status: 409 },
-    );
-  }
-
-  const appointmentDateParam = appointment.date.toISOString().slice(0, 10);
-  const timeWithSeconds =
-    appointment.time.length === 5 ? `${appointment.time}:00` : appointment.time;
-  const appointmentStartMs = fromZonedTime(
-    `${appointmentDateParam}T${timeWithSeconds}`,
-    appointment.timezone,
-  ).getTime();
-  if (appointmentStartMs <= Date.now()) {
-    return NextResponse.json(
-      { error: "Cannot reschedule a past appointment" },
-      { status: 409 },
-    );
-  }
-
-  if (!appointment.cancelToken || !appointment.rescheduleToken) {
-    return NextResponse.json(
-      { error: "Appointment is missing cancel/reschedule tokens" },
-      { status: 409 },
-    );
+  const eligibility = evaluateRescheduleEligibility(appointment, {
+    requireTokens: true,
+  });
+  if (eligibility !== "eligible") {
+    const { error, status } = adminErrorFromEligibility(eligibility);
+    return NextResponse.json({ error }, { status });
   }
 
   const headersList = await headers();
@@ -108,10 +107,8 @@ export async function POST(request: NextRequest) {
     date,
     time,
     requestOrigin,
-    // Admin is the actor; doesn't match patient or doctor recipient so toasts
-    // for them remain (admin's own toast is irrelevant since reschedule
-    // doesn't notify admins).
     actorUserId: session.user.id,
+    initiatedBy: "admin",
   });
 
   if (!result.ok) {
