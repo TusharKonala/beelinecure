@@ -39,6 +39,11 @@ export function CareersInterviewReminderEmailTemplate({
       <p style={{ color: "#333333", lineHeight: 1.6, fontWeight: 600 }}>
         {scheduledAtLabel}
       </p>
+      <p style={{ color: "#333333", lineHeight: 1.6 }}>
+        Join the Google Meet link at the scheduled time. Please have a stable
+        internet connection and join a few minutes early if possible.
+      </p>
+      <CareersInterviewJdEmailBlock jobDescription={jobDescription} />
       {meetLink ? (
         <div style={{ marginTop: "1.5rem", marginBottom: "1.5rem" }}>
           <a
@@ -57,11 +62,6 @@ export function CareersInterviewReminderEmailTemplate({
           </a>
         </div>
       ) : null}
-      <p style={{ color: "#333333", lineHeight: 1.6 }}>
-        Join the Google Meet link at the scheduled time. Please have a stable
-        internet connection and join a few minutes early if possible.
-      </p>
-      <CareersInterviewJdEmailBlock jobDescription={jobDescription} />
       {cancelUrl ? (
         <p style={{ marginTop: "1.5rem", color: "#5e5e5e", lineHeight: 1.6, fontSize: "14px" }}>
           Need to cancel?{" "}

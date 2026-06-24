@@ -39,6 +39,16 @@ export function CareersInterviewAttendeeConfirmedEmailTemplate({
       <p style={{ color: "#333333", lineHeight: 1.6, fontWeight: 600 }}>
         {scheduledAtLabel}
       </p>
+      {!meetLink ? (
+        <p style={{ color: "#5e5e5e", lineHeight: 1.6 }}>
+          The meeting link will be shared when available.
+        </p>
+      ) : null}
+      <p style={{ color: "#333333", lineHeight: 1.6 }}>
+        Join the Google Meet link at the scheduled time. The candidate has been
+        notified with the same details.
+      </p>
+      <CareersInterviewJdEmailBlock jobDescription={jobDescription} />
       {meetLink ? (
         <div style={{ marginTop: "1.5rem", marginBottom: "1.5rem" }}>
           <a
@@ -56,16 +66,7 @@ export function CareersInterviewAttendeeConfirmedEmailTemplate({
             Join Google Meet
           </a>
         </div>
-      ) : (
-        <p style={{ color: "#5e5e5e", lineHeight: 1.6 }}>
-          The meeting link will be shared when available.
-        </p>
-      )}
-      <p style={{ color: "#333333", lineHeight: 1.6 }}>
-        Join the Google Meet link at the scheduled time. The candidate has been
-        notified with the same details.
-      </p>
-      <CareersInterviewJdEmailBlock jobDescription={jobDescription} />
+      ) : null}
       {cancelUrl ? (
         <p style={{ marginTop: "1.5rem", color: "#5e5e5e", lineHeight: 1.6, fontSize: "14px" }}>
           Need to cancel?{" "}

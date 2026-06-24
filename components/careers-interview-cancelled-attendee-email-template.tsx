@@ -6,6 +6,7 @@ export interface CareersInterviewCancelledAttendeeEmailProps {
   jobTitle: string;
   roundNumber: number;
   scheduledAtLabel: string;
+  cancellationReason: string;
 }
 
 export function CareersInterviewCancelledAttendeeEmailTemplate({
@@ -14,6 +15,7 @@ export function CareersInterviewCancelledAttendeeEmailTemplate({
   jobTitle,
   roundNumber,
   scheduledAtLabel,
+  cancellationReason,
 }: CareersInterviewCancelledAttendeeEmailProps) {
   return (
     <div
@@ -29,6 +31,9 @@ export function CareersInterviewCancelledAttendeeEmailTemplate({
         The <strong>Round {roundNumber}</strong> interview for{" "}
         <strong>{jobTitle}</strong> with <strong>{candidateName}</strong>{" "}
         scheduled for <strong>{scheduledAtLabel}</strong> has been cancelled.
+      </p>
+      <p style={{ color: "#333333", lineHeight: 1.6 }}>
+        <strong>Reason for cancellation:</strong> {cancellationReason}
       </p>
     </div>
   );

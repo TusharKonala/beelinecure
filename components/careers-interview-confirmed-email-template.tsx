@@ -32,6 +32,15 @@ export function CareersInterviewConfirmedEmailTemplate({
       <p style={{ color: "#333333", lineHeight: 1.6, fontWeight: 600 }}>
         {scheduledAtLabel}
       </p>
+      {!meetLink ? (
+        <p style={{ color: "#5e5e5e", lineHeight: 1.6 }}>
+          We will send your meeting link separately if it is not available yet.
+        </p>
+      ) : null}
+      <p style={{ color: "#333333", lineHeight: 1.6 }}>
+        Join the Google Meet link at the scheduled time. Please have a stable
+        internet connection and join a few minutes early if possible.
+      </p>
       {meetLink ? (
         <div style={{ marginTop: "1.5rem", marginBottom: "1.5rem" }}>
           <a
@@ -49,15 +58,7 @@ export function CareersInterviewConfirmedEmailTemplate({
             Join Google Meet
           </a>
         </div>
-      ) : (
-        <p style={{ color: "#5e5e5e", lineHeight: 1.6 }}>
-          We will send your meeting link separately if it is not available yet.
-        </p>
-      )}
-      <p style={{ color: "#333333", lineHeight: 1.6 }}>
-        Join the Google Meet link at the scheduled time. Please have a stable
-        internet connection and join a few minutes early if possible.
-      </p>
+      ) : null}
     </div>
   );
 }

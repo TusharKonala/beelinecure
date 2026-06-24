@@ -34,6 +34,18 @@ export function CareersInterviewInviteEmailTemplate({
       <p style={{ color: "#333333", lineHeight: 1.6, fontWeight: 600 }}>
         {scheduledAtLabel}
       </p>
+      {notes ? (
+        <p style={{ color: "#333333", lineHeight: 1.6, fontStyle: "normal" }}>
+          {notes}
+        </p>
+      ) : null}
+      <p style={{ color: "#333333", lineHeight: 1.6 }}>
+        Please confirm that this time works for you. Once confirmed, we will send
+        you a Google Meet link for the interview.
+      </p>
+      <p style={{ color: "#5e5e5e", lineHeight: 1.6, fontSize: "14px" }}>
+        This confirmation link expires in <strong>48 hours</strong>.
+      </p>
       <div style={{ marginTop: "1.5rem", marginBottom: "1.5rem" }}>
         <a
           href={confirmUrl}
@@ -50,18 +62,6 @@ export function CareersInterviewInviteEmailTemplate({
           Confirm availability
         </a>
       </div>
-      {notes ? (
-        <p style={{ color: "#333333", lineHeight: 1.6, fontStyle: "normal" }}>
-          {notes}
-        </p>
-      ) : null}
-      <p style={{ color: "#333333", lineHeight: 1.6 }}>
-        Please confirm that this time works for you. Once confirmed, we will send
-        you a Google Meet link for the interview.
-      </p>
-      <p style={{ color: "#5e5e5e", lineHeight: 1.6, fontSize: "14px" }}>
-        This confirmation link expires in <strong>48 hours</strong>.
-      </p>
     </div>
   );
 }

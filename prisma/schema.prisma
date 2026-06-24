@@ -498,6 +498,7 @@ model InterviewRound {
   googleCalendarEventId       String?
   scheduledByAdminId          String
   cancelledAt                 DateTime?
+  cancellationReason          String?        @db.Text
   createdAt                   DateTime       @default(now())
 
   // Unique (applicationId, roundNumber) only among non-cancelled rounds — see migration partial index.

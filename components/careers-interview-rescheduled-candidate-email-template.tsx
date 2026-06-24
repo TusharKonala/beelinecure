@@ -38,33 +38,33 @@ export function CareersInterviewRescheduledCandidateEmailTemplate({
         New time: {scheduledAtLabel}
       </p>
       {meetLink ? (
-        <>
-          <div style={{ marginTop: "1.5rem", marginBottom: "1.5rem" }}>
-            <a
-              href={meetLink}
-              style={{
-                display: "inline-block",
-                padding: "12px 16px",
-                backgroundColor: "#2555F3",
-                color: "#ffffff",
-                textDecoration: "none",
-                borderRadius: "8px",
-                fontWeight: 600,
-              }}
-            >
-              Join Google Meet
-            </a>
-          </div>
-          <p style={{ color: "#333333", lineHeight: 1.6 }}>
-            Join the Google Meet link at the new scheduled time.
-          </p>
-        </>
+        <p style={{ color: "#333333", lineHeight: 1.6 }}>
+          Join the Google Meet link at the new scheduled time.
+        </p>
       ) : (
         <p style={{ color: "#333333", lineHeight: 1.6, marginTop: "1rem" }}>
           Please use your confirmation link if you have not yet confirmed this
           time.
         </p>
       )}
+      {meetLink ? (
+        <div style={{ marginTop: "1.5rem", marginBottom: "1.5rem" }}>
+          <a
+            href={meetLink}
+            style={{
+              display: "inline-block",
+              padding: "12px 16px",
+              backgroundColor: "#2555F3",
+              color: "#ffffff",
+              textDecoration: "none",
+              borderRadius: "8px",
+              fontWeight: 600,
+            }}
+          >
+            Join Google Meet
+          </a>
+        </div>
+      ) : null}
     </div>
   );
 }

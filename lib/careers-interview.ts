@@ -58,11 +58,19 @@ export function resolveAppOrigin() {
   ).replace(/\/$/, "");
 }
 
-export function buildAdminApplicationSearchUrl(candidateEmail: string): string {
+export function buildAdminApplicationSearchUrl(
+  candidateEmail: string,
+  options?: { interviewConfirmed?: boolean },
+): string {
   const params = new URLSearchParams({
     search: candidateEmail,
     status: "SHORTLISTED",
   });
+  if (options?.interviewConfirmed === true) {
+    params.set("interviewConfirmed", "true");
+  } else if (options?.interviewConfirmed === false) {
+    params.set("interviewConfirmed", "false");
+  }
   return `${resolveAppOrigin()}/admin/applications?${params.toString()}`;
 }
 
@@ -244,7 +252,9 @@ export async function sendInterviewConfirmedEmailsBatch(params: {
     params.scheduledAt,
     params.adminTimezone,
   );
-  const applicationUrl = buildAdminApplicationSearchUrl(params.candidateEmail);
+  const applicationUrl = buildAdminApplicationSearchUrl(params.candidateEmail, {
+    interviewConfirmed: true,
+  });
   const from = getEmailFrom();
   const payloads: CreateBatchEmailOptions[] = [
     {
@@ -542,6 +552,7 @@ type InterviewCancelledRound = {
 
 function buildInterviewCancelledParticipantPayloads(
   round: InterviewCancelledRound,
+  cancellationReason: string,
 ): CreateBatchEmailOptions[] {
   const from = getEmailFrom();
   const jobTitle = round.application.jobPosting.title;
@@ -565,6 +576,7 @@ function buildInterviewCancelledParticipantPayloads(
         jobTitle,
         roundNumber: round.roundNumber,
         scheduledAtLabel: candidateScheduledAtLabel,
+        cancellationReason,
       }),
     },
   ];
@@ -581,6 +593,7 @@ function buildInterviewCancelledParticipantPayloads(
         jobTitle,
         roundNumber: round.roundNumber,
         scheduledAtLabel: attendeeScheduledAtLabel,
+        cancellationReason,
       }),
     });
   }
@@ -588,8 +601,14 @@ function buildInterviewCancelledParticipantPayloads(
   return payloads;
 }
 
-async function sendInterviewCancelledEmailsBatch(round: InterviewCancelledRound) {
-  const payloads = buildInterviewCancelledParticipantPayloads(round);
+async function sendInterviewCancelledEmailsBatch(
+  round: InterviewCancelledRound,
+  cancellationReason: string,
+) {
+  const payloads = buildInterviewCancelledParticipantPayloads(
+    round,
+    cancellationReason,
+  );
   const deduped = dedupeBatchPayloadsByTo(payloads, "interview-cancelled");
   await sendResendEmailBatch(deduped, "interview-cancelled");
 }
@@ -597,6 +616,7 @@ async function sendInterviewCancelledEmailsBatch(round: InterviewCancelledRound)
 async function sendInterviewerCancelledEmailsBatch(
   round: InterviewCancelledRound,
   includeParticipantCancellationEmails: boolean,
+  cancellationReason: string,
 ) {
   const from = getEmailFrom();
   const jobTitle = round.application.jobPosting.title;
@@ -608,7 +628,7 @@ async function sendInterviewerCancelledEmailsBatch(
 
   const payloads: CreateBatchEmailOptions[] =
     includeParticipantCancellationEmails
-      ? buildInterviewCancelledParticipantPayloads(round)
+      ? buildInterviewCancelledParticipantPayloads(round, cancellationReason)
       : [];
 
   const adminEmails = await getAdminEmails();
@@ -626,6 +646,7 @@ async function sendInterviewerCancelledEmailsBatch(
         roundNumber: round.roundNumber,
         scheduledAtLabel,
         applicationUrl,
+        cancellationReason,
       }),
     });
   }
@@ -767,7 +788,10 @@ export async function getAttendeeCancelPreview(token: string) {
   };
 }
 
-export async function cancelInterviewRoundByAttendeeToken(token: string) {
+export async function cancelInterviewRoundByAttendeeToken(
+  token: string,
+  cancellationReason: string,
+) {
   const round = await prisma.interviewRound.findUnique({
     where: { attendeeCancelToken: token },
     include: {
@@ -796,6 +820,7 @@ export async function cancelInterviewRoundByAttendeeToken(token: string) {
 
   const result = await cancelInterviewRound(round.id, {
     skipParticipantCancellationEmails: true,
+    cancellationReason,
   });
   if ("error" in result) {
     if (result.error === "already_cancelled") {
@@ -805,7 +830,11 @@ export async function cancelInterviewRoundByAttendeeToken(token: string) {
   }
 
   try {
-    await sendInterviewerCancelledEmailsBatch(round, wasConfirmed);
+    await sendInterviewerCancelledEmailsBatch(
+      round,
+      wasConfirmed,
+      cancellationReason,
+    );
   } catch (err) {
     console.error(
       "[careers-interview] Failed to send interviewer-cancelled emails:",
@@ -818,7 +847,10 @@ export async function cancelInterviewRoundByAttendeeToken(token: string) {
 
 export async function cancelInterviewRound(
   roundId: string,
-  options?: { skipParticipantCancellationEmails?: boolean },
+  options: {
+    cancellationReason: string;
+    skipParticipantCancellationEmails?: boolean;
+  },
 ) {
   const round = await prisma.interviewRound.findUnique({
     where: { id: roundId },
@@ -845,7 +877,10 @@ export async function cancelInterviewRound(
 
   await prisma.interviewRound.update({
     where: { id: roundId },
-    data: { cancelledAt: new Date() },
+    data: {
+      cancelledAt: new Date(),
+      cancellationReason: options.cancellationReason,
+    },
   });
 
   if (wasConfirmed) {
@@ -857,7 +892,10 @@ export async function cancelInterviewRound(
 
     if (!options?.skipParticipantCancellationEmails) {
       try {
-        await sendInterviewCancelledEmailsBatch(round);
+        await sendInterviewCancelledEmailsBatch(
+          round,
+          options.cancellationReason,
+        );
       } catch (err) {
         console.error(
           "[careers-interview] Failed to send cancellation emails:",
@@ -882,7 +920,9 @@ export async function cancelActiveFutureInterviewRounds(applicationId: string) {
   });
 
   for (const round of rounds) {
-    const result = await cancelInterviewRound(round.id);
+    const result = await cancelInterviewRound(round.id, {
+      cancellationReason: "Application rejected",
+    });
     if ("error" in result && result.error !== "already_cancelled") {
       throw new Error(
         result.error === "not_found"

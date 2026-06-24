@@ -2,6 +2,7 @@ import { z } from "zod";
 import { SUPPORTED_CURRENCIES } from "@/lib/currency";
 import {
   countChars,
+  INTERVIEW_CANCELLATION_REASON_MAX_CHARS,
   INTERVIEW_NOTES_MAX_CHARS,
 } from "@/lib/text-char-limit";
 
@@ -101,9 +102,24 @@ export const applicationStatusDropdownValues = applicationStatusValues.filter(
 
 export const MAX_INTERVIEW_ROUNDS = 4;
 
-export { INTERVIEW_NOTES_MAX_CHARS };
+export { INTERVIEW_NOTES_MAX_CHARS, INTERVIEW_CANCELLATION_REASON_MAX_CHARS };
 
 export const countInterviewNotesChars = countChars;
+
+export const countInterviewCancellationReasonChars = countChars;
+
+export const cancellationReasonSchema = z
+  .string()
+  .trim()
+  .min(1, "Cancellation reason is required")
+  .max(
+    INTERVIEW_CANCELLATION_REASON_MAX_CHARS,
+    `Cancellation reason must be ${INTERVIEW_CANCELLATION_REASON_MAX_CHARS} characters or fewer.`,
+  );
+
+export const cancelInterviewSchema = z.object({
+  cancellationReason: cancellationReasonSchema,
+});
 
 const interviewNotesSchema = z
   .string()

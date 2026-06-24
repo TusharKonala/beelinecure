@@ -9,7 +9,9 @@ import { Button } from "@/components/ui/button";
 import {
   applicationStatusDropdownValues,
   applicationStatusValues,
+  countInterviewCancellationReasonChars,
   countInterviewNotesChars,
+  INTERVIEW_CANCELLATION_REASON_MAX_CHARS,
   INTERVIEW_NOTES_MAX_CHARS,
   MAX_INTERVIEW_ROUNDS,
 } from "@/lib/careers-schemas";
@@ -213,6 +215,7 @@ function AdminCareersApplicationsContent() {
     app: JobApplication;
     round: ActiveInterviewRound;
   } | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
   const [hireTarget, setHireTarget] = useState<JobApplication | null>(null);
   const [rejectConfirmTarget, setRejectConfirmTarget] = useState<{
     app: JobApplication;
@@ -555,6 +558,10 @@ function AdminCareersApplicationsContent() {
   const scheduleNotesOverLimit =
     countInterviewNotesChars(scheduleNotes) > INTERVIEW_NOTES_MAX_CHARS;
 
+  const cancelReasonOverLimit =
+    countInterviewCancellationReasonChars(cancelReason) >
+    INTERVIEW_CANCELLATION_REASON_MAX_CHARS;
+
   async function handleScheduleInterview(e: React.FormEvent) {
     e.preventDefault();
     if (!scheduleTarget) return;
@@ -761,19 +768,26 @@ function AdminCareersApplicationsContent() {
 
   async function handleCancelInterview() {
     if (!cancelTarget) return;
+    const trimmedReason = cancelReason.trim();
+    if (!trimmedReason) return;
     const { app, round } = cancelTarget;
     setBusyId(app.id);
     setError(null);
     try {
       const res = await fetch(
         `/api/admin/careers/applications/${app.id}/interviews/${round.id}/cancel`,
-        { method: "POST" },
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cancellationReason: trimmedReason }),
+        },
       );
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.error ?? "Failed to cancel interview");
       }
       setCancelTarget(null);
+      setCancelReason("");
       void loadApplications(null, false);
     } catch (err) {
       setError(
@@ -1143,7 +1157,10 @@ function AdminCareersApplicationsContent() {
                           <button
                             type="button"
                             disabled={busyId === app.id}
-                            onClick={() => setCancelTarget({ app, round })}
+                            onClick={() => {
+                              setCancelReason("");
+                              setCancelTarget({ app, round });
+                            }}
                             className="cursor-pointer rounded-lg border border-[#ffd0d0] bg-[#fff6f6] px-2.5 py-1 font-montserrat text-xs font-medium text-[#b42318] hover:bg-[#ffe8e8] disabled:opacity-60"
                           >
                             Cancel
@@ -1312,7 +1329,7 @@ function AdminCareersApplicationsContent() {
                           />
                         </div>
                       </div>
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+                      <div className="space-y-3 sm:space-y-4">
                         <div>
                           <label className="mb-1 block font-montserrat text-sm font-medium text-[#333333]">
                             Interviewer name (optional)
@@ -1463,19 +1480,49 @@ function AdminCareersApplicationsContent() {
                     ? " The candidate and interviewer will be notified by email."
                     : " No emails will be sent because the interview was not confirmed."}
                 </p>
+                <div className="mt-4">
+                  <label
+                    htmlFor="cancel-reason"
+                    className="mb-1 block font-montserrat text-sm font-medium text-[#333333]"
+                  >
+                    Reason for cancellation
+                  </label>
+                  <textarea
+                    id="cancel-reason"
+                    rows={3}
+                    required
+                    maxLength={INTERVIEW_CANCELLATION_REASON_MAX_CHARS}
+                    value={cancelReason}
+                    onChange={(e) => setCancelReason(e.target.value)}
+                    placeholder="Please provide a reason for cancelling this interview"
+                    className="w-full rounded-xl border border-[#e5e5e5] px-3 py-2 font-montserrat text-sm"
+                  />
+                  <CharCountFooter
+                    value={cancelReason}
+                    maxChars={INTERVIEW_CANCELLATION_REASON_MAX_CHARS}
+                    overLimitHint=" — shorten the reason to cancel."
+                  />
+                </div>
                 <div className="mt-6 flex justify-end gap-2">
                   <Button
                     type="button"
                     variant="outline"
                     disabled={busyId === cancelTarget.app.id}
-                    onClick={() => setCancelTarget(null)}
+                    onClick={() => {
+                      setCancelTarget(null);
+                      setCancelReason("");
+                    }}
                     className="cursor-pointer rounded-full font-montserrat text-sm"
                   >
                     Keep interview
                   </Button>
                   <Button
                     type="button"
-                    disabled={busyId === cancelTarget.app.id}
+                    disabled={
+                      busyId === cancelTarget.app.id ||
+                      !cancelReason.trim() ||
+                      cancelReasonOverLimit
+                    }
                     onClick={() => void handleCancelInterview()}
                     className="cursor-pointer rounded-full bg-[#b42318] font-montserrat text-sm hover:bg-[#912018]"
                   >

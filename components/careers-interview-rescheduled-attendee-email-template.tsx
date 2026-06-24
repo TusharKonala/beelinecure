@@ -43,6 +43,7 @@ export function CareersInterviewRescheduledAttendeeEmailTemplate({
       <p style={{ color: "#333333", lineHeight: 1.6, fontWeight: 600 }}>
         New time: {scheduledAtLabel}
       </p>
+      <CareersInterviewJdEmailBlock jobDescription={jobDescription} />
       {meetLink ? (
         <div style={{ marginTop: "1.5rem", marginBottom: "1.5rem" }}>
           <a
@@ -61,7 +62,6 @@ export function CareersInterviewRescheduledAttendeeEmailTemplate({
           </a>
         </div>
       ) : null}
-      <CareersInterviewJdEmailBlock jobDescription={jobDescription} />
     </div>
   );
 }

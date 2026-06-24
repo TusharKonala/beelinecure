@@ -5,6 +5,7 @@ export interface CareersInterviewCancelledCandidateEmailProps {
   jobTitle: string;
   roundNumber: number;
   scheduledAtLabel: string;
+  cancellationReason: string;
 }
 
 export function CareersInterviewCancelledCandidateEmailTemplate({
@@ -12,6 +13,7 @@ export function CareersInterviewCancelledCandidateEmailTemplate({
   jobTitle,
   roundNumber,
   scheduledAtLabel,
+  cancellationReason,
 }: CareersInterviewCancelledCandidateEmailProps) {
   return (
     <div
@@ -27,6 +29,9 @@ export function CareersInterviewCancelledCandidateEmailTemplate({
         Your <strong>Round {roundNumber}</strong> interview for{" "}
         <strong>{jobTitle}</strong> scheduled for{" "}
         <strong>{scheduledAtLabel}</strong> has been cancelled.
+      </p>
+      <p style={{ color: "#333333", lineHeight: 1.6 }}>
+        <strong>Reason for cancellation:</strong> {cancellationReason}
       </p>
       <p style={{ color: "#333333", lineHeight: 1.6 }}>
         Thank you for your interest in BeelineCure. If you have questions, please

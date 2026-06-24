@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/careers-admin";
 import { cancelInterviewRound } from "@/lib/careers-interview";
+import { cancelInterviewSchema } from "@/lib/careers-schemas";
 import { prisma } from "@/lib/db";
 
 export async function POST(
-  _request: Request,
+  request: Request,
   context: {
     params: Promise<{ applicationId: string; roundId: string }>;
   },
@@ -19,6 +20,24 @@ export async function POST(
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
 
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json(
+      { error: "Cancellation reason is required" },
+      { status: 400 },
+    );
+  }
+
+  const parsed = cancelInterviewSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.issues[0]?.message ?? "Invalid request" },
+      { status: 400 },
+    );
+  }
+
   const round = await prisma.interviewRound.findFirst({
     where: { id: roundId, applicationId },
     select: { id: true },
@@ -27,7 +46,9 @@ export async function POST(
     return NextResponse.json({ error: "Interview not found" }, { status: 404 });
   }
 
-  const result = await cancelInterviewRound(roundId);
+  const result = await cancelInterviewRound(roundId, {
+    cancellationReason: parsed.data.cancellationReason,
+  });
   if ("error" in result) {
     if (result.error === "already_cancelled") {
       return NextResponse.json(

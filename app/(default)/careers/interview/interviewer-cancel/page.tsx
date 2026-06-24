@@ -4,6 +4,11 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Container } from "@/components/layout/Container";
+import { CharCountFooter } from "@/components/form/CharCountFooter";
+import {
+  countInterviewCancellationReasonChars,
+  INTERVIEW_CANCELLATION_REASON_MAX_CHARS,
+} from "@/lib/careers-schemas";
 
 type CancelUiState =
   | "idle"
@@ -29,10 +34,16 @@ function InterviewerCancelContent() {
 
   const [state, setState] = useState<CancelUiState>("idle");
   const [preview, setPreview] = useState<CancelPreview | null>(null);
+  const [cancellationReason, setCancellationReason] = useState("");
   const [isCancelling, setIsCancelling] = useState(false);
   const [hasCheckedStatus, setHasCheckedStatus] = useState(false);
 
   const canSubmit = token.length > 0;
+  const reasonOverLimit =
+    countInterviewCancellationReasonChars(cancellationReason) >
+    INTERVIEW_CANCELLATION_REASON_MAX_CHARS;
+  const canConfirmCancel =
+    cancellationReason.trim().length > 0 && !reasonOverLimit;
 
   useEffect(() => {
     if (!canSubmit) {
@@ -81,12 +92,18 @@ function InterviewerCancelContent() {
   }, [token, canSubmit]);
 
   async function onConfirmCancel() {
-    if (!canSubmit || isCancelling) return;
+    if (!canSubmit || isCancelling || !canConfirmCancel) return;
     setIsCancelling(true);
     try {
       const res = await fetch(
         `/api/careers/interview/attendee-cancel?token=${encodeURIComponent(token)}`,
-        { method: "POST" },
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            cancellationReason: cancellationReason.trim(),
+          }),
+        },
       );
       const json = (await res.json().catch(() => null)) as
         | { status?: string }
@@ -163,9 +180,32 @@ function InterviewerCancelContent() {
             </p>
 
             {state === "idle" && canSubmit && hasCheckedStatus && preview && (
-              <div className="mt-8">
+              <div className="mt-8 space-y-4">
+                <div>
+                  <label
+                    htmlFor="interviewer-cancel-reason"
+                    className="mb-1 block font-montserrat text-sm font-medium text-[#333333]"
+                  >
+                    Reason for cancellation
+                  </label>
+                  <textarea
+                    id="interviewer-cancel-reason"
+                    rows={3}
+                    required
+                    maxLength={INTERVIEW_CANCELLATION_REASON_MAX_CHARS}
+                    value={cancellationReason}
+                    onChange={(e) => setCancellationReason(e.target.value)}
+                    placeholder="Please provide a reason for cancelling this interview"
+                    className="w-full rounded-xl border border-[#e5e5e5] px-3 py-2 font-montserrat text-sm"
+                  />
+                  <CharCountFooter
+                    value={cancellationReason}
+                    maxChars={INTERVIEW_CANCELLATION_REASON_MAX_CHARS}
+                    overLimitHint=" — shorten the reason to cancel."
+                  />
+                </div>
                 <Button
-                  disabled={isCancelling}
+                  disabled={isCancelling || !canConfirmCancel}
                   onClick={() => void onConfirmCancel()}
                   className="h-11 w-full cursor-pointer rounded-xl bg-[#b42318] font-montserrat text-sm font-medium hover:bg-[#912018] sm:h-12 md:text-base"
                 >

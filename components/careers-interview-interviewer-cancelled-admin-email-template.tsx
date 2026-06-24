@@ -9,6 +9,7 @@ export interface CareersInterviewInterviewerCancelledAdminEmailProps {
   roundNumber: number;
   scheduledAtLabel: string;
   applicationUrl: string;
+  cancellationReason: string;
 }
 
 export function CareersInterviewInterviewerCancelledAdminEmailTemplate({
@@ -20,6 +21,7 @@ export function CareersInterviewInterviewerCancelledAdminEmailTemplate({
   roundNumber,
   scheduledAtLabel,
   applicationUrl,
+  cancellationReason,
 }: CareersInterviewInterviewerCancelledAdminEmailProps) {
   return (
     <div
@@ -42,6 +44,9 @@ export function CareersInterviewInterviewerCancelledAdminEmailTemplate({
       ) : null}
       <p style={{ color: "#333333", lineHeight: 1.6, fontWeight: 600 }}>
         Was scheduled for: {scheduledAtLabel}
+      </p>
+      <p style={{ color: "#333333", lineHeight: 1.6 }}>
+        <strong>Reason for cancellation:</strong> {cancellationReason}
       </p>
       <div style={{ marginTop: "1.5rem" }}>
         <a
