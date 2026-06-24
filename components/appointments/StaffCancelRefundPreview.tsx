@@ -87,7 +87,7 @@ export function StaffCancelRefundPreview({
                 {" "}
                 (
                 {formatRefundCents(
-                  refundPreview.originalPaidAmountCents,
+                  refundPreview.equivalentAmountCents!,
                   refundPreview.equivalentCurrency ?? null,
                 )}
                 )
