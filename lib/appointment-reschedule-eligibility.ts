@@ -1,4 +1,3 @@
-import { AppointmentStatus } from "@/generated/prisma/client";
 import { fromZonedTime } from "date-fns-tz";
 
 export const RESCHEDULE_MIN_LEAD_TIME_MS = 24 * 60 * 60 * 1000;
@@ -14,7 +13,7 @@ export type RescheduleEligibilityCode =
   | "too_close_to_reschedule";
 
 export type AppointmentRescheduleEligibilityInput = {
-  status: AppointmentStatus;
+  status: string;
   date: Date;
   time: string;
   timezone: string;
@@ -50,10 +49,10 @@ export function evaluateRescheduleEligibility(
   const nowMs = options?.nowMs ?? Date.now();
   const requireTokens = options?.requireTokens ?? true;
 
-  if (appointment.status === AppointmentStatus.CANCELLED) {
+  if (appointment.status === "CANCELLED") {
     return "cancelled";
   }
-  if (appointment.status === AppointmentStatus.COMPLETED) {
+  if (appointment.status === "COMPLETED") {
     return "completed";
   }
   if (
@@ -87,16 +86,16 @@ export function isAppointmentReschedulable(
   return evaluateRescheduleEligibility(appointment, options) === "eligible";
 }
 
-/** Client-side helper when only YYYY-MM-DD date string is available (admin list). */
+/** Client-safe helper when only YYYY-MM-DD date string is available (admin list). */
 export function isAppointmentReschedulableFromParts(input: {
-  status: AppointmentStatus | string;
+  status: string;
   dateParam: string;
   time: string;
   timezone: string;
   nowMs?: number;
 }): boolean {
-  if (input.status === AppointmentStatus.CANCELLED) return false;
-  if (input.status === AppointmentStatus.COMPLETED) return false;
+  if (input.status === "CANCELLED") return false;
+  if (input.status === "COMPLETED") return false;
   const nowMs = input.nowMs ?? Date.now();
   const startMs = getAppointmentStartMsFromParts(
     input.dateParam,
