@@ -1,11 +1,28 @@
 import * as React from "react";
 
+export type InterviewCancellationInitiator = "admin" | "interviewer";
+
 export interface CareersInterviewCancelledCandidateEmailProps {
   candidateName: string;
   jobTitle: string;
   roundNumber: number;
   scheduledAtLabel: string;
   cancellationReason: string;
+  cancelledBy: InterviewCancellationInitiator;
+  interviewerName?: string | null;
+}
+
+function cancellationNoteIntro(
+  cancelledBy: InterviewCancellationInitiator,
+  interviewerName?: string | null,
+): string {
+  if (cancelledBy === "interviewer") {
+    const name = interviewerName?.trim();
+    return name
+      ? `Your interviewer, ${name}, shared this note:`
+      : "Your interviewer shared this note:";
+  }
+  return "Our team shared this note:";
 }
 
 export function CareersInterviewCancelledCandidateEmailTemplate({
@@ -14,6 +31,8 @@ export function CareersInterviewCancelledCandidateEmailTemplate({
   roundNumber,
   scheduledAtLabel,
   cancellationReason,
+  cancelledBy,
+  interviewerName,
 }: CareersInterviewCancelledCandidateEmailProps) {
   return (
     <div
@@ -31,7 +50,20 @@ export function CareersInterviewCancelledCandidateEmailTemplate({
         <strong>{scheduledAtLabel}</strong> has been cancelled.
       </p>
       <p style={{ color: "#333333", lineHeight: 1.6 }}>
-        <strong>Reason for cancellation:</strong> {cancellationReason}
+        {cancellationNoteIntro(cancelledBy, interviewerName)}
+      </p>
+      <p
+        style={{
+          color: "#333333",
+          lineHeight: 1.6,
+          marginTop: "0.5rem",
+          marginBottom: "0.5rem",
+          paddingLeft: "1rem",
+          borderLeft: "3px solid #e5e5e5",
+          fontStyle: "italic",
+        }}
+      >
+        {cancellationReason}
       </p>
       <p style={{ color: "#333333", lineHeight: 1.6 }}>
         Thank you for your interest in BeelineCure. If you have questions, please

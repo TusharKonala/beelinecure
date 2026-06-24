@@ -536,6 +536,8 @@ export async function sendInterviewReminderEmailsBatch(
   return { sent: true, interviewRoundId };
 }
 
+type InterviewCancellationInitiator = "admin" | "interviewer";
+
 type InterviewCancelledRound = {
   roundNumber: number;
   scheduledAt: Date;
@@ -553,6 +555,7 @@ type InterviewCancelledRound = {
 function buildInterviewCancelledParticipantPayloads(
   round: InterviewCancelledRound,
   cancellationReason: string,
+  cancelledBy: InterviewCancellationInitiator,
 ): CreateBatchEmailOptions[] {
   const from = getEmailFrom();
   const jobTitle = round.application.jobPosting.title;
@@ -577,6 +580,8 @@ function buildInterviewCancelledParticipantPayloads(
         roundNumber: round.roundNumber,
         scheduledAtLabel: candidateScheduledAtLabel,
         cancellationReason,
+        cancelledBy,
+        interviewerName: round.attendeeName,
       }),
     },
   ];
@@ -604,10 +609,12 @@ function buildInterviewCancelledParticipantPayloads(
 async function sendInterviewCancelledEmailsBatch(
   round: InterviewCancelledRound,
   cancellationReason: string,
+  cancelledBy: InterviewCancellationInitiator,
 ) {
   const payloads = buildInterviewCancelledParticipantPayloads(
     round,
     cancellationReason,
+    cancelledBy,
   );
   const deduped = dedupeBatchPayloadsByTo(payloads, "interview-cancelled");
   await sendResendEmailBatch(deduped, "interview-cancelled");
@@ -628,7 +635,11 @@ async function sendInterviewerCancelledEmailsBatch(
 
   const payloads: CreateBatchEmailOptions[] =
     includeParticipantCancellationEmails
-      ? buildInterviewCancelledParticipantPayloads(round, cancellationReason)
+      ? buildInterviewCancelledParticipantPayloads(
+          round,
+          cancellationReason,
+          "interviewer",
+        )
       : [];
 
   const adminEmails = await getAdminEmails();
@@ -850,6 +861,7 @@ export async function cancelInterviewRound(
   options: {
     cancellationReason: string;
     skipParticipantCancellationEmails?: boolean;
+    cancelledBy?: InterviewCancellationInitiator;
   },
 ) {
   const round = await prisma.interviewRound.findUnique({
@@ -895,6 +907,7 @@ export async function cancelInterviewRound(
         await sendInterviewCancelledEmailsBatch(
           round,
           options.cancellationReason,
+          options.cancelledBy ?? "admin",
         );
       } catch (err) {
         console.error(
