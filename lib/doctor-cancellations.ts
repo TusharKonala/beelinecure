@@ -23,6 +23,18 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 type CancelReason = "patient_no_show" | "doctor_unavailable" | "doctor_holiday" | null;
 
+function staffCancellationNoteIntro(
+  isDoctorInitiated: boolean,
+  doctorDisplayName: string | null,
+): string {
+  if (isDoctorInitiated) {
+    return doctorDisplayName
+      ? `Your doctor, ${doctorDisplayName}, shared this note:`
+      : "Your doctor shared this note:";
+  }
+  return "Our team shared this note:";
+}
+
 function cancellationContent(reason: CancelReason) {
   if (reason === "patient_no_show") {
     return {
@@ -68,6 +80,7 @@ export async function cancelAppointmentByStaff(input: {
    * is also the actor.
    */
   actorUserId?: string | null;
+  cancellationNote?: string | null;
 }) {
   const appointment = await prisma.appointment.findFirst({
     where: {
@@ -101,6 +114,9 @@ export async function cancelAppointmentByStaff(input: {
   if (appointment.status === AppointmentStatus.COMPLETED) {
     return { ok: false as const, code: "COMPLETED" as const };
   }
+
+  const isDoctorInitiated = Boolean(input.doctorId);
+  const cancellationNote = input.cancellationNote?.trim() || null;
 
   if (appointment.googleCalendarEventId) {
     await deleteMeetCalendarEvent(appointment.doctorId, appointment.googleCalendarEventId);
@@ -175,6 +191,9 @@ export async function cancelAppointmentByStaff(input: {
       where: { id: appointment.doctorId },
       select: { name: true },
     });
+    const doctorDisplayName = doctorProfile?.name
+      ? formatDoctorDisplayName(doctorProfile.name)
+      : null;
     const appointmentDate = appointment.date.toISOString().slice(0, 10);
     const origin =
       input.requestOrigin ||
@@ -237,6 +256,10 @@ export async function cancelAppointmentByStaff(input: {
         showOnlineContactFallback: false,
         priceLabel,
         approxLocalPriceLabel,
+        staffNoteIntro: cancellationNote
+          ? staffCancellationNoteIntro(isDoctorInitiated, doctorDisplayName)
+          : null,
+        staffNote: cancellationNote,
       }),
     });
 
@@ -275,13 +298,18 @@ export async function cancelAppointmentByStaff(input: {
         ? " We attempted to initiate your refund but ran into an issue. Our support team will follow up shortly to resolve it."
         : "";
 
+    const cancelledByLabel = isDoctorInitiated
+      ? "was cancelled by your doctor."
+      : "was cancelled by our team.";
+    const noteSuffix = cancellationNote ? ` Note: ${cancellationNote}` : "";
+
     await createAppointmentNotificationForEmail({
       patientEmail: appointment.email,
       type: NotificationType.APPOINTMENT_CANCELLED,
       title: "Appointment cancelled",
       message: `Your appointment${
         doctorDisplayName ? ` with ${doctorDisplayName}` : ""
-      } on ${formattedDate} at ${formattedTime} was cancelled by your doctor.${refundNotifyAppendix}`,
+      } on ${formattedDate} at ${formattedTime} ${cancelledByLabel}${refundNotifyAppendix}${noteSuffix}`,
       actorUserId: input.actorUserId ?? null,
     });
   } catch (err) {
@@ -297,6 +325,7 @@ export async function cancelAppointmentByDoctor(input: {
   reason: CancelReason;
   requestOrigin?: string;
   actorUserId?: string | null;
+  cancellationNote?: string | null;
 }) {
   return cancelAppointmentByStaff(input);
 }

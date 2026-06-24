@@ -7,9 +7,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import useInfiniteScroll from "react-infinite-scroll-hook";
 import { Button } from "@/components/ui/button";
 import { StaffCancelRefundPreview } from "@/components/appointments/StaffCancelRefundPreview";
+import { CharCountFooter } from "@/components/form/CharCountFooter";
 import { MontagaCapitalN } from "@/components/ui/MontagaCapitalN";
 import { formatDateInDoctorTz, formatTimeInDoctorTz } from "@/lib/timezone-display";
 import { useAppointmentsListPoll } from "@/lib/use-appointments-list-poll";
+import { APPOINTMENT_CANCELLATION_NOTE_MAX_CHARS } from "@/lib/appointment-schemas";
+import { countChars } from "@/lib/text-char-limit";
 
 type ConsultationType = "CLINIC" | "ONLINE";
 type AppointmentStatus = "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED";
@@ -109,6 +112,7 @@ export default function DoctorAppointmentsClient() {
   const [isCanceling, setIsCanceling] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<DoctorAppointmentItem | null>(null);
   const [cancelReason, setCancelReason] = useState<CancelReason | null>(null);
+  const [cancelNote, setCancelNote] = useState("");
   const [refundPreview, setRefundPreview] = useState<RefundPreviewPayload | null>(
     null,
   );
@@ -255,6 +259,9 @@ export default function DoctorAppointmentsClient() {
     rootMargin: "0px 0px 300px 0px",
   });
 
+  const cancelNoteOverLimit =
+    countChars(cancelNote) > APPOINTMENT_CANCELLATION_NOTE_MAX_CHARS;
+
   async function confirmCancelAppointment() {
     if (!cancelTarget) return;
     setIsCanceling(true);
@@ -265,6 +272,7 @@ export default function DoctorAppointmentsClient() {
         body: JSON.stringify({
           appointmentId: cancelTarget.id,
           reason: cancelReason ?? undefined,
+          cancellationNote: cancelNote.trim() || undefined,
         }),
       });
       if (!res.ok) {
@@ -273,6 +281,7 @@ export default function DoctorAppointmentsClient() {
       }
       setCancelTarget(null);
       setCancelReason(null);
+      setCancelNote("");
       await loadAppointments(1, false);
     } catch {
       setError("Failed to cancel appointment.");
@@ -518,6 +527,7 @@ export default function DoctorAppointmentsClient() {
                       onClick={() => {
                         setCancelTarget(a);
                         setCancelReason(null);
+                        setCancelNote("");
                       }}
                     >
                       Cancel
@@ -542,6 +552,7 @@ export default function DoctorAppointmentsClient() {
                       onClick={() => {
                         setCancelTarget(a);
                         setCancelReason("patient_no_show");
+                        setCancelNote("");
                       }}
                     >
                       Patient did not show up
@@ -554,6 +565,7 @@ export default function DoctorAppointmentsClient() {
                       onClick={() => {
                         setCancelTarget(a);
                         setCancelReason("doctor_unavailable");
+                        setCancelNote("");
                       }}
                     >
                       Doctor was unavailable
@@ -619,6 +631,7 @@ export default function DoctorAppointmentsClient() {
                 if (!isCanceling) {
                   setCancelTarget(null);
                   setCancelReason(null);
+                  setCancelNote("");
                 }
               }}
             />
@@ -649,6 +662,28 @@ export default function DoctorAppointmentsClient() {
                   formatRefundCents={formatRefundCents}
                 />
               </div>
+              <div className="mt-4">
+                <label
+                  htmlFor="doctor-cancel-note"
+                  className="mb-1 block font-montserrat text-sm font-medium text-[#333333]"
+                >
+                  Note for patient (optional)
+                </label>
+                <textarea
+                  id="doctor-cancel-note"
+                  rows={3}
+                  maxLength={APPOINTMENT_CANCELLATION_NOTE_MAX_CHARS}
+                  value={cancelNote}
+                  onChange={(e) => setCancelNote(e.target.value)}
+                  placeholder="This note will be shared with the patient in the cancellation email."
+                  className="w-full rounded-xl border border-[#e5e5e5] px-3 py-2 font-montserrat text-sm"
+                />
+                <CharCountFooter
+                  value={cancelNote}
+                  maxChars={APPOINTMENT_CANCELLATION_NOTE_MAX_CHARS}
+                  overLimitHint=" — shorten the note to cancel."
+                />
+              </div>
               <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
                 <button
                   type="button"
@@ -656,6 +691,7 @@ export default function DoctorAppointmentsClient() {
                   onClick={() => {
                     setCancelTarget(null);
                     setCancelReason(null);
+                    setCancelNote("");
                   }}
                   disabled={
                     isCanceling ||
@@ -670,7 +706,8 @@ export default function DoctorAppointmentsClient() {
                   onClick={() => void confirmCancelAppointment()}
                   disabled={
                     isCanceling ||
-                    refundPreviewLoading
+                    refundPreviewLoading ||
+                    cancelNoteOverLimit
                   }
                 >
                   {isCanceling ? "Cancelling..." : "Confirm cancel"}

@@ -6,6 +6,8 @@ export const DOCTOR_BIO_MAX_CHARS = 500;
 export const INTERVIEW_NOTES_MAX_CHARS = 250;
 /** Required reason when cancelling an interview. */
 export const INTERVIEW_CANCELLATION_REASON_MAX_CHARS = 250;
+/** Optional note for staff when cancelling an appointment. */
+export const APPOINTMENT_CANCELLATION_NOTE_MAX_CHARS = 250;
 
 export function countChars(text: string): number {
   return text.length;

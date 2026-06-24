@@ -17,9 +17,9 @@ import { prisma } from "@/lib/db";
 import { formatDoctorDisplayName } from "@/lib/doctor-name";
 import { isDoctorTimeInPast } from "@/lib/timezone-display";
 import { cancelAppointmentByStaff } from "@/lib/doctor-cancellations";
+import { staffCancelAppointmentSchema } from "@/lib/appointment-schemas";
 
 type TabKey = "upcoming" | "pending-review" | "completed" | "cancelled";
-type CancelReason = "patient_no_show" | "doctor_unavailable";
 
 function normalizeTab(raw: string | null): TabKey {
   if (raw === "pending-review") return "pending-review";
@@ -161,29 +161,23 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const body = (await request.json().catch(() => null)) as {
-    appointmentId?: string;
-    reason?: unknown;
-  } | null;
-  const appointmentId = body?.appointmentId?.trim();
-  const reasonValue = body?.reason;
-  const reason: CancelReason | null =
-    reasonValue === "patient_no_show" || reasonValue === "doctor_unavailable"
-      ? reasonValue
-      : null;
-
-  if (!appointmentId) {
+  const body = (await request.json().catch(() => null)) as unknown;
+  const parsed = staffCancelAppointmentSchema.safeParse(body);
+  if (!parsed.success) {
     return NextResponse.json(
-      { error: "appointmentId is required" },
+      { error: parsed.error.issues[0]?.message ?? "Invalid request" },
       { status: 400 },
     );
   }
 
+  const { appointmentId, reason, cancellationNote } = parsed.data;
+
   const result = await cancelAppointmentByStaff({
     appointmentId,
-    reason,
+    reason: reason ?? null,
     requestOrigin: request.nextUrl.origin,
     actorUserId: session.user.id,
+    cancellationNote,
   });
 
   if (!result.ok) {

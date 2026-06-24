@@ -27,6 +27,10 @@ export interface EmailTemplateProps {
   secondaryActionLabel?: string;
   secondaryActionUrl?: string;
   showOnlineContactFallback?: boolean;
+  /** Intro line before an optional staff cancellation note. */
+  staffNoteIntro?: string | null;
+  /** Free-text note from doctor or admin shown to the patient on cancellation. */
+  staffNote?: string | null;
 }
 
 const primaryButtonStyle: React.CSSProperties = {
@@ -175,6 +179,8 @@ export function EmailTemplate({
   secondaryActionLabel,
   secondaryActionUrl,
   showOnlineContactFallback = true,
+  staffNoteIntro,
+  staffNote,
 }: EmailTemplateProps) {
   const firstActionLabel = primaryActionLabel ?? "Cancel Appointment";
   const firstActionUrl = primaryActionUrl ?? cancelUrl;
@@ -199,6 +205,26 @@ export function EmailTemplate({
         {" "}
         {message ?? getConfirmationMessage(consultationType)}
       </p>
+      {staffNoteIntro && staffNote ? (
+        <>
+          <p style={{ color: "#333333", lineHeight: 1.6, marginTop: "1rem" }}>
+            {staffNoteIntro}
+          </p>
+          <p
+            style={{
+              color: "#333333",
+              lineHeight: 1.6,
+              marginTop: "0.5rem",
+              marginBottom: "0.5rem",
+              paddingLeft: "1rem",
+              borderLeft: "3px solid #e5e5e5",
+              fontStyle: "italic",
+            }}
+          >
+            {staffNote}
+          </p>
+        </>
+      ) : null}
       {showMeetButton && meetLink && (
         <div style={{ marginTop: "1rem" }}>
           <EmailActionButton
