@@ -35,7 +35,7 @@ function staffCancellationNoteIntro(
   return "Our team shared this note:";
 }
 
-function cancellationContent(reason: CancelReason) {
+function cancellationContent(reason: CancelReason, isDoctorInitiated: boolean) {
   if (reason === "patient_no_show") {
     return {
       subject: "Missed Appointment",
@@ -63,8 +63,9 @@ function cancellationContent(reason: CancelReason) {
   return {
     subject: "Appointment Cancelled",
     heading: "Appointment Cancelled",
-    message:
-      "Your doctor has cancelled this appointment. If needed, please book a new appointment from our website.",
+    message: isDoctorInitiated
+      ? "Your doctor has cancelled this appointment. If needed, please book a new appointment from our website."
+      : "Our team has cancelled this appointment. If needed, please book a new appointment from our website.",
   };
 }
 
@@ -201,7 +202,7 @@ export async function cancelAppointmentByStaff(input: {
       (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
       "http://localhost:3000";
     const bookAppointmentUrl = `${origin}/book-appointment/${encodeURIComponent(appointment.doctorId)}`;
-    const copy = cancellationContent(input.reason);
+    const copy = cancellationContent(input.reason, isDoctorInitiated);
     const refundAppendix = refundSentence
       ? ` ${refundSentence}`
       : refundFailed
