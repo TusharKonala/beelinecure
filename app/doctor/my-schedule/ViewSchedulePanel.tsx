@@ -223,7 +223,9 @@ function ViewScheduleQuickCheckResults({
           </span>
         )}
       </div>
-      {!quickCheckLoading ? (
+      {!quickCheckLoading &&
+      quickCheckSlotDetails &&
+      quickCheckSlotDetails.length > 0 ? (
         <ScheduleDayActionButtons
           isoDate={d}
           onEditDate={onEditDate}
