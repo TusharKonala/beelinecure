@@ -42,6 +42,7 @@ import {
   minDatetimeLocalForTimezone,
   parseDatetimeLocalInTimezone,
 } from "@/lib/careers-interview-time";
+import { useApplicationsListPoll } from "@/lib/use-applications-list-poll";
 
 type ActiveInterviewRound = {
   id: string;
@@ -172,6 +173,7 @@ function AdminCareersApplicationsContent() {
   const [appsCursor, setAppsCursor] = useState<string | null>(null);
   const [appsHasMore, setAppsHasMore] = useState(false);
   const [appsLoading, setAppsLoading] = useState(true);
+  const [hasLoadedMore, setHasLoadedMore] = useState(false);
   const appsRequestIdRef = useRef(0);
   const recentlyBulkActionedIdsRef = useRef<Set<string> | null>(null);
   const bulkActionedIdsClearTimerRef = useRef<number | null>(null);
@@ -339,13 +341,23 @@ function AdminCareersApplicationsContent() {
   }
 
   const loadApplications = useCallback(
-    async (cursor: string | null, append: boolean) => {
+    async (
+      cursor: string | null,
+      append: boolean,
+      options?: { silent?: boolean },
+    ) => {
+      const silent = options?.silent === true;
       const requestId = ++appsRequestIdRef.current;
-      if (!append && !recentlyBulkActionedIdsRef.current?.size) {
-        setApplications([]);
+      if (append) {
+        setHasLoadedMore(true);
+      } else if (!silent) {
+        setHasLoadedMore(false);
+        if (!recentlyBulkActionedIdsRef.current?.size) {
+          setApplications([]);
+        }
+        setAppsLoading(true);
+        setError(null);
       }
-      setAppsLoading(true);
-      setError(null);
       try {
         const params = new URLSearchParams({ limit: "10" });
         if (cursor) params.set("cursor", cursor);
@@ -400,11 +412,15 @@ function AdminCareersApplicationsContent() {
         setAppsCursor(data.nextCursor ?? null);
       } catch (err) {
         if (appsRequestIdRef.current !== requestId) return;
-        setError(
-          err instanceof Error ? err.message : "Failed to load applications",
-        );
+        if (!silent) {
+          setError(
+            err instanceof Error ? err.message : "Failed to load applications",
+          );
+        }
       } finally {
-        if (appsRequestIdRef.current === requestId) setAppsLoading(false);
+        if (appsRequestIdRef.current === requestId && !silent) {
+          setAppsLoading(false);
+        }
       }
     },
     [
@@ -422,6 +438,25 @@ function AdminCareersApplicationsContent() {
   useEffect(() => {
     void loadApplications(null, false);
   }, [loadApplications]);
+
+  const silentRefresh = useCallback(
+    () => loadApplications(null, false, { silent: true }),
+    [loadApplications],
+  );
+
+  useApplicationsListPoll({
+    enabled: statusFilter === "SHORTLISTED",
+    hasLoadedMore,
+    pollBlocked: Boolean(
+      scheduleTarget ||
+        cancelTarget ||
+        hireTarget ||
+        rejectConfirmTarget ||
+        bulkConfirm ||
+        busyId,
+    ),
+    refresh: silentRefresh,
+  });
 
   const [appsSentryRef] = useInfiniteScroll({
     loading: appsLoading,
