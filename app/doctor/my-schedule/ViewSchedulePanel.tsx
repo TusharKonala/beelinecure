@@ -651,7 +651,7 @@ export function ViewSchedulePanel({
       await loadList(1, false, selectedMonth, bookedOnly, selectedDateFilter);
       onAvailabilityChanged?.(isoDate);
       if (isoDate === quickCheckDate.trim()) {
-        setQuickCheckSlotDetails([]);
+        setQuickCheckDate("");
       }
     } catch (e) {
       setHolidayError(
