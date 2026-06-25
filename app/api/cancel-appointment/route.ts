@@ -231,9 +231,14 @@ export async function POST(request: NextRequest) {
         percentage: policy?.percentage === 100 ? 100 : 50,
       });
       if (result.ok) {
+        const emailTier =
+          policy?.tier === "full_refund" || policy?.tier === "partial_refund"
+            ? policy.tier
+            : undefined;
         refundSentence = await formatRefundEmailSentence(
           result,
           appointment.patientTimezone,
+          emailTier,
         );
       } else if (result.reason === "stripe_error") {
         refundFailed = true;

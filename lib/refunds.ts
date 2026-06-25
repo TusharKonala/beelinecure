@@ -147,6 +147,17 @@ export function cancellationRefundPolicy(
   };
 }
 
+export type PatientCancelRefundEmailTier = "full_refund" | "partial_refund";
+
+function cancellationRefundEmailLeadIn(
+  tier: PatientCancelRefundEmailTier,
+): string {
+  if (tier === "full_refund") {
+    return "Because this appointment was cancelled at least 24 hours before the scheduled start time,";
+  }
+  return "Because this appointment was cancelled within 24 hours of the scheduled start time,";
+}
+
 /**
  * Creates a Stripe refund for a paid appointment and records
  * the refund lifecycle state on the appointment row.
@@ -234,6 +245,7 @@ export async function initiateRefund({
 export async function formatRefundEmailSentence(
   result: InitiateRefundResult,
   patientTimezone: string | null | undefined,
+  policyTier?: PatientCancelRefundEmailTier,
 ): Promise<string | null> {
   if (!result.ok) return null;
 
@@ -262,8 +274,17 @@ export async function formatRefundEmailSentence(
     }
   }
 
+  const refundTiming =
+    " has been initiated and should appear on your original payment method within 5-10 business days.";
+
   if (result.percentage === 100) {
-    return `A full refund of ${amountPhrase} has been initiated and should appear on your original payment method within 5-10 business days.`;
+    if (policyTier === "full_refund") {
+      return `${cancellationRefundEmailLeadIn(policyTier)} a full refund of ${amountPhrase}${refundTiming}`;
+    }
+    return `A full refund of ${amountPhrase}${refundTiming}`;
   }
-  return `Per our cancellation policy, a 50% refund of ${amountPhrase} has been initiated and should appear on your original payment method within 5-10 business days.`;
+  if (policyTier === "partial_refund") {
+    return `${cancellationRefundEmailLeadIn(policyTier)} a 50% refund of ${amountPhrase}${refundTiming}`;
+  }
+  return `Per our cancellation policy, a 50% refund of ${amountPhrase}${refundTiming}`;
 }
