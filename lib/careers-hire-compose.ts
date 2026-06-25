@@ -43,13 +43,14 @@ export function buildGmailComposeUrl(params: {
   subject: string;
   body: string;
 }): string {
+  const hireSender = process.env.NEXT_PUBLIC_HIRE_EMAIL_SENDER?.trim();
   const search = new URLSearchParams({
     view: "cm",
     fs: "1",
     to: params.to,
     su: params.subject,
     body: params.body,
-    authuser: process.env.NEXT_PUBLIC_HIRE_EMAIL_SENDER,
+    ...(hireSender ? { authuser: hireSender } : {}),
   });
   return `https://mail.google.com/mail/?${search.toString()}`;
 }
