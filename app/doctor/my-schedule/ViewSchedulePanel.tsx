@@ -844,6 +844,11 @@ export function ViewSchedulePanel({
               quickCheckSlotDetails={quickCheckSlotDetails}
               quickCheckLoading={quickCheckLoading}
               quickCheckError={quickCheckError}
+              onEditDate={onEditDate}
+              onMarkHolidayClick={setHolidayConfirmDate}
+              clearingDate={clearingDate}
+              scheduleReadOnly={scheduleReadOnly}
+              todayFromApi={todayFromApi}
             />
           </div>
         ) : null}
