@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/careers-admin";
-import { rescheduleInterviewSchema } from "@/lib/careers-schemas";
-import { rescheduleInterviewRound } from "@/lib/careers-interview";
+import { setInterviewRoundCompleted } from "@/lib/careers-interview";
+import { interviewCompletionSchema } from "@/lib/careers-schemas";
 import { prisma } from "@/lib/db";
 
 export async function PATCH(
@@ -35,7 +35,7 @@ export async function PATCH(
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const parsed = rescheduleInterviewSchema.safeParse(body);
+  const parsed = interviewCompletionSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
       { error: parsed.error.issues[0]?.message ?? "Invalid input" },
@@ -43,50 +43,29 @@ export async function PATCH(
     );
   }
 
-  const scheduledAt = new Date(parsed.data.scheduledAt);
-  if (Number.isNaN(scheduledAt.getTime())) {
-    return NextResponse.json({ error: "Invalid date and time" }, { status: 400 });
-  }
-
-  const result = await rescheduleInterviewRound(roundId, {
-    scheduledAt,
-    timezone: parsed.data.timezone.trim(),
-    notes: parsed.data.notes,
-    attendeeEmail: parsed.data.attendeeEmail,
-    attendeeName: parsed.data.attendeeName,
-  });
+  const result = await setInterviewRoundCompleted(
+    roundId,
+    parsed.data.isCompleted,
+  );
 
   if ("error" in result) {
-    if (result.error === "unchanged") {
-      return NextResponse.json({ error: "No changes to save" }, { status: 400 });
-    }
-    if (result.error === "past_time") {
-      return NextResponse.json(
-        { error: "Interview time must be in the future" },
-        { status: 400 },
-      );
+    if (result.error === "not_found") {
+      return NextResponse.json({ error: "Interview not found" }, { status: 404 });
     }
     if (result.error === "cancelled") {
       return NextResponse.json(
-        { error: "Cannot reschedule a cancelled interview" },
-        { status: 400 },
+        { error: "Cannot update a cancelled interview" },
+        { status: 409 },
       );
     }
-    if (result.error === "completed") {
+    if (result.error === "future_time") {
       return NextResponse.json(
-        { error: "Cannot reschedule a completed interview" },
-        { status: 409 },
+        { error: "Only past interviews can be marked as completed" },
+        { status: 400 },
       );
     }
     return NextResponse.json({ error: "Interview not found" }, { status: 404 });
   }
 
-  return NextResponse.json({
-    ok: true,
-    round: {
-      id: result.round.id,
-      roundNumber: result.round.roundNumber,
-      scheduledAt: result.round.scheduledAt.toISOString(),
-    },
-  });
+  return NextResponse.json({ ok: true, round: result.round });
 }

@@ -56,6 +56,12 @@ export async function POST(
         { status: 409 },
       );
     }
+    if (result.error === "completed") {
+      return NextResponse.json(
+        { error: "Cannot cancel a completed interview" },
+        { status: 409 },
+      );
+    }
     return NextResponse.json({ error: "Interview not found" }, { status: 404 });
   }
 

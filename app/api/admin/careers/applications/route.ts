@@ -58,6 +58,7 @@ export async function GET(request: NextRequest) {
           attendeeEmail: true,
           attendeeName: true,
           notes: true,
+          isCompleted: true,
         },
         orderBy: { roundNumber: "asc" },
       },
@@ -103,6 +104,7 @@ export async function GET(request: NextRequest) {
           attendeeEmail: r.attendeeEmail,
           attendeeName: r.attendeeName,
           notes: r.notes,
+          isCompleted: r.isCompleted,
         })),
       };
     }),

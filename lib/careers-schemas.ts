@@ -157,6 +157,10 @@ export const rescheduleInterviewSchema = z.object({
   attendeeName: optionalAttendeeNameSchema,
 });
 
+export const interviewCompletionSchema = z.object({
+  isCompleted: z.boolean(),
+});
+
 export function formatSalaryDisplay(
   salaryRange: string | null | undefined,
   salaryCurrency: string | null | undefined,

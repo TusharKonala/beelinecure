@@ -51,6 +51,7 @@ type ActiveInterviewRound = {
   attendeeEmail: string | null;
   attendeeName: string | null;
   notes: string | null;
+  isCompleted: boolean;
 };
 
 type JobApplication = {
@@ -101,7 +102,12 @@ function scheduleFormsEqual(
 }
 
 function roundStatusLabel(round: ActiveInterviewRound): string {
-  return round.confirmedAt ? "Confirmed" : "Non-confirmed";
+  const base = round.confirmedAt ? "Confirmed" : "Non-confirmed";
+  return round.isCompleted ? `${base} · Completed` : base;
+}
+
+function isInterviewScheduledInPast(round: ActiveInterviewRound): boolean {
+  return new Date(round.scheduledAt).getTime() <= Date.now();
 }
 
 function formatInterviewerLabel(round: ActiveInterviewRound): string | null {
@@ -766,6 +772,36 @@ function AdminCareersApplicationsContent() {
     }
   }
 
+  async function handleToggleInterviewCompletion(
+    app: JobApplication,
+    round: ActiveInterviewRound,
+    isCompleted: boolean,
+  ) {
+    setBusyId(app.id);
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/admin/careers/applications/${app.id}/interviews/${round.id}/completion`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ isCompleted }),
+        },
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error ?? "Failed to update interview");
+      }
+      void loadApplications(null, false);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to update interview",
+      );
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function handleCancelInterview() {
     if (!cancelTarget) return;
     const trimmedReason = cancelReason.trim();
@@ -1146,25 +1182,82 @@ function AdminCareersApplicationsContent() {
                           ) : null}
                         </div>
                         <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            disabled={busyId === app.id}
-                            onClick={() => openReschedule(app, round)}
-                            className="cursor-pointer rounded-lg border border-[#e5e5e5] bg-white px-2.5 py-1 font-montserrat text-xs font-medium text-[#333333] hover:bg-[#f5f5f5] disabled:opacity-60"
-                          >
-                            Reschedule
-                          </button>
-                          <button
-                            type="button"
-                            disabled={busyId === app.id}
-                            onClick={() => {
-                              setCancelReason("");
-                              setCancelTarget({ app, round });
-                            }}
-                            className="cursor-pointer rounded-lg border border-[#ffd0d0] bg-[#fff6f6] px-2.5 py-1 font-montserrat text-xs font-medium text-[#b42318] hover:bg-[#ffe8e8] disabled:opacity-60"
-                          >
-                            Cancel
-                          </button>
+                          {isInterviewScheduledInPast(round) ? (
+                            round.isCompleted ? (
+                              <button
+                                type="button"
+                                disabled={busyId === app.id}
+                                onClick={() =>
+                                  void handleToggleInterviewCompletion(
+                                    app,
+                                    round,
+                                    false,
+                                  )
+                                }
+                                className="cursor-pointer rounded-lg border border-[#e5e5e5] bg-white px-2.5 py-1 font-montserrat text-xs font-medium text-[#5e5e5e] hover:bg-[#f5f5f5] disabled:opacity-60"
+                              >
+                                Undo Completion
+                              </button>
+                            ) : (
+                              <>
+                                <button
+                                  type="button"
+                                  disabled={busyId === app.id}
+                                  onClick={() =>
+                                    void handleToggleInterviewCompletion(
+                                      app,
+                                      round,
+                                      true,
+                                    )
+                                  }
+                                  className="cursor-pointer rounded-lg border border-[#e5e5e5] bg-white px-2.5 py-1 font-montserrat text-xs font-medium text-[#333333] hover:bg-[#f5f5f5] disabled:opacity-60"
+                                >
+                                  Mark as Completed
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={busyId === app.id}
+                                  onClick={() => openReschedule(app, round)}
+                                  className="cursor-pointer rounded-lg border border-[#e5e5e5] bg-white px-2.5 py-1 font-montserrat text-xs font-medium text-[#333333] hover:bg-[#f5f5f5] disabled:opacity-60"
+                                >
+                                  Reschedule
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={busyId === app.id}
+                                  onClick={() => {
+                                    setCancelReason("");
+                                    setCancelTarget({ app, round });
+                                  }}
+                                  className="cursor-pointer rounded-lg border border-[#ffd0d0] bg-[#fff6f6] px-2.5 py-1 font-montserrat text-xs font-medium text-[#b42318] hover:bg-[#ffe8e8] disabled:opacity-60"
+                                >
+                                  Cancel
+                                </button>
+                              </>
+                            )
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                disabled={busyId === app.id}
+                                onClick={() => openReschedule(app, round)}
+                                className="cursor-pointer rounded-lg border border-[#e5e5e5] bg-white px-2.5 py-1 font-montserrat text-xs font-medium text-[#333333] hover:bg-[#f5f5f5] disabled:opacity-60"
+                              >
+                                Reschedule
+                              </button>
+                              <button
+                                type="button"
+                                disabled={busyId === app.id}
+                                onClick={() => {
+                                  setCancelReason("");
+                                  setCancelTarget({ app, round });
+                                }}
+                                className="cursor-pointer rounded-lg border border-[#ffd0d0] bg-[#fff6f6] px-2.5 py-1 font-montserrat text-xs font-medium text-[#b42318] hover:bg-[#ffe8e8] disabled:opacity-60"
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          )}
                         </div>
                       </li>
                     ))}

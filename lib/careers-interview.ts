@@ -856,6 +856,55 @@ export async function cancelInterviewRoundByAttendeeToken(
   return { status: "success" as const };
 }
 
+export async function setInterviewRoundCompleted(
+  roundId: string,
+  isCompleted: boolean,
+) {
+  const round = await prisma.interviewRound.findUnique({
+    where: { id: roundId },
+    select: {
+      id: true,
+      cancelledAt: true,
+      scheduledAt: true,
+      isCompleted: true,
+    },
+  });
+
+  if (!round) {
+    return { error: "not_found" as const };
+  }
+  if (round.cancelledAt) {
+    return { error: "cancelled" as const };
+  }
+
+  if (isCompleted) {
+    if (round.scheduledAt.getTime() > Date.now()) {
+      return { error: "future_time" as const };
+    }
+    if (round.isCompleted) {
+      return {
+        ok: true as const,
+        round: { id: round.id, isCompleted: true },
+      };
+    }
+  } else {
+    if (!round.isCompleted) {
+      return {
+        ok: true as const,
+        round: { id: round.id, isCompleted: false },
+      };
+    }
+  }
+
+  const updated = await prisma.interviewRound.update({
+    where: { id: roundId },
+    data: { isCompleted },
+    select: { id: true, isCompleted: true },
+  });
+
+  return { ok: true as const, round: updated };
+}
+
 export async function cancelInterviewRound(
   roundId: string,
   options: {
@@ -883,6 +932,9 @@ export async function cancelInterviewRound(
   }
   if (round.cancelledAt) {
     return { error: "already_cancelled" as const };
+  }
+  if (round.isCompleted) {
+    return { error: "completed" as const };
   }
 
   const wasConfirmed = Boolean(round.confirmedAt);
@@ -979,6 +1031,9 @@ export async function rescheduleInterviewRound(
   }
   if (round.cancelledAt) {
     return { error: "cancelled" as const };
+  }
+  if (round.isCompleted) {
+    return { error: "completed" as const };
   }
 
   const notes = input.notes?.trim() || null;

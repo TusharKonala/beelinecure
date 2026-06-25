@@ -1,17 +1,11 @@
 export type InterviewRoundForHireCheck = {
-  confirmedAt: string | null;
-  scheduledAt: string;
+  isCompleted: boolean;
 };
 
 export function hasCompletedInterviewRound(
   rounds: InterviewRoundForHireCheck[],
 ): boolean {
-  const now = Date.now();
-  return rounds.some(
-    (r) =>
-      r.confirmedAt !== null &&
-      new Date(r.scheduledAt).getTime() <= now,
-  );
+  return rounds.some((r) => r.isCompleted);
 }
 
 export function buildOfferEmailSubject(jobTitle: string): string {
