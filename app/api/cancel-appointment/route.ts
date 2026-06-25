@@ -6,7 +6,7 @@ import {
   PaymentStatus,
 } from "@/generated/prisma/client";
 import { EmailTemplate } from "@/components/email-template";
-import { inngest } from "@/inngest/client";
+import { cancelPendingAppointmentReminders } from "@/lib/appointment-reminder-cancel";
 import { NextRequest, NextResponse } from "next/server";
 import React from "react";
 import { Resend } from "resend";
@@ -255,28 +255,13 @@ export async function POST(request: NextRequest) {
         : "";
 
   try {
-    await inngest.send({
-      name: "appointment/reminder.cancelled",
-      data: {
-        appointmentId,
-      },
+    await cancelPendingAppointmentReminders({
+      appointmentId,
+      dateParam: appointmentDateParam,
+      time: appointment.time,
+      timezone: appointment.timezone,
+      consultationType: appointment.consultationType,
     });
-    if (appointment.consultationType === ConsultationType.ONLINE) {
-      await inngest.send({
-        name: "appointment/online-reminder-t15.cancelled",
-        data: {
-          appointmentId,
-        },
-      });
-    }
-    if (appointment.consultationType === ConsultationType.CLINIC) {
-      await inngest.send({
-        name: "appointment/clinic-reminder-t120.cancelled",
-        data: {
-          appointmentId,
-        },
-      });
-    }
   } catch (err) {
     console.error("[cancel] Failed to cancel reminder:", err);
   }

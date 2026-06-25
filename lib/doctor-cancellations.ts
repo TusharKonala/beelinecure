@@ -11,7 +11,7 @@ import { deleteMeetCalendarEvent } from "@/lib/google-calendar-meet";
 import { createAppointmentNotificationForEmail } from "@/lib/notifications";
 import { buildEmailPriceLabels } from "@/lib/email-price-labels";
 import { formatRefundEmailSentence, initiateRefund } from "@/lib/refunds";
-import { inngest } from "@/inngest/client";
+import { cancelPendingAppointmentReminders } from "@/lib/appointment-reminder-cancel";
 import {
   formatDateInPatientTz,
   formatTimeInPatientTz,
@@ -162,28 +162,13 @@ export async function cancelAppointmentByStaff(input: {
   }
 
   try {
-    await inngest.send({
-      name: "appointment/reminder.cancelled",
-      data: {
-        appointmentId: appointment.id,
-      },
+    await cancelPendingAppointmentReminders({
+      appointmentId: appointment.id,
+      dateParam: appointment.date.toISOString().slice(0, 10),
+      time: appointment.time,
+      timezone: appointment.timezone,
+      consultationType: appointment.consultationType,
     });
-    if (appointment.consultationType === ConsultationType.ONLINE) {
-      await inngest.send({
-        name: "appointment/online-reminder-t15.cancelled",
-        data: {
-          appointmentId: appointment.id,
-        },
-      });
-    }
-    if (appointment.consultationType === ConsultationType.CLINIC) {
-      await inngest.send({
-        name: "appointment/clinic-reminder-t120.cancelled",
-        data: {
-          appointmentId: appointment.id,
-        },
-      });
-    }
   } catch (err) {
     console.error("[doctor-cancellations] Failed to cancel reminder:", err);
   }
