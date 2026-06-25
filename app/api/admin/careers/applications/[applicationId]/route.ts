@@ -3,6 +3,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAdminSession } from "@/lib/careers-admin";
 import { sendApplicationStatusChangeEmail } from "@/lib/careers-application-status-email";
+import {
+  canMarkApplicationAsHired,
+  HIRE_BLOCKED_INCOMPLETE_INTERVIEWS_MESSAGE,
+} from "@/lib/careers-hire-compose";
 import { cancelActiveFutureInterviewRounds } from "@/lib/careers-interview";
 import { prisma } from "@/lib/db";
 
@@ -67,6 +71,19 @@ export async function PATCH(
       { error: "Only shortlisted applications can be marked as hired." },
       { status: 400 },
     );
+  }
+
+  if (parsed.data.status === ApplicationStatus.HIRED) {
+    const activeRounds = await prisma.interviewRound.findMany({
+      where: { applicationId, cancelledAt: null },
+      select: { isCompleted: true },
+    });
+    if (!canMarkApplicationAsHired(activeRounds)) {
+      return NextResponse.json(
+        { error: HIRE_BLOCKED_INCOMPLETE_INTERVIEWS_MESSAGE },
+        { status: 409 },
+      );
+    }
   }
 
   if (parsed.data.status === ApplicationStatus.REJECTED) {

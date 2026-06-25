@@ -20,7 +20,8 @@ import {
   buildGmailComposeUrl,
   buildOfferEmailBody,
   buildOfferEmailSubject,
-  hasCompletedInterviewRound,
+  canMarkApplicationAsHired,
+  HIRE_BLOCKED_INCOMPLETE_INTERVIEWS_MESSAGE,
 } from "@/lib/careers-hire-compose";
 import {
   aiScoreBadgeClass,
@@ -634,6 +635,7 @@ function AdminCareersApplicationsContent() {
 
   async function handleMarkAsHired() {
     if (!hireTarget) return;
+    if (!canMarkApplicationAsHired(hireTarget.interviewRounds)) return;
     const app = hireTarget;
     setBusyId(app.id);
     setError(null);
@@ -1305,9 +1307,17 @@ function AdminCareersApplicationsContent() {
                   {app.status === "SHORTLISTED" ? (
                     <button
                       type="button"
-                      disabled={busyId === app.id}
+                      disabled={
+                        busyId === app.id ||
+                        !canMarkApplicationAsHired(app.interviewRounds)
+                      }
+                      title={
+                        !canMarkApplicationAsHired(app.interviewRounds)
+                          ? HIRE_BLOCKED_INCOMPLETE_INTERVIEWS_MESSAGE
+                          : undefined
+                      }
                       onClick={() => setHireTarget(app)}
-                      className="cursor-pointer rounded-lg border border-[#d7f2d9] bg-[#effcf0] px-3 py-1.5 font-montserrat text-xs font-medium text-[#1f7a36] hover:bg-[#d7f2d9] disabled:opacity-60"
+                      className="cursor-pointer rounded-lg border border-[#d7f2d9] bg-[#effcf0] px-3 py-1.5 font-montserrat text-xs font-medium text-[#1f7a36] hover:bg-[#d7f2d9] disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       Mark as Hired
                     </button>
@@ -1641,11 +1651,10 @@ function AdminCareersApplicationsContent() {
                   {hireTarget.name} will be marked as hired and Gmail will open
                   with a pre-filled offer email you can review and send.
                 </p>
-                {!hasCompletedInterviewRound(hireTarget.interviewRounds) ? (
+                {!canMarkApplicationAsHired(hireTarget.interviewRounds) ? (
                   <div className="mt-4 rounded-lg border border-[#ffe7b8] bg-[#fff8eb] px-3 py-2">
                     <p className="font-montserrat text-sm text-[#9a6700]">
-                      No completed interview found for this candidate. You can
-                      still proceed.
+                      {HIRE_BLOCKED_INCOMPLETE_INTERVIEWS_MESSAGE}
                     </p>
                   </div>
                 ) : null}
@@ -1661,9 +1670,12 @@ function AdminCareersApplicationsContent() {
                   </Button>
                   <Button
                     type="button"
-                    disabled={busyId === hireTarget.id}
+                    disabled={
+                      busyId === hireTarget.id ||
+                      !canMarkApplicationAsHired(hireTarget.interviewRounds)
+                    }
                     onClick={() => void handleMarkAsHired()}
-                    className="cursor-pointer rounded-full bg-[#1f7a36] font-montserrat text-sm hover:bg-[#18632c]"
+                    className="cursor-pointer rounded-full bg-[#1f7a36] font-montserrat text-sm hover:bg-[#18632c] disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {busyId === hireTarget.id
                       ? "Updating..."

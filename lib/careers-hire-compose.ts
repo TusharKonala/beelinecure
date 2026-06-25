@@ -2,10 +2,13 @@ export type InterviewRoundForHireCheck = {
   isCompleted: boolean;
 };
 
-export function hasCompletedInterviewRound(
+export const HIRE_BLOCKED_INCOMPLETE_INTERVIEWS_MESSAGE =
+  "All interview rounds must be marked as completed before marking this applicant as hired.";
+
+export function canMarkApplicationAsHired(
   rounds: InterviewRoundForHireCheck[],
 ): boolean {
-  return rounds.some((r) => r.isCompleted);
+  return rounds.length === 0 || rounds.every((r) => r.isCompleted);
 }
 
 export function buildOfferEmailSubject(jobTitle: string): string {
