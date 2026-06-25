@@ -19,7 +19,13 @@ export const RESCHEDULE_POLICY_TIMING_LINE = RESCHEDULE_POLICY_CONFIRMATION_LINE
 
 /** Where to reschedule after booking — same for online, clinic paid, clinic unpaid. */
 export const RESCHEDULE_POLICY_HOW_TO_LINE =
-  "After your appointment is confirmed, reschedule from the Reschedule link in your confirmation email, or sign in to your appointments dashboard at /patient/appointments (use the same email you used when booking).";
+  "How to reschedule: use the Reschedule option in your confirmation email, or sign in to your appointments dashboard at /patient/appointments with the same email address you used when booking.";
+
+/** UI fragments for how-to line with an inline dashboard link. */
+export const RESCHEDULE_POLICY_HOW_TO_BEFORE_DASHBOARD =
+  "How to reschedule: use the Reschedule option in your confirmation email, or sign in to your ";
+export const RESCHEDULE_POLICY_HOW_TO_AFTER_DASHBOARD =
+  " with the same email address you used when booking.";
 
 /** Footer for pre/post-booking reschedule policy UI. */
 export const RESCHEDULE_POLICY_APPLIES_TO_LINE =
