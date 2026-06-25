@@ -14,20 +14,18 @@ export const RESCHEDULE_ONLY_MORE_THAN_24H =
 /** Confirmation surfaces: payment success (online), clinic booking confirmed. */
 export const RESCHEDULE_POLICY_CONFIRMATION_LINE = `${RESCHEDULE_ONLY_MORE_THAN_24H} If it is less than 24 hours before your visit, cancel and book again to choose a new time.`;
 
-/** When patients can reschedule (timing) — used on pre/post-booking UI. */
+/** When patients can reschedule (timing) — used on pre-booking UI. */
 export const RESCHEDULE_POLICY_TIMING_LINE = RESCHEDULE_POLICY_CONFIRMATION_LINE;
 
-/** Where to reschedule after booking — same for online, clinic paid, clinic unpaid. */
+/** Where to reschedule after booking — used in emails. */
 export const RESCHEDULE_POLICY_HOW_TO_LINE =
   "How to reschedule: use the Reschedule option in your confirmation email, or sign in to your appointments dashboard at /patient/appointments with the same email address you used when booking.";
 
-/** UI fragments for how-to line with an inline dashboard link. */
-export const RESCHEDULE_POLICY_HOW_TO_BEFORE_DASHBOARD =
-  "How to reschedule: use the Reschedule option in your confirmation email, or sign in to your ";
-export const RESCHEDULE_POLICY_HOW_TO_AFTER_DASHBOARD =
-  " with the same email address you used when booking.";
+/** Pre-booking UI how-to line (plain text, no link). */
+export const RESCHEDULE_POLICY_HOW_TO_PRE_BOOKING_LINE =
+  "How to reschedule: use the Reschedule option in your confirmation email, or sign in to your appointments dashboard with the same email address you used when booking.";
 
-/** Footer for pre/post-booking reschedule policy UI. */
+/** Footer for pre-booking reschedule policy UI. */
 export const RESCHEDULE_POLICY_APPLIES_TO_LINE =
   "This applies to online and clinic appointments, whether you pay online or at the clinic.";
 

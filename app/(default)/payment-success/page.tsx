@@ -7,7 +7,6 @@ import {
   formatTimeInPatientTz,
 } from "@/lib/timezone-display";
 import { formatDoctorDisplayName } from "@/lib/doctor-name";
-import { ReschedulePolicyNotice } from "@/app/(default)/book-appointment/components/ReschedulePolicyNotice";
 
 type PageProps = {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
@@ -105,7 +104,6 @@ export default async function PaymentSuccessPage({ searchParams }: PageProps) {
                 signed in, you can also find it in your appointments dashboard.
               </p>
             )}
-            <ReschedulePolicyNotice className="mt-4" />
             {hasDetails ? (
               <div className="mt-6 space-y-3 font-montserrat text-sm">
                 <div className="flex flex-col justify-between gap-1 sm:flex-row sm:items-center">

@@ -797,7 +797,6 @@ export default function BookAppointmentDoctorPage() {
               <p className="mt-4 font-montserrat text-sm text-[#5E5E5E]">
                 {confirmationMessage}
               </p>
-              <ReschedulePolicyNotice className="mt-2" />
               <div className="mt-6 flex flex-col gap-2 rounded-lg bg-[#fafafa] p-4 font-montserrat text-sm">
                 <p>
                   <span className="font-medium text-[#111111]">Doctor:</span>{" "}
