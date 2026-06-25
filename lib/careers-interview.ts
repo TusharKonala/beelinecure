@@ -3,6 +3,7 @@ import { Resend, type CreateBatchEmailOptions } from "resend";
 import { CareersInterviewAttendeeConfirmedEmailTemplate } from "@/components/careers-interview-attendee-confirmed-email-template";
 import { CareersInterviewAdminConfirmedEmailTemplate } from "@/components/careers-interview-admin-confirmed-email-template";
 import { CareersInterviewAdminReminderEmailTemplate } from "@/components/careers-interview-admin-reminder-email-template";
+import { CareersInterviewAdminRescheduledEmailTemplate } from "@/components/careers-interview-admin-rescheduled-email-template";
 import { CareersInterviewInterviewerCancelledAdminEmailTemplate } from "@/components/careers-interview-interviewer-cancelled-admin-email-template";
 import { CareersInterviewCancelledAttendeeEmailTemplate } from "@/components/careers-interview-cancelled-attendee-email-template";
 import { CareersInterviewCancelledCandidateEmailTemplate } from "@/components/careers-interview-cancelled-candidate-email-template";
@@ -716,38 +717,70 @@ async function sendInterviewRescheduledEmails(params: {
 
   if (!process.env.RESEND_API_KEY?.trim()) return;
 
-  await resend.emails.send({
-    from: getEmailFrom(),
-    to: application.email,
-    subject: `Interview rescheduled — ${application.jobPosting.title}`,
-    react: CareersInterviewRescheduledCandidateEmailTemplate({
-      candidateName: application.name,
-      jobTitle: application.jobPosting.title,
-      roundNumber: round.roundNumber,
-      previousScheduledAtLabel: candidatePreviousScheduledAtLabel,
-      scheduledAtLabel: candidateScheduledAtLabel,
-      meetLink: wasConfirmed ? round.meetLink : null,
-    }),
-  });
+  const from = getEmailFrom();
+  const jobTitle = application.jobPosting.title;
+  const meetLink = wasConfirmed ? round.meetLink : null;
+  const applicationUrl = buildAdminApplicationSearchUrl(application.email);
+  const subject = `Interview rescheduled — ${jobTitle}`;
+
+  const payloads: CreateBatchEmailOptions[] = [
+    {
+      from,
+      to: application.email,
+      subject,
+      react: CareersInterviewRescheduledCandidateEmailTemplate({
+        candidateName: application.name,
+        jobTitle,
+        roundNumber: round.roundNumber,
+        previousScheduledAtLabel: candidatePreviousScheduledAtLabel,
+        scheduledAtLabel: candidateScheduledAtLabel,
+        meetLink,
+      }),
+    },
+  ];
 
   const attendee = round.attendeeEmail?.trim();
   if (attendee) {
-    await resend.emails.send({
-      from: getEmailFrom(),
+    payloads.push({
+      from,
       to: attendee,
-      subject: `Interview rescheduled — ${application.jobPosting.title}`,
+      subject,
       react: CareersInterviewRescheduledAttendeeEmailTemplate({
         attendeeName: formatAttendeeGreeting(round.attendeeName),
         candidateName: application.name,
-        jobTitle: application.jobPosting.title,
+        jobTitle,
         roundNumber: round.roundNumber,
         previousScheduledAtLabel: attendeePreviousScheduledAtLabel,
         scheduledAtLabel: attendeeScheduledAtLabel,
-        meetLink: wasConfirmed ? round.meetLink : null,
+        meetLink,
         jobDescription,
       }),
     });
   }
+
+  const adminEmails = await getAdminEmails();
+  for (const to of adminEmails) {
+    payloads.push({
+      from,
+      to,
+      subject: `Interview rescheduled — ${jobTitle} (Round ${round.roundNumber})`,
+      react: CareersInterviewAdminRescheduledEmailTemplate({
+        candidateName: application.name,
+        candidateEmail: application.email,
+        interviewerName: round.attendeeName?.trim() || null,
+        interviewerEmail: round.attendeeEmail?.trim() || null,
+        jobTitle,
+        roundNumber: round.roundNumber,
+        previousScheduledAtLabel: attendeePreviousScheduledAtLabel,
+        scheduledAtLabel: attendeeScheduledAtLabel,
+        meetLink,
+        applicationUrl,
+      }),
+    });
+  }
+
+  const deduped = dedupeBatchPayloadsByTo(payloads, "interview-rescheduled");
+  await sendResendEmailBatch(deduped, "interview-rescheduled");
 }
 
 export function generateConfirmationToken() {
