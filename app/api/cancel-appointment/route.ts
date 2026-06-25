@@ -284,7 +284,9 @@ export async function POST(request: NextRequest) {
   // Best-effort cancellation email; cancellation still succeeds if email fails.
   try {
     const appointmentDate = appointment.date.toISOString().slice(0, 10);
-    const websiteUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+    const origin =
+      process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+    const bookAppointmentUrl = `${origin}/book-appointment`;
     const doctor = await prisma.doctor.findUnique({
       where: { id: appointment.doctorId },
     });
@@ -292,13 +294,8 @@ export async function POST(request: NextRequest) {
     const isPaid = appointment.paymentStatus === PaymentStatus.PAID;
     // Build the cancellation message body. Paid cancellations append
     // refund policy outcomes (full/50%/no-refund) or a refund-failure sentence.
-    const baseMessage = React.createElement(
-      React.Fragment,
-      null,
-      "Your appointment has been cancelled. If you would like to book again, please visit ",
-      React.createElement("a", { href: websiteUrl }, "our website"),
-      ".",
-    );
+    const baseMessage =
+      "Your appointment has been cancelled. If you would like to book again, please book a new appointment using the button below.";
     let refundNode: React.ReactNode = null;
     if (isPaid) {
       if (refundSentence) {
@@ -344,7 +341,11 @@ export async function POST(request: NextRequest) {
       react: EmailTemplate({
         heading: "Appointment Cancelled",
         message: messageNode,
-        showActionLinks: false,
+        showActionLinks: true,
+        primaryActionLabel: "Book appointment",
+        primaryActionUrl: bookAppointmentUrl,
+        secondaryActionLabel: undefined,
+        secondaryActionUrl: undefined,
         doctorName: doctor?.name ?? "Your Doctor",
         appointmentDate: formatDateInPatientTz(
           appointmentDate,
