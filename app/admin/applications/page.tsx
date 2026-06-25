@@ -1221,20 +1221,22 @@ function AdminCareersApplicationsContent() {
                         <div className="flex flex-wrap gap-2">
                           {isInterviewScheduledInPast(round) ? (
                             round.isCompleted ? (
-                              <button
-                                type="button"
-                                disabled={busyId === app.id}
-                                onClick={() =>
-                                  void handleToggleInterviewCompletion(
-                                    app,
-                                    round,
-                                    false,
-                                  )
-                                }
-                                className="cursor-pointer rounded-lg border border-[#e5e5e5] bg-white px-2.5 py-1 font-montserrat text-xs font-medium text-[#5e5e5e] hover:bg-[#f5f5f5] disabled:opacity-60"
-                              >
-                                Undo Completion
-                              </button>
+                              app.status !== "HIRED" ? (
+                                <button
+                                  type="button"
+                                  disabled={busyId === app.id}
+                                  onClick={() =>
+                                    void handleToggleInterviewCompletion(
+                                      app,
+                                      round,
+                                      false,
+                                    )
+                                  }
+                                  className="cursor-pointer rounded-lg border border-[#e5e5e5] bg-white px-2.5 py-1 font-montserrat text-xs font-medium text-[#5e5e5e] hover:bg-[#f5f5f5] disabled:opacity-60"
+                                >
+                                  Undo Completion
+                                </button>
+                              ) : null
                             ) : (
                               <>
                                 <button

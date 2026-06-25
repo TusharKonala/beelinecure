@@ -64,6 +64,12 @@ export async function PATCH(
         { status: 400 },
       );
     }
+    if (result.error === "application_hired") {
+      return NextResponse.json(
+        { error: "Cannot undo completion for a hired application" },
+        { status: 409 },
+      );
+    }
     return NextResponse.json({ error: "Interview not found" }, { status: 404 });
   }
 

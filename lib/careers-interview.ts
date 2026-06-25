@@ -900,6 +900,7 @@ export async function setInterviewRoundCompleted(
       cancelledAt: true,
       scheduledAt: true,
       isCompleted: true,
+      application: { select: { status: true } },
     },
   });
 
@@ -926,6 +927,9 @@ export async function setInterviewRoundCompleted(
         ok: true as const,
         round: { id: round.id, isCompleted: false },
       };
+    }
+    if (round.application.status === "HIRED") {
+      return { error: "application_hired" as const };
     }
   }
 
