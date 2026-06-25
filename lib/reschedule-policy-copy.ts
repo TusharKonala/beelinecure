@@ -14,6 +14,17 @@ export const RESCHEDULE_ONLY_MORE_THAN_24H =
 /** Confirmation surfaces: payment success (online), clinic booking confirmed. */
 export const RESCHEDULE_POLICY_CONFIRMATION_LINE = `${RESCHEDULE_ONLY_MORE_THAN_24H} If it is less than 24 hours before your visit, cancel and book again to choose a new time.`;
 
+/** When patients can reschedule (timing) — used on pre/post-booking UI. */
+export const RESCHEDULE_POLICY_TIMING_LINE = RESCHEDULE_POLICY_CONFIRMATION_LINE;
+
+/** Where to reschedule after booking — same for online, clinic paid, clinic unpaid. */
+export const RESCHEDULE_POLICY_HOW_TO_LINE =
+  "After your appointment is confirmed, reschedule from the Reschedule link in your confirmation email, or sign in to your appointments dashboard at /patient/appointments (use the same email you used when booking).";
+
+/** Footer for pre/post-booking reschedule policy UI. */
+export const RESCHEDULE_POLICY_APPLIES_TO_LINE =
+  "This applies to online and clinic appointments, whether you pay online or at the clinic.";
+
 /** Body text for the ~26h email reminder (paired with `reminderAtMsFromPatientLocal`). */
 export const APPOINTMENT_REMINDER_EMAIL_BODY_26H =
   "Your appointment is coming up! Check your details below. If you need to reschedule, now is the time — this option closes 24 hours before your visit.";

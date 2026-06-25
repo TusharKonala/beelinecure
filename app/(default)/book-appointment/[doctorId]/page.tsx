@@ -48,7 +48,6 @@ import {
 import { convertCentsAmount } from "@/lib/fx-rates";
 import { formatDoctorDisplayName } from "@/lib/doctor-name";
 import { ReschedulePolicyNotice } from "@/app/(default)/book-appointment/components/ReschedulePolicyNotice";
-import { RESCHEDULE_POLICY_CONFIRMATION_LINE } from "@/lib/reschedule-policy-copy";
 import type { PatientConsultationChoice } from "@/lib/doctor-availability-slots";
 
 const patientFormSchema = z.object({
@@ -798,9 +797,7 @@ export default function BookAppointmentDoctorPage() {
               <p className="mt-4 font-montserrat text-sm text-[#5E5E5E]">
                 {confirmationMessage}
               </p>
-              <p className="mt-2 font-montserrat text-sm text-[#5E5E5E]">
-                {RESCHEDULE_POLICY_CONFIRMATION_LINE}
-              </p>
+              <ReschedulePolicyNotice className="mt-2" />
               <div className="mt-6 flex flex-col gap-2 rounded-lg bg-[#fafafa] p-4 font-montserrat text-sm">
                 <p>
                   <span className="font-medium text-[#111111]">Doctor:</span>{" "}
