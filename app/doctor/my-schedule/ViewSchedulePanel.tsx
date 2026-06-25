@@ -73,6 +73,65 @@ function scheduleFilterSelectClassName(className?: string) {
 const quickCheckDateInputClassName =
   "block w-full min-w-0 cursor-pointer rounded-xl border border-[#e5e5e5] bg-white px-4 py-3 font-montserrat text-sm text-[#111111] shadow-sm [color-scheme:light] focus:border-[#2555F3] focus:outline-none focus:ring-2 focus:ring-[#2555F3]/30 md:py-2.5";
 
+const SCHEDULE_READONLY_NOTE =
+  "Schedule changes are disabled while your account is deactivated.";
+
+function ScheduleDayActionButtons({
+  isoDate,
+  onEditDate,
+  onMarkHolidayClick,
+  clearingDate,
+  scheduleReadOnly,
+  todayFromApi,
+}: {
+  isoDate: string;
+  onEditDate: (isoDate: string) => void;
+  onMarkHolidayClick: (isoDate: string) => void;
+  clearingDate: string | null;
+  scheduleReadOnly: boolean;
+  todayFromApi: string | null;
+}) {
+  const isHolidayBlocked =
+    scheduleReadOnly || (!!todayFromApi && isoDate <= todayFromApi);
+  const holidayBlockedTitle = scheduleReadOnly
+    ? SCHEDULE_READONLY_NOTE
+    : isHolidayBlocked
+      ? "Cannot mark a day in progress as a holiday"
+      : undefined;
+
+  return (
+    <div className="flex shrink-0 flex-wrap gap-2">
+      <button
+        type="button"
+        disabled={scheduleReadOnly}
+        title={scheduleReadOnly ? SCHEDULE_READONLY_NOTE : undefined}
+        onClick={() => onEditDate(isoDate)}
+        className={cn(
+          "cursor-pointer rounded-lg border border-[#e5e5e5] bg-white px-3 py-1.5 font-montserrat text-xs font-medium text-[#2555F3] transition-colors",
+          "hover:bg-[#f5f8ff]",
+          "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-white",
+        )}
+      >
+        Edit
+      </button>
+      <span title={holidayBlockedTitle} className="inline-flex">
+        <button
+          type="button"
+          disabled={clearingDate === isoDate || isHolidayBlocked}
+          onClick={() => onMarkHolidayClick(isoDate)}
+          className={cn(
+            "cursor-pointer rounded-lg border border-[#e5e5e5] bg-white px-3 py-1.5 font-montserrat text-xs font-medium text-[#333333] transition-colors",
+            "hover:bg-[#fef2f2] hover:text-red-700 hover:border-red-200",
+            "disabled:cursor-not-allowed disabled:opacity-50",
+          )}
+        >
+          {clearingDate === isoDate ? "Removing…" : "Mark Holiday"}
+        </button>
+      </span>
+    </div>
+  );
+}
+
 function ViewScheduleQuickCheckField({
   minDate,
   inputRef,
@@ -128,27 +187,52 @@ function ViewScheduleQuickCheckResults({
   quickCheckSlotDetails,
   quickCheckLoading,
   quickCheckError,
+  onEditDate,
+  onMarkHolidayClick,
+  clearingDate,
+  scheduleReadOnly,
+  todayFromApi,
 }: {
   quickCheckDate: string;
   quickCheckSlotDetails: SlotDetail[] | null;
   quickCheckLoading: boolean;
   quickCheckError: string | null;
+  onEditDate: (isoDate: string) => void;
+  onMarkHolidayClick: (isoDate: string) => void;
+  clearingDate: string | null;
+  scheduleReadOnly: boolean;
+  todayFromApi: string | null;
 }) {
   const d = quickCheckDate.trim();
   if (!d) return null;
   return (
-    <div className="w-full rounded-xl border border-[#e5e5e5] bg-[#fafafa] px-3 py-2.5 font-montserrat text-sm text-[#333333]">
-      {quickCheckLoading ? (
-        <Skeleton className="h-4 w-full max-w-md" />
-      ) : quickCheckError ? (
-        <span className="text-red-600">{quickCheckError}</span>
-      ) : quickCheckSlotDetails && quickCheckSlotDetails.length > 0 ? (
-        <SlotSummaryFromDetails slots={quickCheckSlotDetails} />
-      ) : (
-        <span className="text-[#5E5E5E]">
-          No availability set for {formatScheduleDayHeading(d)}
-        </span>
-      )}
+    <div className="flex w-full flex-col gap-3 rounded-xl border border-[#e5e5e5] bg-[#fafafa] px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="min-w-0 font-montserrat text-sm text-[#333333]">
+        {quickCheckLoading ? (
+          <Skeleton className="h-4 w-full max-w-md" />
+        ) : quickCheckError ? (
+          <span className="text-red-600">{quickCheckError}</span>
+        ) : quickCheckSlotDetails && quickCheckSlotDetails.length > 0 ? (
+          <>
+            <p className="font-semibold">{formatScheduleDayHeading(d)}</p>
+            <SlotSummaryFromDetails slots={quickCheckSlotDetails} />
+          </>
+        ) : (
+          <span className="text-[#5E5E5E]">
+            No availability set for {formatScheduleDayHeading(d)}
+          </span>
+        )}
+      </div>
+      {!quickCheckLoading ? (
+        <ScheduleDayActionButtons
+          isoDate={d}
+          onEditDate={onEditDate}
+          onMarkHolidayClick={onMarkHolidayClick}
+          clearingDate={clearingDate}
+          scheduleReadOnly={scheduleReadOnly}
+          todayFromApi={todayFromApi}
+        />
+      ) : null}
     </div>
   );
 }
@@ -180,9 +264,6 @@ function ViewScheduleFilterHeader({
     </div>
   );
 }
-
-const SCHEDULE_READONLY_NOTE =
-  "Schedule changes are disabled while your account is deactivated.";
 
 type ViewSchedulePanelProps = {
   timezone: string;
@@ -316,7 +397,7 @@ export function ViewSchedulePanel({
     return () => {
       cancelled = true;
     };
-  }, [quickCheckDate]);
+  }, [quickCheckDate, listRefreshVersion]);
 
   const loadList = useCallback(
     async (
@@ -569,6 +650,9 @@ export function ViewSchedulePanel({
       }
       await loadList(1, false, selectedMonth, bookedOnly, selectedDateFilter);
       onAvailabilityChanged?.(isoDate);
+      if (isoDate === quickCheckDate.trim()) {
+        setQuickCheckSlotDetails([]);
+      }
     } catch (e) {
       setHolidayError(
         e instanceof Error ? e.message : "Could not mark holiday",
@@ -866,6 +950,11 @@ export function ViewSchedulePanel({
             quickCheckSlotDetails={quickCheckSlotDetails}
             quickCheckLoading={quickCheckLoading}
             quickCheckError={quickCheckError}
+            onEditDate={onEditDate}
+            onMarkHolidayClick={setHolidayConfirmDate}
+            clearingDate={clearingDate}
+            scheduleReadOnly={scheduleReadOnly}
+            todayFromApi={todayFromApi}
           />
         </div>
       ) : null}
@@ -910,50 +999,14 @@ export function ViewSchedulePanel({
                 </p>
                 <ScheduleDaySlotSummary day={day} bookedOnly={bookedOnly} />
               </div>
-              <div className="flex shrink-0 flex-wrap gap-2">
-                <button
-                  type="button"
-                  disabled={scheduleReadOnly}
-                  title={scheduleReadOnly ? SCHEDULE_READONLY_NOTE : undefined}
-                  onClick={() => onEditDate(day.date)}
-                  className={cn(
-                    "cursor-pointer rounded-lg border border-[#e5e5e5] bg-white px-3 py-1.5 font-montserrat text-xs font-medium text-[#2555F3] transition-colors",
-                    "hover:bg-[#f5f8ff]",
-                    "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-white",
-                  )}
-                >
-                  Edit
-                </button>
-                {(() => {
-                  const isHolidayBlocked =
-                    scheduleReadOnly ||
-                    (!!todayFromApi && day.date <= todayFromApi);
-                  const holidayBlockedTitle = scheduleReadOnly
-                    ? SCHEDULE_READONLY_NOTE
-                    : isHolidayBlocked
-                      ? "Cannot mark a day in progress as a holiday"
-                      : undefined;
-                  return (
-                    <span
-                      title={holidayBlockedTitle}
-                      className="inline-flex"
-                    >
-                      <button
-                        type="button"
-                        disabled={clearingDate === day.date || isHolidayBlocked}
-                        onClick={() => setHolidayConfirmDate(day.date)}
-                        className={cn(
-                          "cursor-pointer rounded-lg border border-[#e5e5e5] bg-white px-3 py-1.5 font-montserrat text-xs font-medium text-[#333333] transition-colors",
-                          "hover:bg-[#fef2f2] hover:text-red-700 hover:border-red-200",
-                          "disabled:cursor-not-allowed disabled:opacity-50",
-                        )}
-                      >
-                        {clearingDate === day.date ? "Removing…" : "Mark Holiday"}
-                      </button>
-                    </span>
-                  );
-                })()}
-              </div>
+              <ScheduleDayActionButtons
+                isoDate={day.date}
+                onEditDate={onEditDate}
+                onMarkHolidayClick={setHolidayConfirmDate}
+                clearingDate={clearingDate}
+                scheduleReadOnly={scheduleReadOnly}
+                todayFromApi={todayFromApi}
+              />
             </li>
           ))}
         </ul>
