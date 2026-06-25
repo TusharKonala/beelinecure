@@ -338,6 +338,7 @@ export async function POST(request: NextRequest) {
         priceLabel,
         approxLocalPriceLabel,
         isPricePaid: appointment.paymentStatus === PaymentStatus.PAID,
+        durationMinutes: appointment.durationMinutes,
       }),
     });
     if (error) {

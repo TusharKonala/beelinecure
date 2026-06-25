@@ -283,6 +283,7 @@ export async function POST(request: NextRequest) {
           priceLabel,
           approxLocalPriceLabel,
           isPricePaid: appointment.paymentStatus === PaymentStatus.PAID,
+          durationMinutes: bookingSession.durationMinutes,
         }),
       });
 

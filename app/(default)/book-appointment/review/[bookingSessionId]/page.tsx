@@ -14,6 +14,7 @@ import {
 } from "@/lib/currency";
 import { convertCentsAmount } from "@/lib/fx-rates";
 import { formatDoctorDisplayName } from "@/lib/doctor-name";
+import { ReschedulePolicyNotice } from "@/app/(default)/book-appointment/components/ReschedulePolicyNotice";
 
 type PageProps = {
   params: Promise<{ bookingSessionId: string }>;
@@ -133,6 +134,8 @@ export default async function BookingReviewPage({ params }: PageProps) {
                     </span>
                   </div>
                 </div>
+
+                <ReschedulePolicyNotice />
 
                 {bookingSession.consultationType === "CLINIC" && (
                   <div className="mt-6 rounded-lg border border-[#e5e5e5] bg-[#fafafa] p-4">

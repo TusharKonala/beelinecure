@@ -365,6 +365,7 @@ export async function POST(request: NextRequest) {
         showOnlineContactFallback: false,
         priceLabel,
         approxLocalPriceLabel,
+        durationMinutes: appointment.durationMinutes,
       }),
     });
 

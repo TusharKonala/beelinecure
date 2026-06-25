@@ -31,6 +31,8 @@ export interface EmailTemplateProps {
   staffNoteIntro?: string | null;
   /** Free-text note from doctor or admin shown to the patient on cancellation. */
   staffNote?: string | null;
+  /** Booked slot length in minutes (from appointment.durationMinutes). */
+  durationMinutes?: number | null;
 }
 
 const primaryButtonStyle: React.CSSProperties = {
@@ -181,6 +183,7 @@ export function EmailTemplate({
   showOnlineContactFallback = true,
   staffNoteIntro,
   staffNote,
+  durationMinutes,
 }: EmailTemplateProps) {
   const firstActionLabel = primaryActionLabel ?? "Cancel Appointment";
   const firstActionUrl = primaryActionUrl ?? cancelUrl;
@@ -308,6 +311,11 @@ export function EmailTemplate({
         <p style={{ margin: "0.25rem 0", color: "#111111" }}>
           <strong>Time:</strong> {appointmentTime}
         </p>
+        {typeof durationMinutes === "number" && durationMinutes > 0 ? (
+          <p style={{ margin: "0.25rem 0", color: "#111111" }}>
+            <strong>Duration:</strong> {durationMinutes} minutes
+          </p>
+        ) : null}
         <p style={{ margin: "0.25rem 0", color: "#111111" }}>
           <strong>Patient:</strong> {patientName}
         </p>

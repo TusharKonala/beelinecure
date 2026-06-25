@@ -106,6 +106,7 @@ export async function cancelAppointmentByStaff(input: {
       googleCalendarEventId: true,
       priceCentsAtBooking: true,
       currencyAtBooking: true,
+      durationMinutes: true,
     },
   });
   if (!appointment) return { ok: false as const, code: "NOT_FOUND" as const };
@@ -257,6 +258,7 @@ export async function cancelAppointmentByStaff(input: {
         showOnlineContactFallback: false,
         priceLabel,
         approxLocalPriceLabel,
+        durationMinutes: appointment.durationMinutes,
         staffNoteIntro: cancellationNote
           ? staffCancellationNoteIntro(isDoctorInitiated, doctorDisplayName)
           : null,

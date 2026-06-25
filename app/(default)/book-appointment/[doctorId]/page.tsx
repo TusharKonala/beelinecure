@@ -47,6 +47,7 @@ import {
 } from "@/lib/doctor-pricing";
 import { convertCentsAmount } from "@/lib/fx-rates";
 import { formatDoctorDisplayName } from "@/lib/doctor-name";
+import { ReschedulePolicyNotice } from "@/app/(default)/book-appointment/components/ReschedulePolicyNotice";
 import { RESCHEDULE_POLICY_CONFIRMATION_LINE } from "@/lib/reschedule-policy-copy";
 import type { PatientConsultationChoice } from "@/lib/doctor-availability-slots";
 
@@ -1288,6 +1289,9 @@ export default function BookAppointmentDoctorPage() {
                       {renderSubmitErrorMessage(submitError)}
                     </p>
                   )}
+                  {consultationType !== null ? (
+                    <ReschedulePolicyNotice className="mt-4" />
+                  ) : null}
                   <Button
                     disabled={
                       !isValid ||

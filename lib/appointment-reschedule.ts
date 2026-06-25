@@ -243,6 +243,7 @@ export async function reschedulePatientAppointment(input: {
           meetLink: latestMeet?.googleMeetUrl ?? null,
           priceLabel,
           approxLocalPriceLabel,
+          durationMinutes: updatedAppointment.durationMinutes,
         }),
       });
 
