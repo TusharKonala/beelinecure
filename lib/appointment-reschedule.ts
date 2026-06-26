@@ -23,6 +23,7 @@ import {
 } from "@/lib/timezone-display";
 import { Resend } from "resend";
 import { getEmailFrom } from "@/lib/email-from";
+import { triggerSlotUpdated } from "@/lib/pusher-server";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -36,6 +37,10 @@ export type RescheduleAppointmentRow = {
   patientTimezone: string;
   cancelToken: string | null;
   rescheduleToken: string | null;
+  /** YYYY-MM-DD of the slot before reschedule */
+  previousDateYmd: string;
+  /** HH:mm of the slot before reschedule */
+  previousTime: string;
 };
 
 /**
@@ -94,6 +99,15 @@ export async function reschedulePatientAppointment(input: {
         ? { patientTimezone: patientTimezoneOverride }
         : {}),
     },
+  });
+
+  await triggerSlotUpdated(appointment.doctorId, {
+    date: appointment.previousDateYmd,
+    time: appointment.previousTime,
+  });
+  await triggerSlotUpdated(appointment.doctorId, {
+    date: dateParam,
+    time,
   });
 
   if (updatedAppointment.consultationType === ConsultationType.ONLINE) {

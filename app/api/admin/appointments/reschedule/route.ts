@@ -102,6 +102,8 @@ export async function POST(request: NextRequest) {
       patientTimezone: appointment.patientTimezone,
       cancelToken: appointment.cancelToken,
       rescheduleToken: appointment.rescheduleToken,
+      previousDateYmd: appointment.date.toISOString().slice(0, 10),
+      previousTime: appointment.time,
     },
     dateParam,
     date,
