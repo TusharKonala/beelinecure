@@ -15,7 +15,7 @@ import {
 } from "@/lib/timezone-display";
 import { NextRequest, NextResponse } from "next/server";
 import { AppointmentStatus } from "@/generated/prisma/client";
-import { activeBookingSessionHoldsByDate } from "@/lib/slot-availability";
+import { activeBookingSessionHoldsByDate, activeSlotHoldsByDate } from "@/lib/slot-availability";
 
 function parseYmdUtc(value: string): Date | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
@@ -146,7 +146,8 @@ export async function GET(
     queryRangeEnd = rangeEnd;
   }
 
-  const [availabilities, appointments, sessionHoldsByDay] = await Promise.all([
+  const [availabilities, appointments, sessionHoldsByDay, slotHoldsByDay] =
+    await Promise.all([
     prisma.doctorAvailability.findMany({
       where: {
         doctorId,
@@ -177,6 +178,11 @@ export async function GET(
       rangeStart: queryRangeStart,
       rangeEnd: queryRangeEnd,
     }),
+    activeSlotHoldsByDate({
+      doctorId,
+      rangeStart: queryRangeStart,
+      rangeEnd: queryRangeEnd,
+    }),
   ]);
 
   const bookedByDay = new Map<string, Set<string>>();
@@ -187,6 +193,13 @@ export async function GET(
   }
 
   for (const [dayKey, heldTimes] of sessionHoldsByDay) {
+    if (!bookedByDay.has(dayKey)) bookedByDay.set(dayKey, new Set());
+    for (const t of heldTimes) {
+      bookedByDay.get(dayKey)!.add(t);
+    }
+  }
+
+  for (const [dayKey, heldTimes] of slotHoldsByDay) {
     if (!bookedByDay.has(dayKey)) bookedByDay.set(dayKey, new Set());
     for (const t of heldTimes) {
       bookedByDay.get(dayKey)!.add(t);

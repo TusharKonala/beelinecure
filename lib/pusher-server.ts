@@ -66,4 +66,20 @@ export async function triggerChatInboxUpdate(
   await pusher.trigger(userPrivateChannel(userId), "inbox-update", payload);
 }
 
+export function doctorSlotsChannel(doctorId: string) {
+  return `doctor-slots-${doctorId}`;
+}
+
+export async function triggerSlotUpdated(
+  doctorId: string,
+  payload: { date: string; time: string },
+) {
+  try {
+    const pusher = getPusherServer();
+    await pusher.trigger(doctorSlotsChannel(doctorId), "slot-updated", payload);
+  } catch (err) {
+    console.error("[pusher] slot-updated trigger failed:", err);
+  }
+}
+
 export { getPusherServer };

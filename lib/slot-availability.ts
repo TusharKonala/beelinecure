@@ -3,6 +3,7 @@ import "server-only";
 import {
   AppointmentStatus,
   BookingSessionStatus,
+  SlotHoldStatus,
 } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 
@@ -17,6 +18,8 @@ export type SlotBookableInput = {
   excludeAppointmentId?: string;
   /** Exclude patient's own in-flight session when re-submitting on booking-session. */
   excludeBookingSessionId?: string;
+  /** Exclude patient's own slot hold from the book page. */
+  excludeSlotHoldId?: string;
 };
 
 export type SlotCheckoutInput = {
@@ -45,6 +48,17 @@ export async function expireStaleBookingSessions(): Promise<void> {
       expiresAt: { lt: new Date() },
     },
     data: { status: BookingSessionStatus.EXPIRED },
+  });
+}
+
+/** Marks TTL-expired ACTIVE slot holds as EXPIRED. */
+export async function expireStaleSlotHolds(): Promise<void> {
+  await prisma.slotHold.updateMany({
+    where: {
+      status: SlotHoldStatus.ACTIVE,
+      expiresAt: { lt: new Date() },
+    },
+    data: { status: SlotHoldStatus.EXPIRED },
   });
 }
 
@@ -81,6 +95,38 @@ export async function activeBookingSessionHoldsByDate(input: {
 }
 
 /**
+ * Returns active SlotHold times per UTC date key (YYYY-MM-DD).
+ */
+export async function activeSlotHoldsByDate(input: {
+  doctorId: string;
+  rangeStart: Date;
+  rangeEnd: Date;
+}): Promise<Map<string, Set<string>>> {
+  await expireStaleSlotHolds();
+
+  const holds = await prisma.slotHold.findMany({
+    where: {
+      doctorId: input.doctorId,
+      status: SlotHoldStatus.ACTIVE,
+      expiresAt: { gt: new Date() },
+      date: {
+        gte: input.rangeStart.toISOString().slice(0, 10),
+        lte: input.rangeEnd.toISOString().slice(0, 10),
+      },
+    },
+    select: { date: true, time: true },
+  });
+
+  const byDay = new Map<string, Set<string>>();
+  for (const hold of holds) {
+    const key = hold.date;
+    if (!byDay.has(key)) byDay.set(key, new Set());
+    byDay.get(key)!.add(hold.time);
+  }
+  return byDay;
+}
+
+/**
  * Read-only check: slot is not booked and not held by another patient's checkout.
  */
 export async function isSlotBookable(
@@ -101,6 +147,7 @@ export async function assertSlotBookable(
   }
 
   await expireStaleBookingSessions();
+  await expireStaleSlotHolds();
 
   if (
     await hasActiveAppointmentAtSlot({
@@ -128,6 +175,24 @@ export async function assertSlotBookable(
   });
 
   if (conflictingSession) {
+    return { ok: false, reason: "checkout_in_progress" };
+  }
+
+  const conflictingHold = await prisma.slotHold.findFirst({
+    where: {
+      doctorId: input.doctorId,
+      date: input.dateYmd,
+      time: input.time,
+      status: SlotHoldStatus.ACTIVE,
+      expiresAt: { gt: new Date() },
+      ...(input.excludeSlotHoldId
+        ? { id: { not: input.excludeSlotHoldId } }
+        : {}),
+    },
+    select: { id: true },
+  });
+
+  if (conflictingHold) {
     return { ok: false, reason: "checkout_in_progress" };
   }
 

@@ -49,6 +49,8 @@ import {
   assertSlotBookable,
   SLOT_NO_LONGER_AVAILABLE_MESSAGE,
 } from "@/lib/slot-availability";
+import { consumeSlotHold } from "@/lib/slot-hold-server";
+import { triggerSlotUpdated } from "@/lib/pusher-server";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -65,6 +67,7 @@ const appointmentSchema = z.object({
   /** In-clinic only; online bookings use Stripe + webhook. */
   consultationType: z.literal("CLINIC").default("CLINIC"),
   availabilityId: z.string().optional(),
+  holdId: z.string().uuid().optional(),
   timezone: z.string().min(1).max(128).default("UTC"),
   patientTimezone: z.string().min(1).max(128).default("UTC"),
 });
@@ -105,6 +108,7 @@ export async function POST(request: NextRequest) {
     notes,
     consultationType,
     availabilityId,
+    holdId: excludeSlotHoldId,
     patientTimezone,
   } = parsed.data;
 
@@ -250,6 +254,7 @@ export async function POST(request: NextRequest) {
     doctorId,
     dateYmd: dateParam,
     time,
+    excludeSlotHoldId,
   });
   if (!slotBookable.ok) {
     return NextResponse.json(
@@ -298,6 +303,17 @@ export async function POST(request: NextRequest) {
     }
     throw err;
   }
+
+  if (excludeSlotHoldId) {
+    await consumeSlotHold({
+      holdId: excludeSlotHoldId,
+      doctorId,
+      dateYmd: dateParam,
+      time,
+    });
+  }
+
+  await triggerSlotUpdated(doctorId, { date: dateParam, time });
 
   const headersList = await headers();
   const origin =

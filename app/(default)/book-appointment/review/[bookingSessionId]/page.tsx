@@ -18,6 +18,7 @@ import { formatDoctorDisplayName } from "@/lib/doctor-name";
 import { ReschedulePolicyNotice } from "@/app/(default)/book-appointment/components/ReschedulePolicyNotice";
 import { CancellationRefundPolicyNotice } from "@/app/(default)/book-appointment/components/CancellationRefundPolicyNotice";
 import { assertSlotAvailableForCheckout } from "@/lib/slot-availability";
+import { SlotHoldReviewCleanup } from "./SlotHoldReviewCleanup";
 
 type PageProps = {
   params: Promise<{ bookingSessionId: string }>;
@@ -88,6 +89,7 @@ export default async function BookingReviewPage({ params }: PageProps) {
 
   return (
     <div className="flex flex-1 flex-col w-full bg-[#fafafa] py-10 md:py-14 lg:py-16">
+      <SlotHoldReviewCleanup />
       <Container>
         <section className="mx-auto max-w-xl">
           <div className="rounded-xl border border-[#e5e5e5] bg-white p-6 shadow-sm md:p-8">

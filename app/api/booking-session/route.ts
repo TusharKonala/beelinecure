@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import { PrismaClientKnownRequestError } from "@prisma/client/runtime/client";
 import { publicDoctorByIdWhere } from "@/lib/doctor-visibility";
-import { AppointmentStatus, BookingSessionStatus, UserRole } from "@/generated/prisma/client";
+import { AppointmentStatus, BookingSessionStatus, SlotHoldStatus, UserRole } from "@/generated/prisma/client";
 import {
   coerceAllowedSlotDurationMinutes,
   resolveSlotMetaForStart,
@@ -31,6 +31,7 @@ import {
   assertSlotBookable,
   SLOT_NO_LONGER_AVAILABLE_MESSAGE,
 } from "@/lib/slot-availability";
+import { triggerSlotUpdated } from "@/lib/pusher-server";
 
 const bookingSessionSchema = z.object({
   doctorId: z.string().min(1),
@@ -41,6 +42,8 @@ const bookingSessionSchema = z.object({
   availabilityId: z.string().optional(),
   /** When re-submitting for the same slot, exclude this session from the soft-hold check. */
   bookingSessionId: z.string().optional(),
+  /** Slot hold acquired on the book page before form submit. */
+  holdId: z.string().uuid().optional(),
   patientName: z.string().min(1),
   email: z.string().email(),
   phone: z
@@ -87,6 +90,7 @@ export async function POST(request: NextRequest) {
     consultationType,
     availabilityId,
     bookingSessionId: excludeBookingSessionId,
+    holdId: excludeSlotHoldId,
     patientName,
     email,
     phone,
@@ -186,6 +190,7 @@ export async function POST(request: NextRequest) {
     dateYmd: date,
     time,
     excludeBookingSessionId,
+    excludeSlotHoldId,
   });
   if (!slotBookable.ok) {
     return NextResponse.json(
@@ -288,7 +293,7 @@ export async function POST(request: NextRequest) {
         data: { status: BookingSessionStatus.EXPIRED },
       });
 
-      return tx.bookingSession.create({
+      const created = await tx.bookingSession.create({
         data: {
           doctorId,
           patientName,
@@ -307,6 +312,21 @@ export async function POST(request: NextRequest) {
           expiresAt,
         },
       });
+
+      if (excludeSlotHoldId) {
+        await tx.slotHold.updateMany({
+          where: {
+            id: excludeSlotHoldId,
+            doctorId,
+            date,
+            time,
+            status: SlotHoldStatus.ACTIVE,
+          },
+          data: { status: SlotHoldStatus.CONSUMED },
+        });
+      }
+
+      return created;
     });
   } catch (err) {
     if (err instanceof PrismaClientKnownRequestError && err.code === "P2002") {
@@ -317,6 +337,8 @@ export async function POST(request: NextRequest) {
     }
     throw err;
   }
+
+  await triggerSlotUpdated(doctorId, { date, time });
 
   return NextResponse.json({ bookingSessionId: bookingSession.id });
 }

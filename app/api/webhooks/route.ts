@@ -35,6 +35,7 @@ import {
   createDoctorNotificationForDoctorId,
 } from "@/lib/notifications";
 import { formatDoctorDisplayName } from "@/lib/doctor-name";
+import { triggerSlotUpdated } from "@/lib/pusher-server";
 import { createMeetEventForOnlineAppointment } from "@/lib/google-calendar-meet";
 import { buildEmailPriceLabels } from "@/lib/email-price-labels";
 import { bookingConfirmationEmailMessage, slotConflictRefundEmailMessage } from "@/lib/reschedule-policy-copy";
@@ -280,6 +281,11 @@ export async function POST(request: NextRequest) {
         throw err;
       }
     }
+
+    await triggerSlotUpdated(bookingSession.doctorId, {
+      date: bookingSession.date,
+      time: bookingSession.time,
+    });
 
     const sessionAfter = await prisma.bookingSession.findUnique({
       where: { id: bookingSession.id },

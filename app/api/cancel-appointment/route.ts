@@ -38,6 +38,7 @@ import {
 import { convertCentsAmount } from "@/lib/fx-rates";
 import { buildEmailPriceLabels } from "@/lib/email-price-labels";
 import { deleteMeetCalendarEvent } from "@/lib/google-calendar-meet";
+import { triggerSlotUpdated } from "@/lib/pusher-server";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -202,6 +203,12 @@ export async function POST(request: NextRequest) {
       googleCalendarEventId: null,
       googleMeetUrl: null,
     },
+  });
+
+  const appointmentDateYmd = appointment.date.toISOString().slice(0, 10);
+  await triggerSlotUpdated(appointment.doctorId, {
+    date: appointmentDateYmd,
+    time: appointment.time,
   });
 
   // Refund logic: paid appointments get a full refund if cancelled

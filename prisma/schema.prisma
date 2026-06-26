@@ -50,6 +50,13 @@ enum BookingSessionStatus {
   FAILED
 }
 
+enum SlotHoldStatus {
+  ACTIVE
+  CONSUMED
+  EXPIRED
+  RELEASED
+}
+
 enum UserRole {
   PATIENT
   DOCTOR
@@ -229,6 +236,7 @@ model Doctor {
   availabilities   DoctorAvailability[]
   appointments     Appointment[]
   bookingSessions  BookingSession[]
+  slotHolds        SlotHold[]
   customMedicines  CustomMedicine[]
   reviews          Review[]
 }
@@ -428,6 +436,22 @@ model BookingSession {
 
   /// DB enforces at most one PENDING row per (doctorId, date, time) via partial
   /// unique index `BookingSession_doctorId_date_time_pending_key` (see migrations).
+}
+
+/// Short-lived hold while a patient has selected a slot on the book page (before form submit).
+model SlotHold {
+  id               String         @id @default(uuid())
+  doctorId         String
+  doctor           Doctor         @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  date             String
+  time             String
+  consultationType String
+  status           SlotHoldStatus @default(ACTIVE)
+  expiresAt        DateTime
+  createdAt        DateTime       @default(now())
+
+  /// DB enforces at most one ACTIVE row per (doctorId, date, time) via partial
+  /// unique index `SlotHold_doctorId_date_time_active_key` (see migrations).
 }
 
 model Notification {

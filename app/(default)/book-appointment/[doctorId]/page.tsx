@@ -49,6 +49,11 @@ import { convertCentsAmount } from "@/lib/fx-rates";
 import { formatDoctorDisplayName } from "@/lib/doctor-name";
 import { ReschedulePolicyNotice } from "@/app/(default)/book-appointment/components/ReschedulePolicyNotice";
 import type { PatientConsultationChoice } from "@/lib/doctor-availability-slots";
+import {
+  SLOT_HOLD_STORAGE_KEY,
+  SLOT_NO_LONGER_AVAILABLE_MESSAGE,
+} from "@/lib/slot-hold-shared";
+import { useDoctorSlotsPusher } from "@/lib/use-doctor-slots-pusher";
 
 const patientFormSchema = z.object({
   patientName: z.string().min(1, "Full name is required"),
@@ -288,6 +293,39 @@ export default function BookAppointmentDoctorPage() {
     string | null
   >(null);
   const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [holdingSlotKey, setHoldingSlotKey] = useState<string | null>(null);
+  const [slotHoldAlert, setSlotHoldAlert] = useState<string | null>(null);
+  const holdIdRef = useRef<string | null>(null);
+
+  const readStoredHoldId = useCallback((): string | null => {
+    if (typeof window === "undefined") return null;
+    return sessionStorage.getItem(SLOT_HOLD_STORAGE_KEY);
+  }, []);
+
+  const writeStoredHoldId = useCallback((id: string | null) => {
+    holdIdRef.current = id;
+    if (typeof window === "undefined") return;
+    if (id) sessionStorage.setItem(SLOT_HOLD_STORAGE_KEY, id);
+    else sessionStorage.removeItem(SLOT_HOLD_STORAGE_KEY);
+  }, []);
+
+  const releaseCurrentHold = useCallback(
+    async (holdId?: string | null) => {
+      const id = holdId ?? holdIdRef.current ?? readStoredHoldId();
+      if (!id) return;
+      writeStoredHoldId(null);
+      try {
+        await fetch("/api/slot-hold", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ holdId: id }),
+        });
+      } catch {
+        // best-effort
+      }
+    },
+    [readStoredHoldId, writeStoredHoldId],
+  );
 
   const { data: doctor, isLoading: doctorLoading } = useQuery({
     queryKey: ["doctor", doctorId],
@@ -387,6 +425,12 @@ export default function BookAppointmentDoctorPage() {
       getSlots(doctorId, dateForSlots, consultationType!, patientTimezone),
     enabled: !!doctorId && !!dateForSlots && consultationType !== null,
   });
+
+  useDoctorSlotsPusher({
+    doctorId,
+    enabled: !!doctorId && consultationType !== null,
+  });
+
   const doctorTz = slotsData?.doctorTimezone ?? "UTC";
   const slotDurationMinutes = slotsData?.slotDurationMinutes ?? 30;
   const slotDetailByRef = useMemo<Map<string, SlotDetail>>(
@@ -455,6 +499,7 @@ export default function BookAppointmentDoctorPage() {
     (next: PatientConsultationChoice) => {
       if (next === "ONLINE" && !onlineConsultationAvailable) return;
       if (consultationType !== null && consultationType !== next) {
+        void releaseCurrentHold();
         setSelectedSlot(null);
         setSelectedDate(todayYmdInTimeZone(patientTimezone));
         setSelectedDurationMinutes(null);
@@ -471,6 +516,7 @@ export default function BookAppointmentDoctorPage() {
       onlineConsultationAvailable,
       patientTimezone,
       queryClient,
+      releaseCurrentHold,
     ],
   );
 
@@ -493,6 +539,71 @@ export default function BookAppointmentDoctorPage() {
   const isPatientSignedIn =
     sessionStatus === "authenticated" && Boolean(session?.user?.email);
 
+  const acquireSlotHold = useCallback(
+    async (ref: BookableSlotRef) => {
+      if (consultationType === null) return;
+      const refKey = bookableSlotRefKey(ref);
+      setSlotHoldAlert(null);
+      setHoldingSlotKey(refKey);
+
+      try {
+        const isSameSlot =
+          selectedSlot !== null &&
+          bookableSlotRefKey(selectedSlot) === refKey;
+
+        if (selectedSlot && !isSameSlot) {
+          await releaseCurrentHold();
+        }
+
+        let holdId = holdIdRef.current ?? readStoredHoldId();
+        if (!holdId || !isSameSlot) {
+          holdId = crypto.randomUUID();
+        }
+
+        const res = await fetch("/api/slot-hold", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            doctorId,
+            date: ref.doctorDate,
+            time: ref.startTime,
+            consultationType,
+            holdId,
+          }),
+        });
+
+        const json = (await res.json().catch(() => ({}))) as {
+          holdId?: string;
+          error?: string;
+        };
+
+        if (!res.ok) {
+          setSlotHoldAlert(
+            typeof json.error === "string"
+              ? json.error
+              : SLOT_NO_LONGER_AVAILABLE_MESSAGE,
+          );
+          return;
+        }
+
+        writeStoredHoldId(String(json.holdId ?? holdId));
+        setSelectedSlot(ref);
+      } catch {
+        setSlotHoldAlert("Network error. Please try again.");
+      } finally {
+        setHoldingSlotKey(null);
+      }
+    },
+    [
+      consultationType,
+      doctorId,
+      readStoredHoldId,
+      releaseCurrentHold,
+      selectedSlot,
+      writeStoredHoldId,
+    ],
+  );
+
   const onPatientFormSubmit = useCallback(
     async (data: PatientFormValues) => {
       setSubmitError(null);
@@ -504,6 +615,7 @@ export default function BookAppointmentDoctorPage() {
         const doctorTimezone = slotsData?.doctorTimezone ?? "UTC";
         const doctorDate = selectedSlot.doctorDate;
         const doctorTime = selectedSlot.startTime;
+        const holdId = holdIdRef.current ?? readStoredHoldId();
 
         const useBookingSessionCheckout =
           consultationType === "ONLINE" ||
@@ -525,6 +637,7 @@ export default function BookAppointmentDoctorPage() {
               notes: data.notes ?? undefined,
               timezone: doctorTimezone,
               patientTimezone,
+              ...(holdId ? { holdId } : {}),
             }),
           });
 
@@ -575,6 +688,7 @@ export default function BookAppointmentDoctorPage() {
               notes: data.notes,
               timezone: doctorTimezone,
               patientTimezone,
+              ...(holdId ? { holdId } : {}),
             }),
           });
 
@@ -614,6 +728,7 @@ export default function BookAppointmentDoctorPage() {
           queryKey: ["slots", doctorId],
         });
 
+        writeStoredHoldId(null);
         setSelectedSlot(null);
       } catch {
         setSubmitError({ message: "Network error. Please try again." });
@@ -634,6 +749,8 @@ export default function BookAppointmentDoctorPage() {
       queryClient,
       redirectWithOverlay,
       router,
+      readStoredHoldId,
+      writeStoredHoldId,
     ],
   );
 
@@ -684,13 +801,42 @@ export default function BookAppointmentDoctorPage() {
       (ref) => bookableSlotRefKey(ref) === key,
     );
     if (!stillAvailable) {
+      void releaseCurrentHold();
       setSelectedSlot(null);
+      setSlotHoldAlert(SLOT_NO_LONGER_AVAILABLE_MESSAGE);
     }
-  }, [selectedSlot, durationFilteredSlots]);
+  }, [selectedSlot, durationFilteredSlots, releaseCurrentHold]);
 
   useEffect(() => {
     setSubmitError(null);
-  }, [selectedDate]);
+    setSlotHoldAlert(null);
+    void releaseCurrentHold();
+    setSelectedSlot(null);
+  }, [selectedDate, releaseCurrentHold]);
+
+  useEffect(() => {
+    const onPageHide = () => {
+      const holdId = readStoredHoldId();
+      if (!holdId) return;
+      void fetch("/api/slot-hold", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ holdId }),
+        keepalive: true,
+      }).catch(() => {});
+    };
+    window.addEventListener("pagehide", onPageHide);
+    return () => window.removeEventListener("pagehide", onPageHide);
+  }, [readStoredHoldId]);
+
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState !== "visible" || !selectedSlot) return;
+      void queryClient.invalidateQueries({ queryKey: ["slots", doctorId] });
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [doctorId, selectedSlot, queryClient]);
 
   useEffect(() => {
     if (!submitError) return;
@@ -1136,19 +1282,31 @@ export default function BookAppointmentDoctorPage() {
                         const isSelected =
                           selectedSlot !== null &&
                           bookableSlotRefKey(selectedSlot) === refKey;
+                        const isHolding = holdingSlotKey === refKey;
                         return (
                           <Button
                             key={refKey}
                             variant={isSelected ? "default" : "outline"}
                             className="cursor-pointer h-11 rounded-xl font-montserrat text-sm font-medium sm:h-12 md:text-base"
-                            onClick={() => setSelectedSlot(ref)}
+                            disabled={isHolding}
+                            onClick={() => void acquireSlotHold(ref)}
                           >
-                            {`${formatTimeInPatientTz(ref.doctorDate, ref.startTime, doctorTz, patientTimezone)} · ${durationForTile} min`}
+                            {isHolding
+                              ? "Reserving…"
+                              : `${formatTimeInPatientTz(ref.doctorDate, ref.startTime, doctorTz, patientTimezone)} · ${durationForTile} min`}
                           </Button>
                         );
                       })}
                     </div>
                   )}
+                {slotHoldAlert ? (
+                  <p
+                    className="mt-4 font-montserrat text-sm text-destructive"
+                    role="alert"
+                  >
+                    {slotHoldAlert}
+                  </p>
+                ) : null}
               </section>
             )}
 
