@@ -101,6 +101,7 @@ export async function activeSlotHoldsByDate(input: {
   doctorId: string;
   rangeStart: Date;
   rangeEnd: Date;
+  excludeSlotHoldId?: string;
 }): Promise<Map<string, Set<string>>> {
   await expireStaleSlotHolds();
 
@@ -113,6 +114,9 @@ export async function activeSlotHoldsByDate(input: {
         gte: input.rangeStart.toISOString().slice(0, 10),
         lte: input.rangeEnd.toISOString().slice(0, 10),
       },
+      ...(input.excludeSlotHoldId
+        ? { id: { not: input.excludeSlotHoldId } }
+        : {}),
     },
     select: { date: true, time: true },
   });

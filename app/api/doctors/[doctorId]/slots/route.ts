@@ -48,6 +48,16 @@ export async function GET(
   const excludeAppointmentId = request.nextUrl.searchParams.get(
     "excludeAppointmentId",
   );
+  const excludeSlotHoldIdParam = request.nextUrl.searchParams.get(
+    "excludeSlotHoldId",
+  );
+  const excludeSlotHoldId =
+    excludeSlotHoldIdParam &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      excludeSlotHoldIdParam,
+    )
+      ? excludeSlotHoldIdParam
+      : undefined;
   const choiceParam = request.nextUrl.searchParams.get("consultationType");
   let consultationFilter: PatientConsultationChoice | null = null;
   if (choiceParam !== null && choiceParam !== "") {
@@ -182,6 +192,7 @@ export async function GET(
       doctorId,
       rangeStart: queryRangeStart,
       rangeEnd: queryRangeEnd,
+      excludeSlotHoldId,
     }),
   ]);
 

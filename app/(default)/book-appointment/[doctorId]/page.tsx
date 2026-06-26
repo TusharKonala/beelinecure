@@ -127,6 +127,7 @@ async function getSlots(
   patientDate: string,
   consultationType: PatientConsultationChoice,
   patientTimezone: string,
+  excludeSlotHoldId?: string,
 ): Promise<{
   slots: string[];
   slotDetails: {
@@ -144,6 +145,9 @@ async function getSlots(
     patientTimezone,
     consultationType,
   });
+  if (excludeSlotHoldId) {
+    params.set("excludeSlotHoldId", excludeSlotHoldId);
+  }
   const res = await fetch(
     `/api/doctors/${doctorId}/slots?${params.toString()}`,
   );
@@ -295,6 +299,7 @@ export default function BookAppointmentDoctorPage() {
   const [phoneError, setPhoneError] = useState<string | null>(null);
   const [holdingSlotKey, setHoldingSlotKey] = useState<string | null>(null);
   const [slotHoldAlert, setSlotHoldAlert] = useState<string | null>(null);
+  const [activeHoldId, setActiveHoldId] = useState<string | null>(null);
   const holdIdRef = useRef<string | null>(null);
 
   const readStoredHoldId = useCallback((): string | null => {
@@ -304,6 +309,7 @@ export default function BookAppointmentDoctorPage() {
 
   const writeStoredHoldId = useCallback((id: string | null) => {
     holdIdRef.current = id;
+    setActiveHoldId(id);
     if (typeof window === "undefined") return;
     if (id) sessionStorage.setItem(SLOT_HOLD_STORAGE_KEY, id);
     else sessionStorage.removeItem(SLOT_HOLD_STORAGE_KEY);
@@ -420,9 +426,16 @@ export default function BookAppointmentDoctorPage() {
       dateForSlots,
       consultationType,
       patientTimezone,
+      activeHoldId,
     ],
     queryFn: () =>
-      getSlots(doctorId, dateForSlots, consultationType!, patientTimezone),
+      getSlots(
+        doctorId,
+        dateForSlots,
+        consultationType!,
+        patientTimezone,
+        activeHoldId ?? undefined,
+      ),
     enabled: !!doctorId && !!dateForSlots && consultationType !== null,
   });
 
@@ -560,6 +573,8 @@ export default function BookAppointmentDoctorPage() {
           holdId = crypto.randomUUID();
         }
 
+        writeStoredHoldId(holdId);
+
         const res = await fetch("/api/slot-hold", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -578,6 +593,7 @@ export default function BookAppointmentDoctorPage() {
         };
 
         if (!res.ok) {
+          writeStoredHoldId(null);
           setSlotHoldAlert(
             typeof json.error === "string"
               ? json.error
@@ -589,6 +605,7 @@ export default function BookAppointmentDoctorPage() {
         writeStoredHoldId(String(json.holdId ?? holdId));
         setSelectedSlot(ref);
       } catch {
+        writeStoredHoldId(null);
         setSlotHoldAlert("Network error. Please try again.");
       } finally {
         setHoldingSlotKey(null);
@@ -801,11 +818,12 @@ export default function BookAppointmentDoctorPage() {
       (ref) => bookableSlotRefKey(ref) === key,
     );
     if (!stillAvailable) {
+      if (activeHoldId) return;
       void releaseCurrentHold();
       setSelectedSlot(null);
       setSlotHoldAlert(SLOT_NO_LONGER_AVAILABLE_MESSAGE);
     }
-  }, [selectedSlot, durationFilteredSlots, releaseCurrentHold]);
+  }, [selectedSlot, durationFilteredSlots, releaseCurrentHold, activeHoldId]);
 
   useEffect(() => {
     setSubmitError(null);
