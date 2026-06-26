@@ -27,6 +27,10 @@ import {
   DOCTOR_CALENDAR_NOT_CONNECTED_MESSAGE,
   isDoctorGoogleCalendarConnected,
 } from "@/lib/doctor-online-booking";
+import {
+  assertSlotBookable,
+  SLOT_NO_LONGER_AVAILABLE_MESSAGE,
+} from "@/lib/slot-availability";
 
 const bookingSessionSchema = z.object({
   doctorId: z.string().min(1),
@@ -35,6 +39,8 @@ const bookingSessionSchema = z.object({
   /** Online consultation or prepaid clinic visit (Stripe checkout). */
   consultationType: z.enum(["ONLINE", "CLINIC"]),
   availabilityId: z.string().optional(),
+  /** When re-submitting for the same slot, exclude this session from the soft-hold check. */
+  bookingSessionId: z.string().optional(),
   patientName: z.string().min(1),
   email: z.string().email(),
   phone: z
@@ -80,6 +86,7 @@ export async function POST(request: NextRequest) {
     time,
     consultationType,
     availabilityId,
+    bookingSessionId: excludeBookingSessionId,
     patientName,
     email,
     phone,
@@ -170,6 +177,19 @@ export async function POST(request: NextRequest) {
         error: DOCTOR_CALENDAR_NOT_CONNECTED_MESSAGE,
         code: DOCTOR_CALENDAR_NOT_CONNECTED_CODE,
       },
+      { status: 409 },
+    );
+  }
+
+  const slotBookable = await assertSlotBookable({
+    doctorId,
+    dateYmd: date,
+    time,
+    excludeBookingSessionId,
+  });
+  if (!slotBookable.ok) {
+    return NextResponse.json(
+      { error: SLOT_NO_LONGER_AVAILABLE_MESSAGE },
       { status: 409 },
     );
   }

@@ -288,3 +288,66 @@ export async function formatRefundEmailSentence(
   }
   return `Per our cancellation policy, a 50% refund of ${amountPhrase}${refundTiming}`;
 }
+
+export type RefundCheckoutSessionResult =
+  | {
+      ok: true;
+      refundAmountCents: number;
+      paymentCurrency: SupportedCurrency;
+    }
+  | {
+      ok: false;
+      reason: "missing_payment_intent" | "stripe_error";
+      error?: unknown;
+    };
+
+/**
+ * Full refund for a Stripe checkout session when no appointment row exists
+ * (e.g. slot taken by another patient during concurrent checkout).
+ */
+export async function refundCheckoutSession(input: {
+  checkoutSessionId: string;
+  bookingSessionId: string;
+  reason: string;
+}): Promise<RefundCheckoutSessionResult> {
+  const session = await stripe.checkout.sessions.retrieve(
+    input.checkoutSessionId,
+  );
+  const paymentIntentId =
+    typeof session.payment_intent === "string"
+      ? session.payment_intent
+      : (session.payment_intent?.id ?? null);
+
+  if (!paymentIntentId) {
+    return { ok: false, reason: "missing_payment_intent" };
+  }
+
+  try {
+    const refund = await stripe.refunds.create({
+      payment_intent: paymentIntentId,
+      metadata: {
+        bookingSessionId: input.bookingSessionId,
+        reason: input.reason,
+      },
+    });
+
+    const paymentIntent =
+      await stripe.paymentIntents.retrieve(paymentIntentId);
+    const paymentCurrency = coerceSupportedCurrency(
+      refund.currency ?? paymentIntent.currency,
+    );
+
+    return {
+      ok: true,
+      refundAmountCents: refund.amount ?? 0,
+      paymentCurrency,
+    };
+  } catch (err) {
+    console.error(
+      "[refunds] refundCheckoutSession failed for bookingSession",
+      input.bookingSessionId,
+      err,
+    );
+    return { ok: false, reason: "stripe_error", error: err };
+  }
+}

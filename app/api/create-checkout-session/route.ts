@@ -25,6 +25,10 @@ import {
   DOCTOR_CALENDAR_NOT_CONNECTED_MESSAGE,
   isDoctorGoogleCalendarConnected,
 } from "@/lib/doctor-online-booking";
+import {
+  assertSlotBookable,
+  SLOT_NO_LONGER_AVAILABLE_MESSAGE,
+} from "@/lib/slot-availability";
 
 const schema = z.object({
   bookingSessionId: z.string().min(1),
@@ -142,6 +146,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error: PAST_OR_UNAVAILABLE_SLOT_MESSAGE,
+          code: "SLOT_NO_LONGER_AVAILABLE",
+        },
+        { status: 409 },
+      );
+    }
+
+    const slotBookable = await assertSlotBookable({
+      doctorId: bookingSession.doctorId,
+      dateYmd: doctorDateYmd,
+      time: bookingSession.time,
+      excludeBookingSessionId: bookingSessionId,
+    });
+    if (!slotBookable.ok) {
+      return NextResponse.json(
+        {
+          error: SLOT_NO_LONGER_AVAILABLE_MESSAGE,
           code: "SLOT_NO_LONGER_AVAILABLE",
         },
         { status: 409 },

@@ -37,9 +37,11 @@ import {
 import { formatDoctorDisplayName } from "@/lib/doctor-name";
 import { createMeetEventForOnlineAppointment } from "@/lib/google-calendar-meet";
 import { buildEmailPriceLabels } from "@/lib/email-price-labels";
-import { bookingConfirmationEmailMessage } from "@/lib/reschedule-policy-copy";
+import { bookingConfirmationEmailMessage, slotConflictRefundEmailMessage } from "@/lib/reschedule-policy-copy";
 import { coerceSupportedCurrency } from "@/lib/currency";
 import { parsePriceMap, priceCentsForDuration } from "@/lib/doctor-pricing";
+import { refundCheckoutSession } from "@/lib/refunds";
+import type { BookingSession } from "@/generated/prisma/client";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -48,6 +50,71 @@ function parseDateOnly(value: string): Date | null {
   if (Number.isNaN(date.getTime())) return null;
   date.setUTCHours(0, 0, 0, 0);
   return date;
+}
+
+async function handleBookingSlotConflict(input: {
+  bookingSession: BookingSession;
+  checkoutSession: Stripe.Checkout.Session;
+  doctorDisplayName: string;
+}): Promise<void> {
+  const { bookingSession, checkoutSession, doctorDisplayName } = input;
+
+  await prisma.bookingSession.update({
+    where: { id: bookingSession.id },
+    data: { status: BookingSessionStatus.FAILED },
+  });
+
+  const refundResult = await refundCheckoutSession({
+    checkoutSessionId: checkoutSession.id,
+    bookingSessionId: bookingSession.id,
+    reason: "slot_taken",
+  });
+
+  let message = slotConflictRefundEmailMessage();
+  if (!refundResult.ok) {
+    message +=
+      " We attempted to initiate your refund but ran into an issue. Our support team will follow up shortly to resolve it.";
+  }
+
+  const consultationType =
+    bookingSession.consultationType === "CLINIC" ? "CLINIC" : "ONLINE";
+
+  try {
+    const { error } = await resend.emails.send({
+      from: getEmailFrom(),
+      to: bookingSession.email,
+      subject: "Appointment unavailable — refund initiated",
+      react: EmailTemplate({
+        heading: "Time slot unavailable",
+        message,
+        showActionLinks: false,
+        doctorName: doctorDisplayName,
+        appointmentDate: formatDateInPatientTz(
+          bookingSession.date,
+          bookingSession.time,
+          bookingSession.timezone,
+          bookingSession.patientTimezone,
+        ),
+        appointmentTime: formatTimeInPatientTz(
+          bookingSession.date,
+          bookingSession.time,
+          bookingSession.timezone,
+          bookingSession.patientTimezone,
+        ),
+        patientName: bookingSession.patientName,
+        consultationType,
+        cancelUrl: "",
+        rescheduleUrl: "",
+        durationMinutes: bookingSession.durationMinutes,
+      }),
+    });
+
+    if (error) {
+      console.error("[webhooks] Slot-conflict refund email failed:", error);
+    }
+  } catch (emailError) {
+    console.error("[webhooks] Slot-conflict refund email failed:", emailError);
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -202,6 +269,11 @@ export async function POST(request: NextRequest) {
             "[webhooks] P2002 creating appointment (slot conflict), bookingSession:",
             bookingSession.id,
           );
+          await handleBookingSlotConflict({
+            bookingSession,
+            checkoutSession: session,
+            doctorDisplayName: formatDoctorDisplayName(doctor.name),
+          });
           return new NextResponse("OK", { status: 200 });
         }
       } else {

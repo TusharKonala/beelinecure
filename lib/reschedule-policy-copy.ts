@@ -33,6 +33,11 @@ export const RESCHEDULE_POLICY_APPLIES_TO_LINE =
 export const APPOINTMENT_REMINDER_EMAIL_BODY_26H =
   "Your appointment is coming up! Check your details below. If you need to reschedule, now is the time — this option closes 24 hours before your visit.";
 
+/** Email body when payment succeeded but the slot was taken by another patient. */
+export function slotConflictRefundEmailMessage(): string {
+  return "We received your payment, but this time slot was just booked by another patient. A full refund has been initiated and should appear on your original payment method within 5–10 business days. Please choose a different time to book again.";
+}
+
 /** Initial booking confirmation emails (matches EmailTemplate default wording + policy). */
 export function bookingConfirmationEmailMessage(
   consultationType: "CLINIC" | "ONLINE",

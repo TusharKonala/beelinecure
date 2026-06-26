@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Container } from "@/components/layout/Container";
 import { PostAppointmentActions } from "@/components/PostAppointmentActions";
 import { stripe } from "@/lib/stripe";
@@ -7,10 +8,14 @@ import {
   formatTimeInPatientTz,
 } from "@/lib/timezone-display";
 import { formatDoctorDisplayName } from "@/lib/doctor-name";
+import { BookingSessionStatus } from "@/generated/prisma/client";
+import { slotConflictRefundEmailMessage } from "@/lib/reschedule-policy-copy";
 
 type PageProps = {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 };
+
+type PaymentOutcome = "confirmed" | "slot_taken" | "processing" | "unknown";
 
 export default async function PaymentSuccessPage({ searchParams }: PageProps) {
   const params = await searchParams;
@@ -26,6 +31,8 @@ export default async function PaymentSuccessPage({ searchParams }: PageProps) {
   let patientEmail: string | null = null;
   let consultationTypeLabel = "Clinic visit";
   let hasDetails = false;
+  let outcome: PaymentOutcome = "unknown";
+  let rebookDoctorId: string | null = null;
 
   if (sessionId) {
     try {
@@ -33,12 +40,26 @@ export default async function PaymentSuccessPage({ searchParams }: PageProps) {
       const metadata = session.metadata ?? {};
       const bookingSessionId = metadata.bookingSessionId;
 
-      const bookingSession = bookingSessionId
-        ? await prisma.bookingSession.findUnique({
-            where: { id: bookingSessionId },
-            include: { doctor: { select: { name: true } } },
-          })
-        : null;
+      const [appointment, bookingSession] = await Promise.all([
+        prisma.appointment.findFirst({
+          where: { stripePaymentId: sessionId },
+        }),
+        bookingSessionId
+          ? prisma.bookingSession.findUnique({
+              where: { id: bookingSessionId },
+              include: { doctor: { select: { name: true } } },
+            })
+          : Promise.resolve(null),
+      ]);
+
+      if (appointment) {
+        outcome = "confirmed";
+      } else if (bookingSession?.status === BookingSessionStatus.FAILED) {
+        outcome = "slot_taken";
+        rebookDoctorId = bookingSession.doctorId;
+      } else if (session.payment_status === "paid") {
+        outcome = "processing";
+      }
 
       if (bookingSession) {
         doctorName = bookingSession.doctor?.name
@@ -62,11 +83,15 @@ export default async function PaymentSuccessPage({ searchParams }: PageProps) {
           bookingSession.consultationType === "ONLINE"
             ? "Online consultation"
             : "Clinic visit";
+        if (!rebookDoctorId) {
+          rebookDoctorId = bookingSession.doctorId;
+        }
       } else {
         if (metadata.date) appointmentDate = metadata.date;
         if (metadata.time) appointmentTime = metadata.time;
         if (metadata.patientName) patientName = metadata.patientName;
         if (metadata.email) patientEmail = metadata.email;
+        if (metadata.doctorId) rebookDoctorId = metadata.doctorId;
         consultationTypeLabel =
           metadata.consultationType === "ONLINE"
             ? "Online consultation"
@@ -80,9 +105,24 @@ export default async function PaymentSuccessPage({ searchParams }: PageProps) {
   }
 
   const isOnline = consultationTypeLabel === "Online consultation";
-  const confirmationMessage = isOnline
-    ? "Your online consultation has been confirmed. A confirmation email has been sent to your inbox."
-    : "Your appointment has been confirmed. A confirmation email has been sent to your inbox. Please arrive a few minutes early.";
+
+  const pageTitle =
+    outcome === "slot_taken"
+      ? "Time slot unavailable"
+      : "Payment successful";
+
+  const primaryMessage =
+    outcome === "confirmed"
+      ? isOnline
+        ? "Your online consultation has been confirmed. A confirmation email has been sent to your inbox."
+        : "Your appointment has been confirmed. A confirmation email has been sent to your inbox. Please arrive a few minutes early."
+      : outcome === "slot_taken"
+        ? slotConflictRefundEmailMessage()
+        : outcome === "processing"
+          ? "Your payment was successful. We are confirming your appointment — this usually takes a few seconds. Please check your email shortly."
+          : "Payment successful.";
+
+  const showMeetNote = outcome === "confirmed" && isOnline;
 
   return (
     <div className="w-full bg-[#fafafa] py-10 md:py-14 lg:py-16">
@@ -90,21 +130,23 @@ export default async function PaymentSuccessPage({ searchParams }: PageProps) {
         <section className="mx-auto max-w-xl">
           <div className="rounded-xl border border-[#e5e5e5] bg-white p-6 shadow-sm md:p-8">
             <h1 className="font-montaga text-2xl font-semibold leading-tight text-[#333333] md:text-3xl">
-              Payment successful
+              {pageTitle}
             </h1>
-            <p className="mt-3 font-montserrat text-sm text-[#5E5E5E] md:text-base">
-              Payment successful.
-            </p>
+            {outcome !== "slot_taken" && (
+              <p className="mt-3 font-montserrat text-sm text-[#5E5E5E] md:text-base">
+                Payment successful.
+              </p>
+            )}
             <p className="mt-2 font-montserrat text-sm text-[#5E5E5E] md:text-base">
-              {confirmationMessage}
+              {primaryMessage}
             </p>
-            {isOnline && (
+            {showMeetNote && (
               <p className="mt-2 font-montserrat text-sm text-[#5E5E5E] md:text-base">
                 A Google Meet link has been sent to your email. If you&apos;re
                 signed in, you can also find it in your appointments dashboard.
               </p>
             )}
-            {hasDetails ? (
+            {hasDetails && outcome !== "processing" ? (
               <div className="mt-6 space-y-3 font-montserrat text-sm">
                 <div className="flex flex-col justify-between gap-1 sm:flex-row sm:items-center">
                   <span className="font-medium text-[#111111]">Doctor</span>
@@ -143,14 +185,29 @@ export default async function PaymentSuccessPage({ searchParams }: PageProps) {
                   </span>
                 </div>
               </div>
-            ) : (
+            ) : outcome === "processing" ? (
+              <p className="mt-6 font-montserrat text-sm text-[#5E5E5E]">
+                If you do not receive a confirmation email within a few minutes,
+                please contact support.
+              </p>
+            ) : !hasDetails ? (
               <p className="mt-6 font-montserrat text-sm text-[#5E5E5E]">
                 We could not load the full appointment details, but your payment
                 was successful.
               </p>
-            )}
+            ) : null}
 
-            <PostAppointmentActions emailHint={patientEmail} />
+            {outcome === "confirmed" && (
+              <PostAppointmentActions emailHint={patientEmail} />
+            )}
+            {outcome === "slot_taken" && rebookDoctorId && (
+              <Link
+                href={`/book-appointment/${encodeURIComponent(rebookDoctorId)}`}
+                className="mt-6 inline-block font-montserrat text-sm font-medium text-[#2555F3] underline underline-offset-2 hover:text-[#1a45d9]"
+              >
+                Choose a different time
+              </Link>
+            )}
           </div>
         </section>
       </Container>

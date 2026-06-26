@@ -45,6 +45,10 @@ import { bookingConfirmationEmailMessage } from "@/lib/reschedule-policy-copy";
 import { publicDoctorByIdWhere } from "@/lib/doctor-visibility";
 import { formatDoctorDisplayName } from "@/lib/doctor-name";
 import { fromZonedTime } from "date-fns-tz";
+import {
+  assertSlotBookable,
+  SLOT_NO_LONGER_AVAILABLE_MESSAGE,
+} from "@/lib/slot-availability";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -242,20 +246,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const existing = await prisma.appointment.findFirst({
-    where: {
-      doctorId,
-      date,
-      time,
-      status: {
-        not: AppointmentStatus.CANCELLED,
-      },
-    },
+  const slotBookable = await assertSlotBookable({
+    doctorId,
+    dateYmd: dateParam,
+    time,
   });
-
-  if (existing) {
+  if (!slotBookable.ok) {
     return NextResponse.json(
-      { error: "This time slot is no longer available" },
+      { error: SLOT_NO_LONGER_AVAILABLE_MESSAGE },
       { status: 409 },
     );
   }
@@ -294,7 +292,7 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     if (err instanceof PrismaClientKnownRequestError && err.code === "P2002") {
       return NextResponse.json(
-        { error: "This time slot is no longer available" },
+        { error: SLOT_NO_LONGER_AVAILABLE_MESSAGE },
         { status: 409 },
       );
     }

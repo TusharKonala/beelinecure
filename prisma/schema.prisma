@@ -46,6 +46,8 @@ enum BookingSessionStatus {
   PENDING
   COMPLETED
   EXPIRED
+  /// Payment succeeded but the slot was taken before the appointment could be created.
+  FAILED
 }
 
 enum UserRole {
@@ -315,6 +317,8 @@ model Appointment {
   createdAt        DateTime          @default(now())
   chatConversation ChatConversation?
 
+  /// DB enforces at most one non-cancelled row per (doctorId, date, time) via partial unique index
+  /// `Appointment_doctorId_date_time_active_key` (see migrations).
   @@index([status, date, time])
 }
 

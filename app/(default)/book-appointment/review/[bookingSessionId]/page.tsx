@@ -5,6 +5,7 @@ import { ConfirmAndPayButton } from "@/components/booking/ConfirmAndPayButton";
 import { notFound } from "next/navigation";
 import { BookingSessionStatus } from "@/generated/prisma/client";
 import { ExpiredBookingSession } from "./ExpiredBookingSession";
+import { SlotUnavailableBookingSession } from "./SlotUnavailableBookingSession";
 import { PatientLocalDateTime } from "./PatientLocalDateTime";
 import { parsePriceMap, priceCentsForDuration } from "@/lib/doctor-pricing";
 import {
@@ -16,6 +17,7 @@ import { convertCentsAmount } from "@/lib/fx-rates";
 import { formatDoctorDisplayName } from "@/lib/doctor-name";
 import { ReschedulePolicyNotice } from "@/app/(default)/book-appointment/components/ReschedulePolicyNotice";
 import { CancellationRefundPolicyNotice } from "@/app/(default)/book-appointment/components/CancellationRefundPolicyNotice";
+import { assertSlotBookable } from "@/lib/slot-availability";
 
 type PageProps = {
   params: Promise<{ bookingSessionId: string }>;
@@ -67,17 +69,35 @@ export default async function BookingReviewPage({ params }: PageProps) {
     }
   }
 
-  const isExpired =
+  const isTtlExpired =
     bookingSession.status === BookingSessionStatus.EXPIRED ||
     bookingSession.expiresAt <= new Date();
+
+  const isFailed = bookingSession.status === BookingSessionStatus.FAILED;
+
+  const slotBookable =
+    bookingSession.status === BookingSessionStatus.PENDING && !isTtlExpired
+      ? await assertSlotBookable({
+          doctorId: bookingSession.doctorId,
+          dateYmd: bookingSession.date,
+          time: bookingSession.time,
+          excludeBookingSessionId: bookingSessionId,
+        })
+      : { ok: true as const };
+
+  const isSlotUnavailable = !slotBookable.ok;
 
   return (
     <div className="w-full bg-[#fafafa] py-10 md:py-14 lg:py-16">
       <Container>
         <section className="mx-auto max-w-xl">
           <div className="rounded-xl border border-[#e5e5e5] bg-white p-6 shadow-sm md:p-8">
-            {isExpired ? (
+            {isTtlExpired ? (
               <ExpiredBookingSession doctorId={bookingSession.doctorId} />
+            ) : isFailed || isSlotUnavailable ? (
+              <SlotUnavailableBookingSession
+                doctorId={bookingSession.doctorId}
+              />
             ) : (
               <>
                 <h1 className="font-montaga text-2xl font-semibold leading-tight text-[#333333] md:text-3xl">
