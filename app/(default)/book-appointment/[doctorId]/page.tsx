@@ -273,6 +273,7 @@ export default function BookAppointmentDoctorPage() {
   }, [sessionStatus, getValues, reset]);
 
   const [submitError, setSubmitError] = useState<SubmitErrorState>(null);
+  const submitErrorRef = useRef<HTMLParagraphElement>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [bookedConfirmation, setBookedConfirmation] = useState<{
     doctorName: string;
@@ -690,6 +691,15 @@ export default function BookAppointmentDoctorPage() {
   useEffect(() => {
     setSubmitError(null);
   }, [selectedDate]);
+
+  useEffect(() => {
+    if (!submitError) return;
+    submitErrorRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+    });
+    submitErrorRef.current?.focus({ preventScroll: true });
+  }, [submitError]);
 
   useEffect(() => {
     if (availabilityCalendarFetching) return;
@@ -1281,7 +1291,12 @@ export default function BookAppointmentDoctorPage() {
                     )}
                   </div>
                   {submitError && (
-                    <p className="font-montserrat text-sm text-red-600">
+                    <p
+                      ref={submitErrorRef}
+                      role="alert"
+                      tabIndex={-1}
+                      className="font-montserrat text-sm text-red-600 outline-none"
+                    >
                       {renderSubmitErrorMessage(submitError)}
                     </p>
                   )}
