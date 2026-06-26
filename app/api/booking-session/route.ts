@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
+import { PrismaClientKnownRequestError } from "@prisma/client/runtime/client";
 import { publicDoctorByIdWhere } from "@/lib/doctor-visibility";
-import { AppointmentStatus } from "@/generated/prisma/client";
+import { AppointmentStatus, BookingSessionStatus, UserRole } from "@/generated/prisma/client";
 import {
   coerceAllowedSlotDurationMinutes,
   resolveSlotMetaForStart,
@@ -11,7 +12,6 @@ import {
 } from "@/lib/doctor-pricing";
 import { coerceSupportedCurrency } from "@/lib/currency";
 import { authOptions } from "@/lib/auth";
-import { UserRole } from "@/generated/prisma/client";
 import { getServerSession } from "next-auth/next";
 import { countUpcomingAppointmentsForEmail } from "@/lib/upcoming-appointments";
 import { randomBytes } from "crypto";
@@ -277,25 +277,46 @@ export async function POST(request: NextRequest) {
   );
   const currencyAtBooking = coerceSupportedCurrency(doctor.currency);
 
-  const bookingSession = await prisma.bookingSession.create({
-    data: {
-      doctorId,
-      patientName,
-      email,
-      phone,
-      date,
-      time,
-      durationMinutes: slotMeta.slotDurationMinutes,
-      priceCentsAtBooking,
-      currencyAtBooking,
-      timezone: doctorTimezone,
-      patientTimezone,
-      notes: notes,
-      consultationType,
-      status: "PENDING",
-      expiresAt,
-    },
-  });
+  let bookingSession;
+  try {
+    bookingSession = await prisma.$transaction(async (tx) => {
+      await tx.bookingSession.updateMany({
+        where: {
+          status: BookingSessionStatus.PENDING,
+          expiresAt: { lt: new Date() },
+        },
+        data: { status: BookingSessionStatus.EXPIRED },
+      });
+
+      return tx.bookingSession.create({
+        data: {
+          doctorId,
+          patientName,
+          email,
+          phone,
+          date,
+          time,
+          durationMinutes: slotMeta.slotDurationMinutes,
+          priceCentsAtBooking,
+          currencyAtBooking,
+          timezone: doctorTimezone,
+          patientTimezone,
+          notes: notes,
+          consultationType,
+          status: BookingSessionStatus.PENDING,
+          expiresAt,
+        },
+      });
+    });
+  } catch (err) {
+    if (err instanceof PrismaClientKnownRequestError && err.code === "P2002") {
+      return NextResponse.json(
+        { error: SLOT_NO_LONGER_AVAILABLE_MESSAGE },
+        { status: 409 },
+      );
+    }
+    throw err;
+  }
 
   return NextResponse.json({ bookingSessionId: bookingSession.id });
 }

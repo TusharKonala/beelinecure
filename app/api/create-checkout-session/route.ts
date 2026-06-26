@@ -26,7 +26,7 @@ import {
   isDoctorGoogleCalendarConnected,
 } from "@/lib/doctor-online-booking";
 import {
-  assertSlotBookable,
+  assertSlotAvailableForCheckout,
   SLOT_NO_LONGER_AVAILABLE_MESSAGE,
 } from "@/lib/slot-availability";
 
@@ -152,11 +152,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const slotBookable = await assertSlotBookable({
+    const slotBookable = await assertSlotAvailableForCheckout({
       doctorId: bookingSession.doctorId,
       dateYmd: doctorDateYmd,
       time: bookingSession.time,
-      excludeBookingSessionId: bookingSessionId,
     });
     if (!slotBookable.ok) {
       return NextResponse.json(

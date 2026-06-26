@@ -15,8 +15,15 @@ export type SlotBookableInput = {
   dateYmd: string;
   time: string;
   excludeAppointmentId?: string;
-  /** Exclude patient's own in-flight session when re-validating checkout. */
+  /** Exclude patient's own in-flight session when re-submitting on booking-session. */
   excludeBookingSessionId?: string;
+};
+
+export type SlotCheckoutInput = {
+  doctorId: string;
+  /** YYYY-MM-DD */
+  dateYmd: string;
+  time: string;
 };
 
 export type SlotBookableResult =
@@ -95,20 +102,14 @@ export async function assertSlotBookable(
 
   await expireStaleBookingSessions();
 
-  const existingAppointment = await prisma.appointment.findFirst({
-    where: {
+  if (
+    await hasActiveAppointmentAtSlot({
       doctorId: input.doctorId,
       date,
       time: input.time,
-      status: { not: AppointmentStatus.CANCELLED },
-      ...(input.excludeAppointmentId
-        ? { id: { not: input.excludeAppointmentId } }
-        : {}),
-    },
-    select: { id: true },
-  });
-
-  if (existingAppointment) {
+      excludeAppointmentId: input.excludeAppointmentId,
+    })
+  ) {
     return { ok: false, reason: "appointment_taken" };
   }
 
@@ -128,6 +129,55 @@ export async function assertSlotBookable(
 
   if (conflictingSession) {
     return { ok: false, reason: "checkout_in_progress" };
+  }
+
+  return { ok: true };
+}
+
+async function hasActiveAppointmentAtSlot(input: {
+  doctorId: string;
+  date: Date;
+  time: string;
+  excludeAppointmentId?: string;
+}): Promise<boolean> {
+  const existingAppointment = await prisma.appointment.findFirst({
+    where: {
+      doctorId: input.doctorId,
+      date: input.date,
+      time: input.time,
+      status: { not: AppointmentStatus.CANCELLED },
+      ...(input.excludeAppointmentId
+        ? { id: { not: input.excludeAppointmentId } }
+        : {}),
+    },
+    select: { id: true },
+  });
+  return existingAppointment !== null;
+}
+
+/**
+ * Re-validates a slot at payment time. Only blocks when an appointment already
+ * exists — the session holder must be able to reach Stripe even if they are
+ * the sole PENDING hold on this slot.
+ */
+export async function assertSlotAvailableForCheckout(
+  input: SlotCheckoutInput,
+): Promise<SlotBookableResult> {
+  const date = parseDateOnly(input.dateYmd);
+  if (!date) {
+    return { ok: false, reason: "appointment_taken" };
+  }
+
+  await expireStaleBookingSessions();
+
+  if (
+    await hasActiveAppointmentAtSlot({
+      doctorId: input.doctorId,
+      date,
+      time: input.time,
+    })
+  ) {
+    return { ok: false, reason: "appointment_taken" };
   }
 
   return { ok: true };

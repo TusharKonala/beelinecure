@@ -425,6 +425,9 @@ model BookingSession {
   status           BookingSessionStatus @default(PENDING)
   createdAt        DateTime             @default(now())
   expiresAt        DateTime
+
+  /// DB enforces at most one PENDING row per (doctorId, date, time) via partial
+  /// unique index `BookingSession_doctorId_date_time_pending_key` (see migrations).
 }
 
 model Notification {

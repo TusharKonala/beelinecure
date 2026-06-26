@@ -17,7 +17,7 @@ import { convertCentsAmount } from "@/lib/fx-rates";
 import { formatDoctorDisplayName } from "@/lib/doctor-name";
 import { ReschedulePolicyNotice } from "@/app/(default)/book-appointment/components/ReschedulePolicyNotice";
 import { CancellationRefundPolicyNotice } from "@/app/(default)/book-appointment/components/CancellationRefundPolicyNotice";
-import { assertSlotBookable } from "@/lib/slot-availability";
+import { assertSlotAvailableForCheckout } from "@/lib/slot-availability";
 
 type PageProps = {
   params: Promise<{ bookingSessionId: string }>;
@@ -77,11 +77,10 @@ export default async function BookingReviewPage({ params }: PageProps) {
 
   const slotBookable =
     bookingSession.status === BookingSessionStatus.PENDING && !isTtlExpired
-      ? await assertSlotBookable({
+      ? await assertSlotAvailableForCheckout({
           doctorId: bookingSession.doctorId,
           dateYmd: bookingSession.date,
           time: bookingSession.time,
-          excludeBookingSessionId: bookingSessionId,
         })
       : { ok: true as const };
 
