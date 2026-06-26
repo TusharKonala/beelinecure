@@ -8,8 +8,10 @@ import type { SlotUpdatedPayload } from "@/lib/slot-hold-shared";
 export function useDoctorSlotsPusher(input: {
   doctorId: string;
   enabled: boolean;
+  shouldIgnoreSlotUpdate?: (payload: SlotUpdatedPayload) => boolean;
 }) {
   const queryClient = useQueryClient();
+  const shouldIgnoreSlotUpdate = input.shouldIgnoreSlotUpdate;
 
   useEffect(() => {
     if (!input.enabled || !input.doctorId) return;
@@ -22,7 +24,8 @@ export function useDoctorSlotsPusher(input: {
     const channelName = `doctor-slots-${input.doctorId}`;
     const channel = pusher.subscribe(channelName);
 
-    const onSlotUpdated = (_payload: SlotUpdatedPayload) => {
+    const onSlotUpdated = (payload: SlotUpdatedPayload) => {
+      if (shouldIgnoreSlotUpdate?.(payload)) return;
       void queryClient.invalidateQueries({
         queryKey: ["slots", input.doctorId],
       });
@@ -35,5 +38,5 @@ export function useDoctorSlotsPusher(input: {
       pusher.unsubscribe(channelName);
       pusher.disconnect();
     };
-  }, [input.doctorId, input.enabled, queryClient]);
+  }, [input.doctorId, input.enabled, queryClient, shouldIgnoreSlotUpdate]);
 }

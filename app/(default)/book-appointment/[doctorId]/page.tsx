@@ -12,7 +12,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueries, useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import PhoneInput, { isValidPhoneNumber } from "react-phone-number-input";
 import { z } from "zod";
@@ -52,6 +52,7 @@ import type { PatientConsultationChoice } from "@/lib/doctor-availability-slots"
 import {
   SLOT_HOLD_STORAGE_KEY,
   SLOT_NO_LONGER_AVAILABLE_MESSAGE,
+  type SlotUpdatedPayload,
 } from "@/lib/slot-hold-shared";
 import { useDoctorSlotsPusher } from "@/lib/use-doctor-slots-pusher";
 
@@ -418,7 +419,6 @@ export default function BookAppointmentDoctorPage() {
   const {
     data: slotsData,
     isLoading: slotsLoading,
-    isFetching: slotsFetching,
   } = useQuery({
     queryKey: [
       "slots",
@@ -437,11 +437,24 @@ export default function BookAppointmentDoctorPage() {
         activeHoldId ?? undefined,
       ),
     enabled: !!doctorId && !!dateForSlots && consultationType !== null,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    placeholderData: keepPreviousData,
   });
+
+  const shouldIgnoreOwnSlotUpdate = useCallback(
+    (payload: SlotUpdatedPayload) =>
+      activeHoldId !== null &&
+      selectedSlot !== null &&
+      payload.date === selectedSlot.doctorDate &&
+      payload.time === selectedSlot.startTime,
+    [activeHoldId, selectedSlot],
+  );
 
   useDoctorSlotsPusher({
     doctorId,
     enabled: !!doctorId && consultationType !== null,
+    shouldIgnoreSlotUpdate: shouldIgnoreOwnSlotUpdate,
   });
 
   const doctorTz = slotsData?.doctorTimezone ?? "UTC";
@@ -602,7 +615,6 @@ export default function BookAppointmentDoctorPage() {
           return;
         }
 
-        writeStoredHoldId(String(json.holdId ?? holdId));
         setSelectedSlot(ref);
       } catch {
         writeStoredHoldId(null);
@@ -848,15 +860,6 @@ export default function BookAppointmentDoctorPage() {
   }, [readStoredHoldId]);
 
   useEffect(() => {
-    const onVisibility = () => {
-      if (document.visibilityState !== "visible" || !selectedSlot) return;
-      void queryClient.invalidateQueries({ queryKey: ["slots", doctorId] });
-    };
-    document.addEventListener("visibilitychange", onVisibility);
-    return () => document.removeEventListener("visibilitychange", onVisibility);
-  }, [doctorId, selectedSlot, queryClient]);
-
-  useEffect(() => {
     if (!submitError) return;
     submitErrorRef.current?.scrollIntoView({
       behavior: "smooth",
@@ -952,7 +955,6 @@ export default function BookAppointmentDoctorPage() {
     setSelectedDurationMinutes(null);
   }, []);
 
-  const slotsLoadingOrFetching = slotsLoading || slotsFetching;
   const phoneInputClassName =
     "h-11 w-full rounded-xl border border-[#e5e5e5] bg-white px-3 text-sm font-montserrat text-[#333333] shadow-sm placeholder:text-[#5E5E5E]/70 focus-within:border-[#2555F3] focus-within:ring-[3px] focus-within:ring-[#2555F3]/20 [&_.PhoneInputInput]:outline-none";
 
@@ -1226,12 +1228,12 @@ export default function BookAppointmentDoctorPage() {
                   <h2 className="font-montaga text-2xl font-semibold leading-tight text-[#333333] md:text-3xl">
                     Available times
                   </h2>
-                  {!slotsLoadingOrFetching && (
+                  {!slotsLoading && (
                     <p className="font-montserrat text-sm text-[#5E5E5E]">
                       {filteredDurationLabel}
                     </p>
                   )}
-                  {!slotsLoadingOrFetching &&
+                  {!slotsLoading &&
                     uniqueSlotDurationsMinutes.length > 1 && (
                       <div className="mt-3 flex flex-wrap gap-2">
                         <Button
@@ -1269,7 +1271,7 @@ export default function BookAppointmentDoctorPage() {
                     )}
                 </div>
 
-                {slotsLoadingOrFetching && (
+                {slotsLoading && (
                   <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:gap-4">
                     {Array.from({ length: 8 }).map((_, i) => (
                       <Skeleton
@@ -1280,14 +1282,14 @@ export default function BookAppointmentDoctorPage() {
                   </div>
                 )}
 
-                {!slotsLoadingOrFetching &&
+                {!slotsLoading &&
                   durationFilteredSlots.length === 0 && (
                     <p className="mt-6 font-montserrat text-sm text-[#5E5E5E]">
                       No slots available for this date.
                     </p>
                   )}
 
-                {!slotsLoadingOrFetching &&
+                {!slotsLoading &&
                   durationFilteredSlots.length > 0 && (
                     <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:gap-4">
                       {durationFilteredSlots.map((ref) => {
