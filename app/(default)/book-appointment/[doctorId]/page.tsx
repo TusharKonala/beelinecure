@@ -317,7 +317,10 @@ export default function BookAppointmentDoctorPage() {
   }, []);
 
   const releaseCurrentHold = useCallback(
-    async (holdId?: string | null) => {
+    async (
+      holdId?: string | null,
+      options?: { keepalive?: boolean },
+    ) => {
       const id = holdId ?? holdIdRef.current ?? readStoredHoldId();
       if (!id) return;
       writeStoredHoldId(null);
@@ -326,6 +329,7 @@ export default function BookAppointmentDoctorPage() {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ holdId: id }),
+          keepalive: options?.keepalive ?? false,
         });
       } catch {
         // best-effort
@@ -846,18 +850,19 @@ export default function BookAppointmentDoctorPage() {
 
   useEffect(() => {
     const onPageHide = () => {
-      const holdId = readStoredHoldId();
-      if (!holdId) return;
-      void fetch("/api/slot-hold", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ holdId }),
-        keepalive: true,
-      }).catch(() => {});
+      void releaseCurrentHold(undefined, { keepalive: true });
     };
     window.addEventListener("pagehide", onPageHide);
     return () => window.removeEventListener("pagehide", onPageHide);
-  }, [readStoredHoldId]);
+  }, [releaseCurrentHold]);
+
+  useEffect(() => {
+    return () => {
+      const holdId = holdIdRef.current ?? readStoredHoldId();
+      if (!holdId) return;
+      void releaseCurrentHold(holdId, { keepalive: true });
+    };
+  }, [releaseCurrentHold, readStoredHoldId]);
 
   useEffect(() => {
     if (!submitError) return;
