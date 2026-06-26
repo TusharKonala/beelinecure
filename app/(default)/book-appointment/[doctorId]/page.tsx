@@ -284,6 +284,7 @@ export default function BookAppointmentDoctorPage() {
 
   const [submitError, setSubmitError] = useState<SubmitErrorState>(null);
   const submitErrorRef = useRef<HTMLParagraphElement>(null);
+  const patientFormSectionRef = useRef<HTMLElement>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [bookedConfirmation, setBookedConfirmation] = useState<{
     doctorName: string;
@@ -874,6 +875,14 @@ export default function BookAppointmentDoctorPage() {
   }, [submitError]);
 
   useEffect(() => {
+    if (!selectedSlot || consultationType === null) return;
+    patientFormSectionRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }, [selectedSlot, consultationType]);
+
+  useEffect(() => {
     if (availabilityCalendarFetching) return;
     if (enabledDateSet.size === 0) return;
     if (enabledDateSet.has(selectedDate)) return;
@@ -1337,7 +1346,7 @@ export default function BookAppointmentDoctorPage() {
 
             {/* 4. Patient information form (after slot selected) */}
             {selectedSlot && consultationType !== null && (
-              <section className="mt-10 md:mt-12">
+              <section ref={patientFormSectionRef} className="mt-10 md:mt-12">
                 <div className="flex flex-col gap-2 text-left">
                   <h2 className="font-montaga text-2xl font-semibold leading-tight text-[#333333] md:text-3xl">
                     Patient information
