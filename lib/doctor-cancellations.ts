@@ -18,6 +18,7 @@ import {
 } from "@/lib/timezone-display";
 import { Resend } from "resend";
 import { getEmailFrom } from "@/lib/email-from";
+import { triggerSlotUpdated } from "@/lib/pusher-server";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -131,6 +132,12 @@ export async function cancelAppointmentByStaff(input: {
       googleCalendarEventId: null,
       googleMeetUrl: null,
     },
+  });
+
+  const appointmentDateYmd = appointment.date.toISOString().slice(0, 10);
+  await triggerSlotUpdated(appointment.doctorId, {
+    date: appointmentDateYmd,
+    time: appointment.time,
   });
 
   let refundSentence: string | null = null;
