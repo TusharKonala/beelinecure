@@ -3,6 +3,14 @@ import type { Prisma } from "@/generated/prisma/client";
 /** Matches doctor dashboard appointment / prescription date dropdown values. */
 export type DoctorDateFilterValue = "asc" | "desc" | "today" | "week" | "month";
 
+const YMD_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+export function parseDoctorOnDate(raw: string | null): string | null {
+  const v = raw?.trim();
+  if (!v || !YMD_RE.test(v)) return null;
+  return v;
+}
+
 export function normalizeDoctorDateFilter(raw: string | null): DoctorDateFilterValue {
   if (raw === "asc") return "asc";
   if (raw === "today") return "today";
@@ -89,6 +97,18 @@ export function doctorAppointmentDateWhere(
     return { gte: ymdToDate(start), lte: ymdToDate(end) };
   }
   return undefined;
+}
+
+/** Single calendar day — same gte/lte pattern as the Today preset. */
+export function doctorAppointmentOnDateWhere(
+  onDate: string,
+): Prisma.DateTimeFilter {
+  const d = ymdToDate(onDate);
+  return { gte: d, lte: d };
+}
+
+export function doctorAppointmentOrderByForOnDate(): Prisma.AppointmentOrderByWithRelationInput[] {
+  return [{ time: "asc" }];
 }
 
 /** Patient search: name, email, or phone (case-insensitive). */

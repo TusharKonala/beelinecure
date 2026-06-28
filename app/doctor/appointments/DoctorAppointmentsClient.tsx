@@ -113,6 +113,7 @@ export default function DoctorAppointmentsClient({
   const [tab, setTab] = useState<TabKey>(initialTab);
   const [search, setSearch] = useState(initialSearch);
   const [dateFilter, setDateFilter] = useState<DateFilterValue>(DEFAULT_DATE_FILTER);
+  const [filterOnDate, setFilterOnDate] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isCanceling, setIsCanceling] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<DoctorAppointmentItem | null>(null);
@@ -193,10 +194,14 @@ export default function DoctorAppointmentsClient({
     try {
       const params = new URLSearchParams({
         tab,
-        dateFilter,
         page: String(nextPage),
         limit: "5",
       });
+      if (filterOnDate) {
+        params.set("onDate", filterOnDate);
+      } else {
+        params.set("dateFilter", dateFilter);
+      }
       if (search.trim()) params.set("search", search.trim());
       const res = await fetch(`/api/doctor/appointments?${params.toString()}`, {
         cache: "no-store",
@@ -223,7 +228,7 @@ export default function DoctorAppointmentsClient({
       if (latestRequestIdRef.current !== requestId) return;
       if (!silent) setIsLoading(false);
     }
-  }, [dateFilter, search, tab]);
+  }, [dateFilter, filterOnDate, search, tab]);
 
   useEffect(() => {
     void loadAppointments(1, false);
@@ -248,11 +253,14 @@ export default function DoctorAppointmentsClient({
   });
 
   const hasActiveFilters =
-    search.trim() !== "" || dateFilter !== DEFAULT_DATE_FILTER;
+    search.trim() !== "" ||
+    dateFilter !== DEFAULT_DATE_FILTER ||
+    filterOnDate !== "";
 
   const clearAllFilters = useCallback(() => {
     setSearch("");
     setDateFilter(DEFAULT_DATE_FILTER);
+    setFilterOnDate("");
 
     const nextParams = new URLSearchParams(searchParams.toString());
     nextParams.delete("search");
@@ -417,24 +425,58 @@ export default function DoctorAppointmentsClient({
         </div>
         <div className="flex min-w-0 flex-1 flex-col gap-2 sm:max-w-xs">
           <label
-            htmlFor="doctor-appointments-date-filter"
+            htmlFor="doctor-appointments-filter-on-date"
             className="shrink-0 font-montserrat text-sm font-medium text-[#333333]"
           >
-            Date
+            Filter by date
+          </label>
+          <div className="flex min-w-0 items-center gap-2">
+            <input
+              id="doctor-appointments-filter-on-date"
+              type="date"
+              value={filterOnDate}
+              onChange={(e) => setFilterOnDate(e.target.value)}
+              className="min-w-0 flex-1 cursor-pointer rounded-xl border border-[#e5e5e5] bg-white px-3 py-2 font-montserrat text-sm text-[#333333] shadow-sm [color-scheme:light] outline-none focus:border-[#2555F3] focus:ring-2 focus:ring-[#2555F3]/20"
+            />
+            {filterOnDate ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="shrink-0 cursor-pointer rounded-xl font-montserrat text-xs font-medium"
+                onClick={() => setFilterOnDate("")}
+              >
+                Clear
+              </Button>
+            ) : null}
+          </div>
+        </div>
+        <div className="flex min-w-0 flex-1 flex-col gap-2 sm:max-w-xs">
+          <label
+            htmlFor="doctor-appointments-sort"
+            className="shrink-0 font-montserrat text-sm font-medium text-[#333333]"
+          >
+            Sort
           </label>
           <select
-            id="doctor-appointments-date-filter"
+            id="doctor-appointments-sort"
             value={dateFilter}
+            disabled={Boolean(filterOnDate)}
+            title={
+              filterOnDate
+                ? "Clear the date filter to change sort"
+                : undefined
+            }
             onChange={(e) => {
               const v = e.target.value;
               if (v === "asc" || v === "desc" || v === "today" || v === "week" || v === "month") {
                 setDateFilter(v);
               }
             }}
-            className={`w-full min-w-0 cursor-pointer rounded-xl border border-[#e5e5e5] bg-white py-2 pl-3 pr-10 font-montserrat text-sm text-[#333333] shadow-sm outline-none focus:border-[#2555F3] focus:ring-2 focus:ring-[#2555F3]/20 ${SELECT_CHEVRON}`}
+            className={`w-full min-w-0 cursor-pointer rounded-xl border border-[#e5e5e5] bg-white py-2 pl-3 pr-10 font-montserrat text-sm text-[#333333] shadow-sm outline-none focus:border-[#2555F3] focus:ring-2 focus:ring-[#2555F3]/20 disabled:cursor-not-allowed disabled:opacity-50 ${SELECT_CHEVRON}`}
           >
-            <option value="desc">Latest first</option>
             <option value="asc">Earliest first</option>
+            <option value="desc">Latest first</option>
             <option value="today">Today</option>
             <option value="week">This week</option>
             <option value="month">This month</option>
@@ -449,13 +491,15 @@ export default function DoctorAppointmentsClient({
       ) : !isLoading && appointments.length === 0 ? (
         <div className="mt-6 rounded-xl border border-dashed border-[#e5e5e5] bg-[#fafafa] p-6 text-center">
           <p className="font-montserrat text-sm font-medium text-[#333333]">
-            {tab === "upcoming"
-              ? "No upcoming appointments."
-              : tab === "pending-review"
-                ? "No appointments pending review."
-              : tab === "completed"
-                ? "No completed appointments yet."
-                : "No cancelled appointments."}
+            {filterOnDate
+              ? "No appointments on this date."
+              : tab === "upcoming"
+                ? "No upcoming appointments."
+                : tab === "pending-review"
+                  ? "No appointments pending review."
+                  : tab === "completed"
+                    ? "No completed appointments yet."
+                    : "No cancelled appointments."}
           </p>
         </div>
       ) : (

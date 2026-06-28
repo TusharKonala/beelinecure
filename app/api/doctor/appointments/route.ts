@@ -9,8 +9,11 @@ import { authOptions } from "@/lib/auth";
 import {
   doctorAppointmentDateTimeOrderBy,
   doctorAppointmentDateWhere,
+  doctorAppointmentOnDateWhere,
+  doctorAppointmentOrderByForOnDate,
   mergeDoctorPatientSearch,
   normalizeDoctorDateFilter,
+  parseDoctorOnDate,
 } from "@/lib/doctor-appointment-filters";
 import { prisma } from "@/lib/db";
 import { isDoctorTimeInPast } from "@/lib/timezone-display";
@@ -48,8 +51,9 @@ export async function GET(request: NextRequest) {
 
   const tab = normalizeTab(request.nextUrl.searchParams.get("tab"));
   const search = (request.nextUrl.searchParams.get("search") ?? "").trim();
+  const onDate = parseDoctorOnDate(request.nextUrl.searchParams.get("onDate"));
   const dateFilter = normalizeDoctorDateFilter(
-    request.nextUrl.searchParams.get("dateFilter"),
+    onDate ? null : request.nextUrl.searchParams.get("dateFilter"),
   );
   const page = Math.max(
     1,
@@ -74,7 +78,9 @@ export async function GET(request: NextRequest) {
     status: { in: statuses },
   };
 
-  const dateWhere = doctorAppointmentDateWhere(dateFilter, doctor.timezone);
+  const dateWhere = onDate
+    ? doctorAppointmentOnDateWhere(onDate)
+    : doctorAppointmentDateWhere(dateFilter, doctor.timezone);
   if (dateWhere) {
     baseWhere.date = dateWhere;
   }
@@ -83,7 +89,9 @@ export async function GET(request: NextRequest) {
 
   const appointments = await prisma.appointment.findMany({
     where: selectedWhere,
-    orderBy: doctorAppointmentDateTimeOrderBy(dateFilter),
+    orderBy: onDate
+      ? doctorAppointmentOrderByForOnDate()
+      : doctorAppointmentDateTimeOrderBy(dateFilter),
     select: {
       id: true,
       patientName: true,
