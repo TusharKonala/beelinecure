@@ -70,6 +70,8 @@ type PatientFormValues = z.infer<typeof patientFormSchema>;
 type SlotDetail = Awaited<ReturnType<typeof getSlots>>["slotDetails"][number];
 type SubmitErrorState = {
   message: string;
+  code?: string;
+  bookingEmail?: string;
   link?: {
     href: string;
     label: string;
@@ -101,6 +103,25 @@ function resolveBookingErrorLink(
     };
   }
   return link;
+}
+
+function guestSignInHintForBookingError(
+  code: string | undefined,
+  sessionStatus: string,
+  bookingEmail?: string,
+): string | null {
+  if (sessionStatus === "authenticated") return null;
+  if (!code || !AUTH_GATED_BOOKING_ERROR_CODES.has(code)) return null;
+
+  const email = bookingEmail?.trim();
+  const emailPhrase = email
+    ? email
+    : "the same email you used when booking";
+
+  if (code === "EXISTING_APPOINTMENT_SAME_DATE") {
+    return `Sign in with ${emailPhrase} to reschedule or manage that appointment.`;
+  }
+  return `Sign in with ${emailPhrase} to view and cancel your appointments.`;
 }
 
 function renderSubmitErrorMessage(submitError: NonNullable<SubmitErrorState>) {
@@ -310,7 +331,7 @@ export default function BookAppointmentDoctorPage() {
   }, [sessionStatus, getValues, reset]);
 
   const [submitError, setSubmitError] = useState<SubmitErrorState>(null);
-  const submitErrorRef = useRef<HTMLParagraphElement>(null);
+  const submitErrorRef = useRef<HTMLDivElement>(null);
   const patientFormSectionRef = useRef<HTMLElement>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [bookedConfirmation, setBookedConfirmation] = useState<{
@@ -718,6 +739,8 @@ export default function BookAppointmentDoctorPage() {
                 typeof json?.error === "string"
                   ? json.error
                   : "Failed to book appointment",
+              code,
+              bookingEmail: data.email.trim(),
               link: resolveBookingErrorLink(rawLink, code, sessionStatus),
             });
             return;
@@ -779,6 +802,8 @@ export default function BookAppointmentDoctorPage() {
                 typeof bookingSessionJson?.error === "string"
                   ? bookingSessionJson.error
                   : "Failed to create booking session",
+              code,
+              bookingEmail: data.email.trim(),
               link: resolveBookingErrorLink(rawLink, code, sessionStatus),
             });
             return;
@@ -1010,6 +1035,14 @@ export default function BookAppointmentDoctorPage() {
 
   const confirmationMessage =
     "Your appointment has been confirmed. A confirmation email has been sent to your inbox. Please arrive a few minutes early.";
+
+  const guestSignInHint =
+    submitError &&
+    guestSignInHintForBookingError(
+      submitError.code,
+      sessionStatus,
+      submitError.bookingEmail,
+    );
 
   return (
     <div className="w-full bg-[#fafafa] py-10 md:py-14 lg:py-16">
@@ -1519,14 +1552,17 @@ export default function BookAppointmentDoctorPage() {
                     )}
                   </div>
                   {submitError && (
-                    <p
+                    <div
                       ref={submitErrorRef}
                       role="alert"
                       tabIndex={-1}
                       className="font-montserrat text-sm text-red-600 outline-none"
                     >
-                      {renderSubmitErrorMessage(submitError)}
-                    </p>
+                      <p>{renderSubmitErrorMessage(submitError)}</p>
+                      {guestSignInHint ? (
+                        <p className="mt-2 text-[#5E5E5E]">{guestSignInHint}</p>
+                      ) : null}
+                    </div>
                   )}
                   {consultationType !== null ? (
                     <ReschedulePolicyNotice className="mt-4" />
