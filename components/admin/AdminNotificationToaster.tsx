@@ -1,23 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { USER_ROLE } from "@/lib/user-role";
+import { useNotificationPusher } from "@/lib/use-notification-pusher";
+import type { NotificationCreatedPayload } from "@/lib/pusher-server";
 
-type ApiNotification = {
+type ToastNotification = {
   id: string;
   title: string;
   message: string;
-  actorUserId?: string | null;
-  createdAt: string;
-};
-
-type ToastNotification = ApiNotification & {
   dismissAt: number;
 };
 
-const POLL_INTERVAL_MS = 15_000;
 const TOAST_TTL_MS = 6_000;
 
 export const ADMIN_UNREAD_COUNT_EVENT = "admin-notifications:unread-count";
@@ -27,88 +23,83 @@ export function AdminNotificationToaster() {
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
   const [pendingNavigationToastId, setPendingNavigationToastId] = useState<string | null>(null);
   const seenNotificationIdsRef = useRef<Set<string>>(new Set());
-  const hasInitializedRef = useRef(false);
 
   const isAdmin = useMemo(() => {
     return session?.user?.role === USER_ROLE.ADMIN;
   }, [session?.user?.role]);
 
   const currentUserId = session?.user?.id ?? null;
+  const enabled = status === "authenticated" && isAdmin;
 
+  // Re-fetch unread to keep the nav badge exact and reconcile the seen set.
+  // Event-driven (mount + each Pusher event), so no polling interval and no
+  // count-drift from incrementing per notification.
+  const refreshUnread = useCallback(async () => {
+    try {
+      const res = await fetch("/api/notifications/unread", { cache: "no-store" });
+      if (!res.ok) return;
+      const data = (await res.json()) as { notifications?: { id: string }[] };
+      const notifications = Array.isArray(data.notifications)
+        ? data.notifications
+        : [];
+      notifications.forEach((notification) =>
+        seenNotificationIdsRef.current.add(notification.id),
+      );
+      window.dispatchEvent(
+        new CustomEvent<number>(ADMIN_UNREAD_COUNT_EVENT, {
+          detail: notifications.length,
+        }),
+      );
+    } catch {
+      // best-effort
+    }
+  }, []);
+
+  // Initial seed on mount: set badge + seen IDs only (no toasts on load).
   useEffect(() => {
-    if (status !== "authenticated" || !isAdmin) {
+    if (!enabled) {
       seenNotificationIdsRef.current = new Set();
-      hasInitializedRef.current = false;
       return;
     }
+    void refreshUnread();
+  }, [enabled, refreshUnread]);
 
-    let cancelled = false;
+  const handleNotification = useCallback(
+    (payload: NotificationCreatedPayload) => {
+      if (seenNotificationIdsRef.current.has(payload.id)) return;
+      seenNotificationIdsRef.current.add(payload.id);
 
-    async function loadUnreadNotifications() {
-      try {
-        const res = await fetch("/api/notifications/unread", { cache: "no-store" });
-        if (!res.ok) return;
+      // Suppress toasts for actions the recipient performed themselves. The
+      // notification still appears in the notifications page/history and the
+      // badge still updates via refreshUnread below.
+      const isSelfAction =
+        Boolean(payload.actorUserId) && payload.actorUserId === currentUserId;
 
-        const data = (await res.json()) as { notifications?: ApiNotification[] };
-        const notifications = Array.isArray(data.notifications) ? data.notifications : [];
-        window.dispatchEvent(
-          new CustomEvent<number>(ADMIN_UNREAD_COUNT_EVENT, {
-            detail: notifications.length,
-          }),
-        );
-
-        if (!hasInitializedRef.current) {
-          notifications.forEach((notification) => {
-            seenNotificationIdsRef.current.add(notification.id);
-          });
-          hasInitializedRef.current = true;
-          return;
-        }
-
-        const now = Date.now();
-        const newNotifications = [...notifications]
-          .reverse()
-          .filter((notification) => !seenNotificationIdsRef.current.has(notification.id));
-
-        if (newNotifications.length === 0) return;
-
-        newNotifications.forEach((notification) => {
-          seenNotificationIdsRef.current.add(notification.id);
-        });
-
-        if (cancelled) return;
-
-        const toastable = newNotifications.filter(
-          (notification) =>
-            !notification.actorUserId ||
-            notification.actorUserId !== currentUserId,
-        );
-
-        if (toastable.length === 0) return;
-
+      if (!isSelfAction) {
         setToasts((current) => {
-          const existingIds = new Set(current.map((toast) => toast.id));
-          const additions = toastable
-            .filter((notification) => !existingIds.has(notification.id))
-            .map((notification) => ({
-              ...notification,
-              dismissAt: now + TOAST_TTL_MS,
-            }));
-          return [...current, ...additions];
+          if (current.some((toast) => toast.id === payload.id)) return current;
+          return [
+            ...current,
+            {
+              id: payload.id,
+              title: payload.title,
+              message: payload.message,
+              dismissAt: Date.now() + TOAST_TTL_MS,
+            },
+          ];
         });
-      } catch {
-        // best-effort polling
       }
-    }
 
-    void loadUnreadNotifications();
-    const interval = setInterval(() => void loadUnreadNotifications(), POLL_INTERVAL_MS);
+      void refreshUnread();
+    },
+    [currentUserId, refreshUnread],
+  );
 
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, [isAdmin, status, currentUserId]);
+  useNotificationPusher({
+    userId: currentUserId,
+    enabled,
+    onNotification: handleNotification,
+  });
 
   useEffect(() => {
     if (toasts.length === 0) return;
@@ -125,7 +116,7 @@ export function AdminNotificationToaster() {
     return () => clearTimeout(timeout);
   }, [toasts]);
 
-  if (!isAdmin || status !== "authenticated" || toasts.length === 0) return null;
+  if (!enabled || toasts.length === 0) return null;
 
   return (
     <div className="pointer-events-none fixed right-4 top-4 z-100 flex w-full max-w-sm flex-col gap-2">

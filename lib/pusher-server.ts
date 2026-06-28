@@ -1,4 +1,5 @@
 import Pusher from "pusher";
+import type { NotificationType } from "@/generated/prisma/client";
 import type {
   ChatInboxUpdatePayload,
   ChatMessageDeletedPayload,
@@ -64,6 +65,31 @@ export async function triggerChatInboxUpdate(
 ) {
   const pusher = getPusherServer();
   await pusher.trigger(userPrivateChannel(userId), "inbox-update", payload);
+}
+
+export type NotificationCreatedPayload = {
+  id: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  actorUserId: string | null;
+  createdAt: string;
+};
+
+export async function triggerNotificationCreated(
+  userId: string,
+  payload: NotificationCreatedPayload,
+) {
+  try {
+    const pusher = getPusherServer();
+    await pusher.trigger(
+      userPrivateChannel(userId),
+      "notification-created",
+      payload,
+    );
+  } catch (err) {
+    console.error("[pusher] notification-created trigger failed:", err);
+  }
 }
 
 export function doctorSlotsChannel(doctorId: string) {

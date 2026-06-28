@@ -3,6 +3,7 @@ import { Resend } from "resend";
 import { CareersDigestEmailTemplate } from "@/components/careers-digest-email-template";
 import { prisma } from "@/lib/db";
 import { getEmailFrom } from "@/lib/email-from";
+import { createAdminNotifications } from "@/lib/notifications";
 
 export type CareersDigestResult =
   | { skipped: true }
@@ -57,13 +58,10 @@ export async function runCareersApplicationDigest(origin: string) {
 
   if (adminUsers.length > 0) {
     try {
-      await prisma.notification.createMany({
-        data: adminUsers.map((admin) => ({
-          userId: admin.id,
-          type: NotificationType.CAREERS_NEW_APPLICATIONS,
-          title: "New job applications",
-          message,
-        })),
+      await createAdminNotifications({
+        type: NotificationType.CAREERS_NEW_APPLICATIONS,
+        title: "New job applications",
+        message,
       });
     } catch (err) {
       console.error("[careers-digest] Failed to create admin notifications:", err);

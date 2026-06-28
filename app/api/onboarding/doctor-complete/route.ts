@@ -10,6 +10,7 @@ import { formatDoctorStoredName } from "@/lib/doctor-name";
 import { DOCTOR_SPECIALIZATIONS } from "@/lib/doctor-specializations";
 import { currencyForTimezone } from "@/lib/currency";
 import { getEmailFrom } from "@/lib/email-from";
+import { createAdminNotifications } from "@/lib/notifications";
 import {
   DOCTOR_BIO_MAX_CHARS,
   charLimitErrorMessage,
@@ -141,13 +142,10 @@ export async function POST(request: Request) {
   const applicantEmail = user.email ?? "";
 
   try {
-    await prisma.notification.createMany({
-      data: adminUsers.map((admin) => ({
-        userId: admin.id,
-        type: NotificationType.DOCTOR_PENDING_APPROVAL,
-        title: "Doctor pending approval",
-        message: `${displayName} (${applicantEmail}) submitted a profile and is awaiting approval.`,
-      })),
+    await createAdminNotifications({
+      type: NotificationType.DOCTOR_PENDING_APPROVAL,
+      title: "Doctor pending approval",
+      message: `${displayName} (${applicantEmail}) submitted a profile and is awaiting approval.`,
     });
   } catch (err) {
     console.error("[doctor-complete] Failed to notify admins:", err);
