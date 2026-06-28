@@ -352,7 +352,7 @@ export default function BookAppointmentDoctorPage() {
   const submitErrorRef = useRef<HTMLDivElement>(null);
   const patientFormSectionRef = useRef<HTMLElement>(null);
   const slotsSectionRef = useRef<HTMLElement>(null);
-  const dateCalendarSectionRef = useRef<HTMLElement>(null);
+  const dateCalendarSectionRef = useRef<HTMLHeadingElement>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [bookedConfirmation, setBookedConfirmation] = useState<{
     doctorName: string;
@@ -1326,9 +1326,12 @@ export default function BookAppointmentDoctorPage() {
             </section>
 
             {/* 3. Date calendar */}
-            <section ref={dateCalendarSectionRef} className="mb-10 md:mb-12">
+            <section className="mb-10 md:mb-12">
               <div className="flex flex-col gap-2 text-left">
-                <h2 className="font-montaga text-2xl font-semibold leading-tight text-[#333333] md:text-3xl">
+                <h2
+                  ref={dateCalendarSectionRef}
+                  className="scroll-mt-24 font-montaga text-2xl font-semibold leading-tight text-[#333333] md:text-3xl"
+                >
                   Select date
                 </h2>
                 {consultationType === null ? (
