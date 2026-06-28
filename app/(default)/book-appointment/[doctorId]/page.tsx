@@ -371,6 +371,7 @@ export default function BookAppointmentDoctorPage() {
   const [slotHoldAlert, setSlotHoldAlert] = useState<string | null>(null);
   const [activeHoldId, setActiveHoldId] = useState<string | null>(null);
   const holdIdRef = useRef<string | null>(null);
+  const invalidateSlotsRef = useRef<() => void>(() => {});
 
   const readStoredHoldId = useCallback((): string | null => {
     if (typeof window === "undefined") return null;
@@ -402,6 +403,8 @@ export default function BookAppointmentDoctorPage() {
         });
       } catch {
         // best-effort
+      } finally {
+        invalidateSlotsRef.current();
       }
     },
     [readStoredHoldId, writeStoredHoldId],
@@ -489,27 +492,32 @@ export default function BookAppointmentDoctorPage() {
   );
 
   const dateForSlots = selectedDate;
+  const slotsQueryKey = useMemo(
+    () =>
+      [
+        "slots",
+        doctorId,
+        dateForSlots,
+        consultationType,
+        patientTimezone,
+      ] as const,
+    [doctorId, dateForSlots, consultationType, patientTimezone],
+  );
+
   const {
     data: slotsData,
     isLoading: slotsLoading,
     isFetching: slotsFetching,
     isPlaceholderData,
   } = useQuery({
-    queryKey: [
-      "slots",
-      doctorId,
-      dateForSlots,
-      consultationType,
-      patientTimezone,
-      activeHoldId,
-    ],
+    queryKey: slotsQueryKey,
     queryFn: () =>
       getSlots(
         doctorId,
         dateForSlots,
         consultationType!,
         patientTimezone,
-        activeHoldId ?? undefined,
+        holdIdRef.current ?? undefined,
       ),
     enabled: !!doctorId && !!dateForSlots && consultationType !== null,
     staleTime: 5 * 60 * 1000,
@@ -517,6 +525,11 @@ export default function BookAppointmentDoctorPage() {
     placeholderData: keepPreviousData,
   });
 
+  invalidateSlotsRef.current = () => {
+    void queryClient.invalidateQueries({ queryKey: slotsQueryKey });
+  };
+
+  // Date change only — not slot hold or background Pusher refetch (same query key).
   const slotsLoadingOrFetching =
     slotsLoading || (slotsFetching && isPlaceholderData);
 
@@ -685,6 +698,7 @@ export default function BookAppointmentDoctorPage() {
 
         if (!res.ok) {
           writeStoredHoldId(null);
+          invalidateSlotsRef.current();
           setSlotHoldAlert(
             typeof json.error === "string"
               ? json.error
@@ -694,8 +708,10 @@ export default function BookAppointmentDoctorPage() {
         }
 
         setSelectedSlot(ref);
+        invalidateSlotsRef.current();
       } catch {
         writeStoredHoldId(null);
+        invalidateSlotsRef.current();
         setSlotHoldAlert("Network error. Please try again.");
       } finally {
         setHoldingSlotKey(null);
