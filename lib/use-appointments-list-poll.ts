@@ -16,11 +16,10 @@ function shouldPollTab(tab: AppointmentsListTab): boolean {
 
 export function useAppointmentsListPoll(options: {
   tab: AppointmentsListTab;
-  page: number;
   pollBlocked: boolean;
   refresh: () => void | Promise<void>;
 }) {
-  const { tab, page, pollBlocked, refresh } = options;
+  const { tab, pollBlocked, refresh } = options;
   const refreshRef = useRef(refresh);
   refreshRef.current = refresh;
 
@@ -29,7 +28,6 @@ export function useAppointmentsListPoll(options: {
 
     const maybeRefresh = () => {
       if (document.visibilityState !== "visible") return;
-      if (page !== 1) return;
       if (pollBlocked) return;
       void refreshRef.current();
     };
@@ -47,5 +45,5 @@ export function useAppointmentsListPoll(options: {
       window.clearInterval(intervalId);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [tab, page, pollBlocked]);
+  }, [tab, pollBlocked]);
 }

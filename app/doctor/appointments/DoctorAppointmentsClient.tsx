@@ -126,6 +126,11 @@ export default function DoctorAppointmentsClient({
   const [mounted, setMounted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const latestRequestIdRef = useRef(0);
+  const loadedPageRef = useRef(1);
+
+  useEffect(() => {
+    loadedPageRef.current = page;
+  }, [page]);
 
   useEffect(() => {
     setMounted(true);
@@ -180,21 +185,13 @@ export default function DoctorAppointmentsClient({
     };
   }, [cancelTarget, cancelReason]);
 
-  const loadAppointments = useCallback(async (
-    nextPage: number,
-    append: boolean,
-    options?: { silent?: boolean },
-  ) => {
-    const silent = options?.silent === true;
-    const requestId = ++latestRequestIdRef.current;
-    if (!silent) {
-      setIsLoading(true);
-      setError(null);
-    }
-    try {
+  const fetchAppointmentsPage = useCallback(
+    async (
+      pageNum: number,
+    ): Promise<{ items: DoctorAppointmentItem[]; hasMore: boolean }> => {
       const params = new URLSearchParams({
         tab,
-        page: String(nextPage),
+        page: String(pageNum),
         limit: "5",
       });
       if (filterOnDate) {
@@ -207,20 +204,38 @@ export default function DoctorAppointmentsClient({
         cache: "no-store",
       });
       if (!res.ok) {
-        if (latestRequestIdRef.current !== requestId) return;
-        if (!silent) setError("Failed to load appointments.");
-        return;
+        throw new Error("Failed to load appointments.");
       }
       const data = (await res.json()) as {
         items?: DoctorAppointmentItem[];
         hasMore?: boolean;
-        page?: number;
       };
+      return {
+        items: Array.isArray(data.items) ? data.items : [],
+        hasMore: Boolean(data.hasMore),
+      };
+    },
+    [dateFilter, filterOnDate, search, tab],
+  );
+
+  const loadAppointments = useCallback(async (
+    nextPage: number,
+    append: boolean,
+    options?: { silent?: boolean },
+  ) => {
+    const silent = options?.silent === true;
+    const requestId = ++latestRequestIdRef.current;
+    if (!silent) {
+      setIsLoading(true);
+      setError(null);
+    }
+    try {
+      const { items: nextItems, hasMore: nextHasMore } =
+        await fetchAppointmentsPage(nextPage);
       if (latestRequestIdRef.current !== requestId) return;
-      const nextItems = Array.isArray(data.items) ? data.items : [];
       setAppointments((current) => (append ? [...current, ...nextItems] : nextItems));
-      setHasMore(Boolean(data.hasMore));
-      setPage(typeof data.page === "number" ? data.page : nextPage);
+      setHasMore(nextHasMore);
+      setPage(nextPage);
     } catch {
       if (latestRequestIdRef.current !== requestId) return;
       if (!silent) setError("Failed to load appointments.");
@@ -228,27 +243,45 @@ export default function DoctorAppointmentsClient({
       if (latestRequestIdRef.current !== requestId) return;
       if (!silent) setIsLoading(false);
     }
-  }, [dateFilter, filterOnDate, search, tab]);
+  }, [fetchAppointmentsPage]);
+
+  const refreshLoadedPages = useCallback(async () => {
+    const requestId = ++latestRequestIdRef.current;
+    const pagesToLoad = loadedPageRef.current;
+    try {
+      const results = await Promise.all(
+        Array.from({ length: pagesToLoad }, (_, i) =>
+          fetchAppointmentsPage(i + 1),
+        ),
+      );
+      if (latestRequestIdRef.current !== requestId) return;
+      const merged = results.flatMap((r) => r.items);
+      const last = results[results.length - 1];
+      setAppointments(merged);
+      setHasMore(last?.hasMore ?? false);
+    } catch {
+      // Silent background refresh — no error banner.
+    }
+  }, [fetchAppointmentsPage]);
 
   useEffect(() => {
     void loadAppointments(1, false);
   }, [loadAppointments]);
 
   const silentRefresh = useCallback(
-    () => loadAppointments(1, false, { silent: true }),
-    [loadAppointments],
+    () => void refreshLoadedPages(),
+    [refreshLoadedPages],
   );
 
   useAppointmentsListPoll({
     tab,
-    page,
     pollBlocked: Boolean(cancelTarget),
     refresh: silentRefresh,
   });
 
   useDoctorAppointmentsPusher({
     doctorId,
-    enabled: page === 1,
+    enabled: !cancelTarget,
     onAppointmentsChanged: silentRefresh,
   });
 

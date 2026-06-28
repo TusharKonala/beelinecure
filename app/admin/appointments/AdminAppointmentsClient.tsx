@@ -281,9 +281,11 @@ export default function AdminAppointmentsClient() {
     [loadAppointments],
   );
 
+  // TODO: Admin poll still refetches page 1 only. On page 2+, background refresh
+  // resets the list to 5 items. Apply refreshLoadedPages pattern from
+  // DoctorAppointmentsClient when admin realtime is prioritized.
   useAppointmentsListPoll({
     tab,
-    page,
     pollBlocked: Boolean(cancelTarget || rescheduleTarget),
     refresh: silentRefresh,
   });
