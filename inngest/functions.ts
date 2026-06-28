@@ -28,6 +28,7 @@ import {
   createDoctorNotificationForDoctorId,
 } from "@/lib/notifications";
 import { formatDoctorDisplayName } from "@/lib/doctor-name";
+import { triggerAppointmentsChanged } from "@/lib/pusher-server";
 import { cancelAppointmentByDoctor } from "@/lib/doctor-cancellations";
 import { sendDoctorHolidaySummaryEmail } from "@/lib/doctor-holiday-summary-email";
 import {
@@ -194,6 +195,45 @@ export const sendAppointmentReminder = inngest.createFunction(
     }
 
     return { sent: true, appointmentId };
+  },
+);
+
+/** At appointment start: notify doctor dashboard via Pusher to refresh lists. */
+export const notifyDoctorAppointmentStarted = inngest.createFunction(
+  {
+    id: "notify-doctor-appointment-started",
+    retries: 2,
+    triggers: [{ event: "appointment/started.scheduled" }],
+    cancelOn: [
+      {
+        event: "appointment/started.cancelled",
+        match: "data.appointmentId",
+      },
+    ],
+  },
+  async ({ event }) => {
+    const { appointmentId } = event.data as { appointmentId: string };
+
+    const appointment = await prisma.appointment.findUnique({
+      where: { id: appointmentId },
+      select: {
+        id: true,
+        doctorId: true,
+        status: true,
+      },
+    });
+
+    if (!appointment) return { skipped: true, reason: "not_found" };
+    if (appointment.status !== AppointmentStatus.CONFIRMED) {
+      return { skipped: true, reason: "not_confirmed" };
+    }
+
+    await triggerAppointmentsChanged(appointment.doctorId, {
+      appointmentId: appointment.id,
+      reason: "started",
+    });
+
+    return { ok: true, appointmentId };
   },
 );
 

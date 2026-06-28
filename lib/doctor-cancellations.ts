@@ -18,7 +18,7 @@ import {
 } from "@/lib/timezone-display";
 import { Resend } from "resend";
 import { getEmailFrom } from "@/lib/email-from";
-import { triggerSlotUpdated } from "@/lib/pusher-server";
+import { triggerAppointmentsChanged, triggerSlotUpdated } from "@/lib/pusher-server";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -138,6 +138,10 @@ export async function cancelAppointmentByStaff(input: {
   await triggerSlotUpdated(appointment.doctorId, {
     date: appointmentDateYmd,
     time: appointment.time,
+  });
+  await triggerAppointmentsChanged(appointment.doctorId, {
+    appointmentId: appointment.id,
+    reason: "cancelled",
   });
 
   let refundSentence: string | null = null;

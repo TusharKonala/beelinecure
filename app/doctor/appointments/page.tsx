@@ -1,5 +1,6 @@
 import { UserRole } from "@/generated/prisma/client";
 import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/db";
 import { Container } from "@/components/layout/Container";
 import DoctorAppointmentsClient from "./DoctorAppointmentsClient";
 import { getServerSession } from "next-auth/next";
@@ -18,10 +19,18 @@ async function DoctorAppointmentsPageContent() {
     redirect("/");
   }
 
+  const doctor = await prisma.doctor.findUnique({
+    where: { userId: session.user.id },
+    select: { id: true },
+  });
+  if (!doctor) {
+    redirect("/");
+  }
+
   return (
     <div className="w-full bg-[#fafafa] py-6 md:py-8">
       <Container>
-        <DoctorAppointmentsClient />
+        <DoctorAppointmentsClient doctorId={doctor.id} />
       </Container>
     </div>
   );

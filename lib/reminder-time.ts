@@ -40,6 +40,19 @@ export function clinicT120ReminderAtMs(
   return target;
 }
 
+/** Appointment start time in UTC ms — used to notify doctor when slot begins. */
+export function appointmentStartAtMs(
+  dateParam: string,
+  time: string,
+  timeZone: string,
+): number | null {
+  const normalizedTime = time.length === 5 ? `${time}:00` : time;
+  const utcDate = fromZonedTime(`${dateParam}T${normalizedTime}`, timeZone);
+  const target = utcDate.getTime();
+  if (target <= Date.now()) return null;
+  return target;
+}
+
 function pad2(value: number): string {
   return String(value).padStart(2, "0");
 }

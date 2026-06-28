@@ -1,5 +1,6 @@
 import { ConsultationType } from "@/generated/prisma/client";
 import { inngest } from "@/inngest/client";
+import { cancelAppointmentStartedEvent } from "@/lib/appointment-started-schedule";
 import {
   clinicT120ReminderAtMs,
   onlineT15ReminderAtMs,
@@ -15,6 +16,7 @@ export async function cancelPendingAppointmentReminders(input: {
 }) {
   const { appointmentId, dateParam, time, timezone, consultationType } = input;
 
+  await cancelAppointmentStartedEvent(appointmentId);
   if (reminderAtMsFromPatientLocal(dateParam, time, timezone) !== null) {
     await inngest.send({
       name: "appointment/reminder.cancelled",

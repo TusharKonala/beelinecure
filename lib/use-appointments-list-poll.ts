@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 
-const POLL_INTERVAL_MS = 60_000;
+const POLL_INTERVAL_MS = 300_000;
 
 type AppointmentsListTab =
   | "upcoming"

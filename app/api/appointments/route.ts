@@ -50,7 +50,8 @@ import {
   SLOT_NO_LONGER_AVAILABLE_MESSAGE,
 } from "@/lib/slot-availability";
 import { consumeSlotHold } from "@/lib/slot-hold-server";
-import { triggerSlotUpdated } from "@/lib/pusher-server";
+import { scheduleAppointmentStartedEvent } from "@/lib/appointment-started-schedule";
+import { triggerAppointmentsChanged, triggerSlotUpdated } from "@/lib/pusher-server";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -301,6 +302,10 @@ export async function POST(request: NextRequest) {
   }
 
   await triggerSlotUpdated(doctorId, { date: dateParam, time });
+  await triggerAppointmentsChanged(doctorId, {
+    appointmentId: appointment.id,
+    reason: "booked",
+  });
 
   const headersList = await headers();
   const origin =
@@ -423,6 +428,17 @@ export async function POST(request: NextRequest) {
     }
   } catch (err) {
     console.error("[appointments] Failed to schedule 2-hour clinic reminder:", err);
+  }
+
+  try {
+    await scheduleAppointmentStartedEvent({
+      appointmentId: appointment.id,
+      dateParam,
+      time,
+      timezone: doctorTimezone,
+    });
+  } catch (err) {
+    console.error("[appointments] Failed to schedule started event:", err);
   }
 
   return NextResponse.json(appointment);

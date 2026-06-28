@@ -35,7 +35,8 @@ import {
   createDoctorNotificationForDoctorId,
 } from "@/lib/notifications";
 import { formatDoctorDisplayName } from "@/lib/doctor-name";
-import { triggerSlotUpdated } from "@/lib/pusher-server";
+import { scheduleAppointmentStartedEvent } from "@/lib/appointment-started-schedule";
+import { triggerAppointmentsChanged, triggerSlotUpdated } from "@/lib/pusher-server";
 import { createMeetEventForOnlineAppointment } from "@/lib/google-calendar-meet";
 import { buildEmailPriceLabels } from "@/lib/email-price-labels";
 import { bookingConfirmationEmailMessage, slotConflictRefundEmailMessage } from "@/lib/reschedule-policy-copy";
@@ -286,6 +287,10 @@ export async function POST(request: NextRequest) {
       date: bookingSession.date,
       time: bookingSession.time,
     });
+    await triggerAppointmentsChanged(bookingSession.doctorId, {
+      appointmentId: appointment.id,
+      reason: "booked",
+    });
 
     const sessionAfter = await prisma.bookingSession.findUnique({
       where: { id: bookingSession.id },
@@ -488,6 +493,17 @@ export async function POST(request: NextRequest) {
       } catch (err) {
         console.error("[webhooks] Failed to schedule 2-hour clinic reminder:", err);
       }
+    }
+
+    try {
+      await scheduleAppointmentStartedEvent({
+        appointmentId: appointment.id,
+        dateParam: bookingSession.date,
+        time: bookingSession.time,
+        timezone: bookingSession.timezone,
+      });
+    } catch (err) {
+      console.error("[webhooks] Failed to schedule started event:", err);
     }
   }
 

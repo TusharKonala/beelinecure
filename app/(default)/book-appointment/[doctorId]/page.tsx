@@ -105,23 +105,43 @@ function resolveBookingErrorLink(
   return link;
 }
 
-function guestSignInHintForBookingError(
-  code: string | undefined,
-  sessionStatus: string,
-  bookingEmail?: string,
-): string | null {
-  if (sessionStatus === "authenticated") return null;
-  if (!code || !AUTH_GATED_BOOKING_ERROR_CODES.has(code)) return null;
+function enrichGuestBookingError(input: {
+  code?: string;
+  sessionStatus: string;
+  bookingEmail?: string;
+  apiMessage: string;
+  link?: { href: string; label: string };
+}): { message: string; link?: { href: string; label: string } } {
+  const link = resolveBookingErrorLink(
+    input.link,
+    input.code,
+    input.sessionStatus,
+  );
 
-  const email = bookingEmail?.trim();
-  const emailPhrase = email
-    ? email
-    : "the same email you used when booking";
-
-  if (code === "EXISTING_APPOINTMENT_SAME_DATE") {
-    return `Sign in with ${emailPhrase} to reschedule or manage that appointment.`;
+  if (
+    input.sessionStatus === "authenticated" ||
+    !input.code ||
+    !AUTH_GATED_BOOKING_ERROR_CODES.has(input.code)
+  ) {
+    return { message: input.apiMessage, link };
   }
-  return `Sign in with ${emailPhrase} to view and cancel your appointments.`;
+
+  const emailPhrase =
+    input.bookingEmail?.trim() || "the same email you used when booking";
+
+  if (input.code === "EXISTING_APPOINTMENT_SAME_DATE") {
+    const label = link?.label ?? "reschedule it";
+    return {
+      message: `You already have an appointment on this date. Sign up or sign in with ${emailPhrase} to reschedule or manage that appointment. Would you like to ${label} instead?`,
+      link,
+    };
+  }
+
+  const label = link?.label ?? "cancel an existing appointment";
+  return {
+    message: `You've reached the limit of 2 upcoming appointments. Sign up or sign in with ${emailPhrase} to view and cancel your appointments. Please ${label} before booking a new one.`,
+    link,
+  };
 }
 
 function renderSubmitErrorMessage(submitError: NonNullable<SubmitErrorState>) {
@@ -472,6 +492,8 @@ export default function BookAppointmentDoctorPage() {
   const {
     data: slotsData,
     isLoading: slotsLoading,
+    isFetching: slotsFetching,
+    isPlaceholderData,
   } = useQuery({
     queryKey: [
       "slots",
@@ -494,6 +516,9 @@ export default function BookAppointmentDoctorPage() {
     refetchOnWindowFocus: false,
     placeholderData: keepPreviousData,
   });
+
+  const slotsLoadingOrFetching =
+    slotsLoading || (slotsFetching && isPlaceholderData);
 
   const shouldIgnoreOwnSlotUpdate = useCallback(
     (payload: SlotUpdatedPayload) =>
@@ -734,14 +759,22 @@ export default function BookAppointmentDoctorPage() {
                 : undefined;
             const code =
               typeof json?.code === "string" ? json.code : undefined;
+            const apiMessage =
+              typeof json?.error === "string"
+                ? json.error
+                : "Failed to book appointment";
+            const enriched = enrichGuestBookingError({
+              code,
+              sessionStatus,
+              bookingEmail: data.email.trim(),
+              apiMessage,
+              link: rawLink,
+            });
             setSubmitError({
-              message:
-                typeof json?.error === "string"
-                  ? json.error
-                  : "Failed to book appointment",
+              message: enriched.message,
               code,
               bookingEmail: data.email.trim(),
-              link: resolveBookingErrorLink(rawLink, code, sessionStatus),
+              link: enriched.link,
             });
             return;
           }
@@ -797,14 +830,22 @@ export default function BookAppointmentDoctorPage() {
               typeof bookingSessionJson?.code === "string"
                 ? bookingSessionJson.code
                 : undefined;
+            const apiMessage =
+              typeof bookingSessionJson?.error === "string"
+                ? bookingSessionJson.error
+                : "Failed to create booking session";
+            const enriched = enrichGuestBookingError({
+              code,
+              sessionStatus,
+              bookingEmail: data.email.trim(),
+              apiMessage,
+              link: rawLink,
+            });
             setSubmitError({
-              message:
-                typeof bookingSessionJson?.error === "string"
-                  ? bookingSessionJson.error
-                  : "Failed to create booking session",
+              message: enriched.message,
               code,
               bookingEmail: data.email.trim(),
-              link: resolveBookingErrorLink(rawLink, code, sessionStatus),
+              link: enriched.link,
             });
             return;
           }
@@ -1035,14 +1076,6 @@ export default function BookAppointmentDoctorPage() {
 
   const confirmationMessage =
     "Your appointment has been confirmed. A confirmation email has been sent to your inbox. Please arrive a few minutes early.";
-
-  const guestSignInHint =
-    submitError &&
-    guestSignInHintForBookingError(
-      submitError.code,
-      sessionStatus,
-      submitError.bookingEmail,
-    );
 
   return (
     <div className="w-full bg-[#fafafa] py-10 md:py-14 lg:py-16">
@@ -1311,12 +1344,12 @@ export default function BookAppointmentDoctorPage() {
                   <h2 className="font-montaga text-2xl font-semibold leading-tight text-[#333333] md:text-3xl">
                     Available times
                   </h2>
-                  {!slotsLoading && (
+                  {!slotsLoadingOrFetching && (
                     <p className="font-montserrat text-sm text-[#5E5E5E]">
                       {filteredDurationLabel}
                     </p>
                   )}
-                  {!slotsLoading &&
+                  {!slotsLoadingOrFetching &&
                     uniqueSlotDurationsMinutes.length > 1 && (
                       <div className="mt-3 flex flex-wrap gap-2">
                         <Button
@@ -1354,7 +1387,16 @@ export default function BookAppointmentDoctorPage() {
                     )}
                 </div>
 
-                {slotsLoading && (
+                {slotsLoadingOrFetching && (
+                  <p
+                    className="mt-4 font-montserrat text-sm text-[#5E5E5E]"
+                    aria-live="polite"
+                  >
+                    Loading available times…
+                  </p>
+                )}
+
+                {slotsLoadingOrFetching && (
                   <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:gap-4">
                     {Array.from({ length: 8 }).map((_, i) => (
                       <Skeleton
@@ -1365,14 +1407,14 @@ export default function BookAppointmentDoctorPage() {
                   </div>
                 )}
 
-                {!slotsLoading &&
+                {!slotsLoadingOrFetching &&
                   durationFilteredSlots.length === 0 && (
                     <p className="mt-6 font-montserrat text-sm text-[#5E5E5E]">
                       No slots available for this date.
                     </p>
                   )}
 
-                {!slotsLoading &&
+                {!slotsLoadingOrFetching &&
                   durationFilteredSlots.length > 0 && (
                     <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:gap-4">
                       {durationFilteredSlots.map((ref) => {
@@ -1559,9 +1601,6 @@ export default function BookAppointmentDoctorPage() {
                       className="font-montserrat text-sm text-red-600 outline-none"
                     >
                       <p>{renderSubmitErrorMessage(submitError)}</p>
-                      {guestSignInHint ? (
-                        <p className="mt-2 text-[#5E5E5E]">{guestSignInHint}</p>
-                      ) : null}
                     </div>
                   )}
                   {consultationType !== null ? (

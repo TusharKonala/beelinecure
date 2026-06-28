@@ -23,7 +23,11 @@ import {
 } from "@/lib/timezone-display";
 import { Resend } from "resend";
 import { getEmailFrom } from "@/lib/email-from";
-import { triggerSlotUpdated } from "@/lib/pusher-server";
+import {
+  cancelAppointmentStartedEvent,
+  scheduleAppointmentStartedEvent,
+} from "@/lib/appointment-started-schedule";
+import { triggerAppointmentsChanged, triggerSlotUpdated } from "@/lib/pusher-server";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -109,12 +113,17 @@ export async function reschedulePatientAppointment(input: {
     date: dateParam,
     time,
   });
+  await triggerAppointmentsChanged(appointment.doctorId, {
+    appointmentId: appointment.id,
+    reason: "rescheduled",
+  });
 
   if (updatedAppointment.consultationType === ConsultationType.ONLINE) {
     await updateMeetEventForOnlineAppointment(updatedAppointment.id);
   }
 
   try {
+    await cancelAppointmentStartedEvent(updatedAppointment.id);
     await inngest.send({
       name: "appointment/reminder.cancelled",
       data: {
@@ -182,6 +191,13 @@ export async function reschedulePatientAppointment(input: {
         });
       }
     }
+
+    await scheduleAppointmentStartedEvent({
+      appointmentId: updatedAppointment.id,
+      dateParam,
+      time,
+      timezone: appointment.timezone,
+    });
   } catch (err) {
     console.error("[appointment-reschedule] Failed to re-schedule reminder:", err);
   }

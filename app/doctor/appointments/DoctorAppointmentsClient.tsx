@@ -11,6 +11,7 @@ import { CharCountFooter } from "@/components/form/CharCountFooter";
 import { MontagaCapitalN } from "@/components/ui/MontagaCapitalN";
 import { formatDateInDoctorTz, formatTimeInDoctorTz } from "@/lib/timezone-display";
 import { useAppointmentsListPoll } from "@/lib/use-appointments-list-poll";
+import { useDoctorAppointmentsPusher } from "@/lib/use-doctor-appointments-pusher";
 import { APPOINTMENT_CANCELLATION_NOTE_MAX_CHARS } from "@/lib/appointment-schemas";
 import { countChars } from "@/lib/text-char-limit";
 
@@ -97,7 +98,11 @@ function searchFromParam(raw: string | null): string {
   return (raw ?? "").trim();
 }
 
-export default function DoctorAppointmentsClient() {
+export default function DoctorAppointmentsClient({
+  doctorId,
+}: {
+  doctorId: string;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialTab = tabFromParam(searchParams.get("tab"));
@@ -234,6 +239,12 @@ export default function DoctorAppointmentsClient() {
     page,
     pollBlocked: Boolean(cancelTarget),
     refresh: silentRefresh,
+  });
+
+  useDoctorAppointmentsPusher({
+    doctorId,
+    enabled: page === 1,
+    onAppointmentsChanged: silentRefresh,
   });
 
   const hasActiveFilters =
