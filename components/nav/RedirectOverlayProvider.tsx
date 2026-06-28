@@ -15,11 +15,17 @@ import type { AppRouterInstance } from "next/dist/shared/lib/app-router-context.
 
 type RedirectOverlayContextValue = {
   startRedirect: () => void;
+  /** Client-side App Router navigation (in-app routes). */
   redirectWithOverlay: (
     router: AppRouterInstance,
     href: string,
     options?: { replace?: boolean },
   ) => void;
+  /**
+   * Full page navigation (session refresh, Stripe, magic links).
+   * Use instead of bare window.location.* so the Redirecting overlay is shown.
+   */
+  redirectToLocation: (href: string) => void;
 };
 
 const RedirectOverlayContext = createContext<RedirectOverlayContextValue | null>(
@@ -53,6 +59,14 @@ export function RedirectOverlayProvider({ children }: { children: ReactNode }) {
     [startRedirect],
   );
 
+  const redirectToLocation = useCallback(
+    (href: string) => {
+      startRedirect();
+      window.location.assign(href);
+    },
+    [startRedirect],
+  );
+
   useEffect(() => {
     if (redirectingRef.current && pathname !== pathnameRef.current) {
       redirectingRef.current = false;
@@ -76,7 +90,7 @@ export function RedirectOverlayProvider({ children }: { children: ReactNode }) {
 
   return (
     <RedirectOverlayContext.Provider
-      value={{ startRedirect, redirectWithOverlay }}
+      value={{ startRedirect, redirectWithOverlay, redirectToLocation }}
     >
       {children}
       {redirecting && (
