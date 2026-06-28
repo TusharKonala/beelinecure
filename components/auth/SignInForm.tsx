@@ -2,20 +2,19 @@
 
 import { useEffect, useRef, useState, type SVGProps } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { getSession, signIn } from "next-auth/react";
 import { Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavProgress } from "@/components/nav/NavigationIndicator";
-import { useRedirectOverlay } from "@/components/nav/RedirectOverlayProvider";
 import { getPostLoginPath } from "@/lib/post-login-redirect";
+import { safeCallbackPath } from "@/lib/safe-callback-path";
 
 export function SignInForm() {
-  const router = useRouter();
   const { startProgress } = useNavProgress();
-  const { redirectWithOverlay } = useRedirectOverlay();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") ?? "/patient/overview";
+  const callbackUrlRaw = searchParams.get("callbackUrl");
+  const sanitizedCallbackUrl = safeCallbackPath(callbackUrlRaw);
   const registered = searchParams.get("registered") === "1";
   const registeredRole = searchParams.get("role");
   const verified = searchParams.get("verified") === "1";
@@ -70,9 +69,11 @@ export function SignInForm() {
         doctorApprovalStatus: session?.user?.doctorApprovalStatus ?? null,
         profileComplete: session?.user?.profileComplete ?? true,
       });
-      const nextPath = callbackUrl === "/patient/overview" ? fallbackPath : callbackUrl;
-      redirectWithOverlay(router, nextPath);
-      router.refresh();
+      const nextPath =
+        sanitizedCallbackUrl === "/patient/overview"
+          ? fallbackPath
+          : sanitizedCallbackUrl;
+      window.location.assign(nextPath);
       didRedirect = true;
     } finally {
       if (!didRedirect) setPending(false);
@@ -95,7 +96,7 @@ export function SignInForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: trimmed,
-          callbackUrl,
+          callbackUrl: sanitizedCallbackUrl,
         }),
       });
 
@@ -188,7 +189,11 @@ export function SignInForm() {
         className="h-11 w-full cursor-pointer gap-2 rounded-xl border-[#e5e5e5] bg-white font-montserrat text-sm font-medium text-[#333333] shadow-sm hover:bg-[#fafafa] md:h-12 md:text-base"
         onClick={() => {
           startProgress();
-          void signIn("google", { callbackUrl: "/auth/post-signin" });
+          const googleCallback =
+            sanitizedCallbackUrl === "/patient/overview"
+              ? "/auth/post-signin"
+              : sanitizedCallbackUrl;
+          void signIn("google", { callbackUrl: googleCallback });
         }}
       >
         <GoogleMark className="size-5 shrink-0" aria-hidden />

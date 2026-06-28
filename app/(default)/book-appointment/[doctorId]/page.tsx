@@ -76,6 +76,33 @@ type SubmitErrorState = {
   };
 } | null;
 
+const PATIENT_APPOINTMENTS_PATH = "/patient/appointments";
+
+const AUTH_GATED_BOOKING_ERROR_CODES = new Set([
+  "UPCOMING_APPOINTMENT_LIMIT_REACHED",
+  "EXISTING_APPOINTMENT_SAME_DATE",
+]);
+
+function resolveBookingErrorLink(
+  link: { href: string; label: string } | undefined,
+  code: string | undefined,
+  sessionStatus: string,
+): { href: string; label: string } | undefined {
+  if (!link) return undefined;
+  if (
+    sessionStatus !== "authenticated" &&
+    code &&
+    AUTH_GATED_BOOKING_ERROR_CODES.has(code) &&
+    link.href === PATIENT_APPOINTMENTS_PATH
+  ) {
+    return {
+      ...link,
+      href: `/auth/signin?callbackUrl=${encodeURIComponent(PATIENT_APPOINTMENTS_PATH)}`,
+    };
+  }
+  return link;
+}
+
 function renderSubmitErrorMessage(submitError: NonNullable<SubmitErrorState>) {
   if (!submitError.link) return submitError.message;
 
@@ -678,17 +705,20 @@ export default function BookAppointmentDoctorPage() {
           const json = await res.json().catch(() => ({}));
 
           if (!res.ok) {
+            const rawLink =
+              json?.link &&
+              typeof json.link.href === "string" &&
+              typeof json.link.label === "string"
+                ? { href: json.link.href, label: json.link.label }
+                : undefined;
+            const code =
+              typeof json?.code === "string" ? json.code : undefined;
             setSubmitError({
               message:
                 typeof json?.error === "string"
                   ? json.error
                   : "Failed to book appointment",
-              link:
-                json?.link &&
-                typeof json.link.href === "string" &&
-                typeof json.link.label === "string"
-                  ? { href: json.link.href, label: json.link.label }
-                  : undefined,
+              link: resolveBookingErrorLink(rawLink, code, sessionStatus),
             });
             return;
           }
@@ -731,20 +761,25 @@ export default function BookAppointmentDoctorPage() {
             .catch(() => null);
 
           if (!bookingSessionRes.ok || !bookingSessionJson?.bookingSessionId) {
+            const rawLink =
+              bookingSessionJson?.link &&
+              typeof bookingSessionJson.link.href === "string" &&
+              typeof bookingSessionJson.link.label === "string"
+                ? {
+                    href: bookingSessionJson.link.href,
+                    label: bookingSessionJson.link.label,
+                  }
+                : undefined;
+            const code =
+              typeof bookingSessionJson?.code === "string"
+                ? bookingSessionJson.code
+                : undefined;
             setSubmitError({
               message:
                 typeof bookingSessionJson?.error === "string"
                   ? bookingSessionJson.error
                   : "Failed to create booking session",
-              link:
-                bookingSessionJson?.link &&
-                typeof bookingSessionJson.link.href === "string" &&
-                typeof bookingSessionJson.link.label === "string"
-                  ? {
-                      href: bookingSessionJson.link.href,
-                      label: bookingSessionJson.link.label,
-                    }
-                  : undefined,
+              link: resolveBookingErrorLink(rawLink, code, sessionStatus),
             });
             return;
           }
@@ -785,6 +820,7 @@ export default function BookAppointmentDoctorPage() {
       router,
       readStoredHoldId,
       writeStoredHoldId,
+      sessionStatus,
     ],
   );
 

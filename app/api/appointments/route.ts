@@ -187,8 +187,6 @@ export async function POST(request: NextRequest) {
       status: { in: [AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED] },
     },
     select: {
-      id: true,
-      rescheduleToken: true,
       date: true,
       time: true,
       timezone: true,
@@ -208,24 +206,13 @@ export async function POST(request: NextRequest) {
   });
 
   if (existingSameDate) {
-    let rescheduleToken = existingSameDate.rescheduleToken;
-    if (!rescheduleToken) {
-      rescheduleToken = randomBytes(32).toString("hex");
-      await prisma.appointment.update({
-        where: { id: existingSameDate.id },
-        data: { rescheduleToken },
-      });
-    }
-
     return NextResponse.json(
       {
         error:
           "You already have an appointment on this date. Would you like to reschedule it instead?",
         code: "EXISTING_APPOINTMENT_SAME_DATE",
         link: {
-          href: `/reschedule?appointmentId=${encodeURIComponent(
-            existingSameDate.id,
-          )}&token=${encodeURIComponent(rescheduleToken)}`,
+          href: "/patient/appointments",
           label: "reschedule it",
         },
       },

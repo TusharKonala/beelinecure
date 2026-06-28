@@ -61,6 +61,19 @@ export function RedirectOverlayProvider({ children }: { children: ReactNode }) {
     pathnameRef.current = pathname;
   }, [pathname]);
 
+  useEffect(() => {
+    if (!redirecting) return;
+
+    const timeoutId = window.setTimeout(() => {
+      if (redirectingRef.current) {
+        redirectingRef.current = false;
+        setRedirecting(false);
+      }
+    }, 6000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [redirecting]);
+
   return (
     <RedirectOverlayContext.Provider
       value={{ startRedirect, redirectWithOverlay }}
