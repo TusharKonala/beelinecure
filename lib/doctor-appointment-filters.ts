@@ -8,7 +8,8 @@ export function normalizeDoctorDateFilter(raw: string | null): DoctorDateFilterV
   if (raw === "today") return "today";
   if (raw === "week") return "week";
   if (raw === "month") return "month";
-  return "desc";
+  if (raw === "desc") return "desc";
+  return "asc";
 }
 
 function ymdToDate(value: string): Date {

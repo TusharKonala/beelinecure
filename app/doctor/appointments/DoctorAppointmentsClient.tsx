@@ -19,7 +19,7 @@ type ConsultationType = "CLINIC" | "ONLINE";
 type AppointmentStatus = "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED";
 type TabKey = "upcoming" | "pending-review" | "completed" | "cancelled";
 type DateFilterValue = "asc" | "desc" | "today" | "week" | "month";
-const DEFAULT_DATE_FILTER: DateFilterValue = "desc";
+const DEFAULT_DATE_FILTER: DateFilterValue = "asc";
 type CancelReason = "patient_no_show" | "doctor_unavailable";
 
 type RefundPreviewPayload = {
