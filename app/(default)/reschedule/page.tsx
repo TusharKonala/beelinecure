@@ -30,6 +30,8 @@ import {
   type BookableSlotRef,
 } from "@/lib/reschedule-slots";
 import { useSlotExpiryTick } from "@/lib/use-slot-expiry-tick";
+import { useDoctorSlotsPusher } from "@/lib/use-doctor-slots-pusher";
+import { SLOT_NO_LONGER_AVAILABLE_MESSAGE } from "@/lib/slot-hold-shared";
 import type { PatientConsultationChoice } from "@/lib/doctor-availability-slots";
 
 type RescheduleUiState =
@@ -178,6 +180,9 @@ function RescheduleContent() {
   const [isLoadingAppointment, setIsLoadingAppointment] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [slotUnavailableAlert, setSlotUnavailableAlert] = useState<string | null>(
+    null,
+  );
 
   const [appointment, setAppointment] = useState<AppointmentDetails | null>(
     null,
@@ -328,6 +333,15 @@ function RescheduleContent() {
   const shouldBlockCurrentAppointmentSlot =
     hasSelectionInteraction && isCurrentAppointmentSlot;
 
+  useDoctorSlotsPusher({
+    doctorId: appointment?.doctorId ?? "",
+    enabled: state === "idle" && !!appointment?.doctorId,
+    queryKeys: {
+      slots: ["reschedule-slots", appointment?.doctorId ?? ""],
+      availableDates: ["reschedule-available-dates", appointment?.doctorId ?? ""],
+    },
+  });
+
   const {
     data: slotsData,
     isLoading: slotsLoading,
@@ -391,15 +405,23 @@ function RescheduleContent() {
       (ref) => bookableSlotRefKey(ref) === key,
     );
     if (!stillAvailable) {
+      const wasCurrentAppointment =
+        !!appointment &&
+        selectedSlot.doctorDate === appointment.date &&
+        selectedSlot.startTime === appointment.time;
+      if (hasSelectionInteraction && !wasCurrentAppointment) {
+        setSlotUnavailableAlert(SLOT_NO_LONGER_AVAILABLE_MESSAGE);
+      }
       setSelectedSlot(null);
     }
-  }, [selectedSlot, filteredSlots]);
+  }, [selectedSlot, filteredSlots, appointment, hasSelectionInteraction]);
 
   const onCalendarSelect = useCallback((ymd: string) => {
     setHasSelectionInteraction(true);
     setSelectedDate(ymd);
     setSelectedSlot(null);
     setSubmitError(null);
+    setSlotUnavailableAlert(null);
     requestAnimationFrame(() => {
       slotsSectionRef.current?.scrollIntoView({
         behavior: "smooth",
@@ -704,6 +726,7 @@ function RescheduleContent() {
                                     setHasSelectionInteraction(true);
                                     setSelectedSlot(ref);
                                     setSubmitError(null);
+                                    setSlotUnavailableAlert(null);
                                   }}
                                 >
                                   <span className="inline-flex flex-col items-center leading-tight">
@@ -729,6 +752,14 @@ function RescheduleContent() {
                       </section>
 
                       <section>
+                        {slotUnavailableAlert && (
+                          <p
+                            className="mb-4 font-montserrat text-sm text-red-600"
+                            role="alert"
+                          >
+                            {slotUnavailableAlert}
+                          </p>
+                        )}
                         {submitError && (
                           <p className="mb-4 font-montserrat text-sm text-red-600">
                             {submitError}

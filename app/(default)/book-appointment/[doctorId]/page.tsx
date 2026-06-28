@@ -546,6 +546,10 @@ export default function BookAppointmentDoctorPage() {
     doctorId,
     enabled: !!doctorId && consultationType !== null,
     shouldIgnoreSlotUpdate: shouldIgnoreOwnSlotUpdate,
+    queryKeys: {
+      slots: ["slots", doctorId],
+      availableDates: ["available-dates", doctorId],
+    },
   });
 
   const doctorTz = slotsData?.doctorTimezone ?? "UTC";

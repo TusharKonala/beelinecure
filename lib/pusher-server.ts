@@ -82,6 +82,27 @@ export async function triggerSlotUpdated(
   }
 }
 
+export type AvailabilityChangedPayload = {
+  /** YYYY-MM-DD dates whose availability rows changed; empty = global regen (e.g. slot duration). */
+  dates: string[];
+};
+
+export async function triggerAvailabilityChanged(
+  doctorId: string,
+  payload: AvailabilityChangedPayload,
+) {
+  try {
+    const pusher = getPusherServer();
+    await pusher.trigger(
+      doctorSlotsChannel(doctorId),
+      "availability-changed",
+      payload,
+    );
+  } catch (err) {
+    console.error("[pusher] availability-changed trigger failed:", err);
+  }
+}
+
 export function doctorAppointmentsChannel(doctorId: string) {
   return `doctor-appointments-${doctorId}`;
 }

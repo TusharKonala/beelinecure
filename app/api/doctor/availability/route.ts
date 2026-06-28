@@ -25,6 +25,7 @@ import { getServerSession } from "next-auth/next";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { inngest } from "@/inngest/client";
+import { triggerAvailabilityChanged } from "@/lib/pusher-server";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -592,6 +593,8 @@ export async function PATCH(request: Request) {
     data: { slotDurationMinutes: parsed.slotDurationMinutes },
   });
 
+  await triggerAvailabilityChanged(doctor.id, { dates: [] });
+
   return NextResponse.json({
     ok: true,
     slotDurationMinutes: parsed.slotDurationMinutes,
@@ -974,6 +977,8 @@ export async function PUT(request: Request) {
     }
   }
 
+  await triggerAvailabilityChanged(doctor.id, { dates: affectedYmd });
+
   return NextResponse.json({
     ok: true,
     affectedDates: affectedYmd.length,
@@ -1054,6 +1059,8 @@ export async function DELETE(request: Request) {
       startTime: { in: [...slotStartSet] },
     },
   });
+
+  await triggerAvailabilityChanged(doctor.id, { dates: [parsed.date] });
 
   return NextResponse.json({ ok: true, deletedCount: result.count });
 }
