@@ -632,7 +632,7 @@ export default function BookAppointmentDoctorPage() {
         void queryClient.invalidateQueries({
           queryKey: ["available-dates", doctorId],
         });
-        void queryClient.invalidateQueries({ queryKey: ["slots", doctorId] });
+        void queryClient.removeQueries({ queryKey: ["slots", doctorId] });
       }
       if (next === "CLINIC") {
         setClinicPaymentMode(null);
@@ -655,9 +655,10 @@ export default function BookAppointmentDoctorPage() {
   const selectClinicPaymentMode = useCallback(
     (mode: "payNow" | "payAtClinic") => {
       if (clinicPaymentMode === mode) return;
-      if (selectedSlot) return;
       setClinicPaymentMode(mode);
-      scrollToDateCalendar();
+      if (!selectedSlot) {
+        scrollToDateCalendar();
+      }
     },
     [clinicPaymentMode, selectedSlot, scrollToDateCalendar],
   );
@@ -1473,6 +1474,7 @@ export default function BookAppointmentDoctorPage() {
                   )}
 
                 {!slotsLoadingOrFetching &&
+                  selectedDate &&
                   durationFilteredSlots.length > 0 && (
                     <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:gap-4">
                       {durationFilteredSlots.map((ref) => {
