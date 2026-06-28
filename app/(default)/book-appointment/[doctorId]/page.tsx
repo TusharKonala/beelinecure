@@ -612,6 +612,10 @@ export default function BookAppointmentDoctorPage() {
     (selectedSlotDetail.consultationType === "BOTH" ||
       selectedSlotDetail.consultationType === consultationType);
 
+  const canPickDates =
+    consultationType === "ONLINE" ||
+    (consultationType === "CLINIC" && clinicPaymentMode !== null);
+
   const scrollToDateCalendar = useCallback(() => {
     requestAnimationFrame(() => {
       dateCalendarSectionRef.current?.scrollIntoView({
@@ -1276,6 +1280,11 @@ export default function BookAppointmentDoctorPage() {
                         Pay securely online now, or pay when you arrive at the
                         clinic.
                       </p>
+                      {clinicPaymentMode === null ? (
+                        <p className="mt-2 font-montserrat text-sm text-[#5E5E5E]">
+                          Select a payment option to continue.
+                        </p>
+                      ) : null}
                       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <Button
                           type="button"
@@ -1340,13 +1349,22 @@ export default function BookAppointmentDoctorPage() {
                     Choose clinic or online above to see which dates are
                     available.
                   </p>
+                ) : consultationType === "CLINIC" &&
+                  clinicPaymentMode === null ? (
+                  <p className="font-montserrat text-sm text-[#5E5E5E]">
+                    Choose how you&apos;ll pay above to see available dates.
+                  </p>
                 ) : null}
               </div>
-              {consultationType !== null && availabilityCalendarInitialLoading ? (
+              {consultationType !== null &&
+              canPickDates &&
+              availabilityCalendarInitialLoading ? (
                 <div className="mt-4">
                   <Skeleton className="h-[340px] w-full max-w-sm rounded-xl bg-[#e5e5e5]" />
                 </div>
-              ) : consultationType !== null && enabledDateSet.size === 0 ? (
+              ) : consultationType !== null &&
+                canPickDates &&
+                enabledDateSet.size === 0 ? (
                 <p className="mt-4 font-montserrat text-sm text-[#5E5E5E]">
                   This doctor has no upcoming availability for this consultation
                   type yet. Please try again later, pick the other option, or
@@ -1359,16 +1377,17 @@ export default function BookAppointmentDoctorPage() {
                     minDate={minDate}
                     disabledDates={new Set()}
                     enabledDates={
-                      consultationType === null
-                        ? new Set<string>()
-                        : enabledDateSet
+                      canPickDates ? enabledDateSet : new Set<string>()
                     }
                     loadingDisabledDates={false}
-                    readOnly={consultationType === null}
+                    readOnly={!canPickDates}
                     gridAriaLabel={
                       consultationType === null
                         ? "Calendar preview — choose consultation type to select a date"
-                        : "Select appointment date"
+                        : consultationType === "CLINIC" &&
+                            clinicPaymentMode === null
+                          ? "Choose a payment option to select a date"
+                          : "Select appointment date"
                     }
                     onViewingMonthChange={onCalendarViewingMonthChange}
                     onSelect={onCalendarSelect}
@@ -1380,7 +1399,7 @@ export default function BookAppointmentDoctorPage() {
                   ) : null}
                 </div>
               )}
-              {consultationType !== null ? (
+              {canPickDates ? (
                 <p className="mt-3 max-w-sm font-montserrat text-xs leading-relaxed text-[#5E5E5E] md:text-sm">
                   Greyed-out dates are not available to book here — the day may
                   be full, the doctor may not be scheduled, or the date may
@@ -1390,7 +1409,7 @@ export default function BookAppointmentDoctorPage() {
             </section>
 
             {/* 4. Time Slot Grid */}
-            {consultationType !== null && (
+            {canPickDates && (
               <section ref={slotsSectionRef}>
                 <div className="flex flex-col gap-2 text-left">
                   <h2 className="font-montaga text-2xl font-semibold leading-tight text-[#333333] md:text-3xl">

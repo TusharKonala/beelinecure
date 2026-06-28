@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { useRedirectOverlay } from "@/components/nav/RedirectOverlayProvider";
 
 type ConfirmAndPayButtonProps = {
   bookingSessionId: string;
@@ -13,6 +14,7 @@ export function ConfirmAndPayButton({
   bookingSessionId,
   doctorId,
 }: ConfirmAndPayButtonProps) {
+  const { startRedirect } = useRedirectOverlay();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showExpired, setShowExpired] = useState(false);
@@ -60,6 +62,7 @@ export function ConfirmAndPayButton({
         return;
       }
 
+      startRedirect();
       window.location.href = json.url as string;
     } catch {
       setError("Network error. Please try again.");
