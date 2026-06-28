@@ -261,15 +261,13 @@ export default function BookAppointmentDoctorPage() {
   const doctorId = String(params?.doctorId ?? "");
   const router = useRouter();
   const { redirectWithOverlay } = useRedirectOverlay();
-  const [selectedDate, setSelectedDate] = useState<string>(() =>
-    todayYmdInTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone),
-  );
+  const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedSlot, setSelectedSlot] = useState<BookableSlotRef | null>(null);
   const [consultationType, setConsultationType] =
     useState<PatientConsultationChoice | null>(null);
   const [clinicPaymentMode, setClinicPaymentMode] = useState<
-    "payNow" | "payAtClinic"
-  >("payAtClinic");
+    "payNow" | "payAtClinic" | null
+  >(null);
   type AvailabilityDateChunk = { from: string; to: string };
   const [availabilityDateChunks, setAvailabilityDateChunks] = useState<
     AvailabilityDateChunk[]
@@ -354,6 +352,7 @@ export default function BookAppointmentDoctorPage() {
   const submitErrorRef = useRef<HTMLDivElement>(null);
   const patientFormSectionRef = useRef<HTMLElement>(null);
   const slotsSectionRef = useRef<HTMLElement>(null);
+  const dateCalendarSectionRef = useRef<HTMLElement>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [bookedConfirmation, setBookedConfirmation] = useState<{
     doctorName: string;
@@ -613,31 +612,57 @@ export default function BookAppointmentDoctorPage() {
     (selectedSlotDetail.consultationType === "BOTH" ||
       selectedSlotDetail.consultationType === consultationType);
 
+  const scrollToDateCalendar = useCallback(() => {
+    requestAnimationFrame(() => {
+      dateCalendarSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+  }, []);
+
   const selectConsultationType = useCallback(
     (next: PatientConsultationChoice) => {
       if (next === "ONLINE" && !onlineConsultationAvailable) return;
       if (consultationType !== null && consultationType !== next) {
         void releaseCurrentHold();
         setSelectedSlot(null);
-        setSelectedDate(todayYmdInTimeZone(patientTimezone));
+        setSelectedDate("");
         setSelectedDurationMinutes(null);
         void queryClient.invalidateQueries({
           queryKey: ["available-dates", doctorId],
         });
         void queryClient.invalidateQueries({ queryKey: ["slots", doctorId] });
       }
+      if (next === "CLINIC") {
+        setClinicPaymentMode(null);
+      }
       setConsultationType(next);
+      if (next === "ONLINE") {
+        scrollToDateCalendar();
+      }
     },
     [
       consultationType,
       doctorId,
       onlineConsultationAvailable,
-      patientTimezone,
       queryClient,
       releaseCurrentHold,
+      scrollToDateCalendar,
     ],
   );
 
+  const selectClinicPaymentMode = useCallback(
+    (mode: "payNow" | "payAtClinic") => {
+      if (clinicPaymentMode === mode) return;
+      if (selectedSlot) return;
+      setClinicPaymentMode(mode);
+      scrollToDateCalendar();
+    },
+    [clinicPaymentMode, selectedSlot, scrollToDateCalendar],
+  );
+
+  // Must use setConsultationType directly — selectConsultationType scrolls to calendar on ONLINE.
   useEffect(() => {
     if (onlineConsultationAvailable || consultationType !== "ONLINE") return;
     const slotType = selectedSlotDetail?.consultationType;
@@ -1004,14 +1029,12 @@ export default function BookAppointmentDoctorPage() {
   useEffect(() => {
     if (availabilityCalendarFetching) return;
     if (enabledDateSet.size === 0) return;
+    if (!selectedDate) return;
     if (enabledDateSet.has(selectedDate)) return;
-    const sorted = [...enabledDateSet].sort();
-    const next =
-      sorted.find((d) => d >= minDate) ?? sorted[sorted.length - 1] ?? minDate;
-    setSelectedDate(next);
+    setSelectedDate("");
     setSelectedSlot(null);
     setSelectedDurationMinutes(null);
-  }, [availabilityCalendarFetching, enabledDateSet, selectedDate, minDate]);
+  }, [availabilityCalendarFetching, enabledDateSet, selectedDate]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1262,7 +1285,7 @@ export default function BookAppointmentDoctorPage() {
                           }
                           className="flex h-11 w-full cursor-pointer items-center justify-center rounded-xl font-montserrat text-sm font-medium sm:h-12 md:text-base"
                           aria-pressed={clinicPaymentMode === "payAtClinic"}
-                          onClick={() => setClinicPaymentMode("payAtClinic")}
+                          onClick={() => selectClinicPaymentMode("payAtClinic")}
                         >
                           Pay at clinic
                         </Button>
@@ -1275,7 +1298,7 @@ export default function BookAppointmentDoctorPage() {
                           }
                           className="flex h-11 w-full cursor-pointer items-center justify-center rounded-xl font-montserrat text-sm font-medium sm:h-12 md:text-base"
                           aria-pressed={clinicPaymentMode === "payNow"}
-                          onClick={() => setClinicPaymentMode("payNow")}
+                          onClick={() => selectClinicPaymentMode("payNow")}
                         >
                           Pay now
                         </Button>
@@ -1292,16 +1315,18 @@ export default function BookAppointmentDoctorPage() {
               {consultationType !== null && (
                 <p className="mt-2 font-montserrat text-sm text-[#5E5E5E]">
                   {consultationType === "CLINIC"
-                    ? clinicPaymentMode === "payAtClinic"
-                      ? `Consultation fee (payable at clinic): ${displayedConsultationPriceLabel}${shouldShowApproxEquivalent && approxEquivalentLabel ? ` ${approxEquivalentLabel}` : ""}`
-                      : `Consultation fee (pay online): ${displayedConsultationPriceLabel}${shouldShowApproxEquivalent && approxEquivalentLabel ? ` ${approxEquivalentLabel}` : ""}`
+                    ? clinicPaymentMode === null
+                      ? "Choose how you'll pay to see consultation fee."
+                      : clinicPaymentMode === "payAtClinic"
+                        ? `Consultation fee (payable at clinic): ${displayedConsultationPriceLabel}${shouldShowApproxEquivalent && approxEquivalentLabel ? ` ${approxEquivalentLabel}` : ""}`
+                        : `Consultation fee (pay online): ${displayedConsultationPriceLabel}${shouldShowApproxEquivalent && approxEquivalentLabel ? ` ${approxEquivalentLabel}` : ""}`
                     : `Online consultation fee: ${displayedConsultationPriceLabel}${shouldShowApproxEquivalent && approxEquivalentLabel ? ` ${approxEquivalentLabel}` : ""}`}
                 </p>
               )}
             </section>
 
             {/* 3. Date calendar */}
-            <section className="mb-10 md:mb-12">
+            <section ref={dateCalendarSectionRef} className="mb-10 md:mb-12">
               <div className="flex flex-col gap-2 text-left">
                 <h2 className="font-montaga text-2xl font-semibold leading-tight text-[#333333] md:text-3xl">
                   Select date
@@ -1430,7 +1455,14 @@ export default function BookAppointmentDoctorPage() {
                   </div>
                 )}
 
+                {!slotsLoadingOrFetching && !selectedDate && (
+                  <p className="mt-6 font-montserrat text-sm text-[#5E5E5E]">
+                    Select a date above to see available times.
+                  </p>
+                )}
+
                 {!slotsLoadingOrFetching &&
+                  selectedDate &&
                   durationFilteredSlots.length === 0 && (
                     <p className="mt-6 font-montserrat text-sm text-[#5E5E5E]">
                       No slots available for this date.
@@ -1634,7 +1666,8 @@ export default function BookAppointmentDoctorPage() {
                       !isValid ||
                       isSubmitting ||
                       !selectedConsultationAllowed ||
-                      Boolean(phoneError)
+                      Boolean(phoneError) ||
+                      (consultationType === "CLINIC" && clinicPaymentMode === null)
                     }
                     type="submit"
                     className="mt-2 w-full cursor-pointer rounded-xl font-montserrat text-sm font-medium sm:px-8"
