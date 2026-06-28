@@ -353,6 +353,7 @@ export default function BookAppointmentDoctorPage() {
   const [submitError, setSubmitError] = useState<SubmitErrorState>(null);
   const submitErrorRef = useRef<HTMLDivElement>(null);
   const patientFormSectionRef = useRef<HTMLElement>(null);
+  const slotsSectionRef = useRef<HTMLElement>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [bookedConfirmation, setBookedConfirmation] = useState<{
     doctorName: string;
@@ -1085,6 +1086,12 @@ export default function BookAppointmentDoctorPage() {
     setSelectedDate(ymd);
     setSelectedSlot(null);
     setSelectedDurationMinutes(null);
+    requestAnimationFrame(() => {
+      slotsSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
   }, []);
 
   const phoneInputClassName =
@@ -1355,7 +1362,7 @@ export default function BookAppointmentDoctorPage() {
 
             {/* 4. Time Slot Grid */}
             {consultationType !== null && (
-              <section>
+              <section ref={slotsSectionRef}>
                 <div className="flex flex-col gap-2 text-left">
                   <h2 className="font-montaga text-2xl font-semibold leading-tight text-[#333333] md:text-3xl">
                     Available times

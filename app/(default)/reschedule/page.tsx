@@ -196,6 +196,7 @@ function RescheduleContent() {
     AvailabilityDateChunk[]
   >([]);
   const prevDoctorScopeRef = useRef<string>("");
+  const slotsSectionRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     if (!canLoad) return;
@@ -399,6 +400,12 @@ function RescheduleContent() {
     setSelectedDate(ymd);
     setSelectedSlot(null);
     setSubmitError(null);
+    requestAnimationFrame(() => {
+      slotsSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
   }, []);
 
   const onCalendarViewingMonthChange = useCallback(
@@ -641,7 +648,7 @@ function RescheduleContent() {
                         )}
                       </section>
 
-                      <section>
+                      <section ref={slotsSectionRef}>
                         <h2 className="font-montaga text-xl font-semibold leading-tight text-[#333333]">
                           Available times
                         </h2>
