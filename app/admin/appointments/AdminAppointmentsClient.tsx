@@ -616,16 +616,20 @@ export default function AdminAppointmentsClient() {
     const stillAvailable = filteredSlots.some(
       (ref) => ref.startTime === selectedSlot && ref.doctorDate === selectedDate,
     );
-    if (!stillAvailable) {
-      const wasCurrentAppointment =
-        !!rescheduleTarget &&
-        selectedDate === rescheduleTarget.date &&
-        selectedSlot === rescheduleTarget.time;
-      if (hasSelectionInteraction && !wasCurrentAppointment) {
-        setRescheduleError(SLOT_NO_LONGER_AVAILABLE_MESSAGE);
-      }
-      setSelectedSlot(null);
+    if (stillAvailable) {
+      setRescheduleError((prev) =>
+        prev === SLOT_NO_LONGER_AVAILABLE_MESSAGE ? null : prev,
+      );
+      return;
     }
+    const wasCurrentAppointment =
+      !!rescheduleTarget &&
+      selectedDate === rescheduleTarget.date &&
+      selectedSlot === rescheduleTarget.time;
+    if (hasSelectionInteraction && !wasCurrentAppointment) {
+      setRescheduleError(SLOT_NO_LONGER_AVAILABLE_MESSAGE);
+    }
+    setSelectedSlot(null);
   }, [
     selectedSlot,
     selectedDate,
@@ -634,13 +638,6 @@ export default function AdminAppointmentsClient() {
     hasSelectionInteraction,
     slotsLoadingOrFetching,
   ]);
-
-  useEffect(() => {
-    if (selectedSlot === null) return;
-    setRescheduleError((prev) =>
-      prev === SLOT_NO_LONGER_AVAILABLE_MESSAGE ? null : prev,
-    );
-  }, [selectedSlot]);
 
   function openReschedule(a: AdminAppointmentItem) {
     if (

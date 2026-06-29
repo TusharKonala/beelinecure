@@ -537,12 +537,24 @@ export default function BookAppointmentDoctorPage() {
     slotsLoading || (slotsFetching && isPlaceholderData);
 
   const shouldIgnoreOwnSlotUpdate = useCallback(
-    (payload: SlotUpdatedPayload) =>
-      activeHoldId !== null &&
-      selectedSlot !== null &&
-      payload.date === selectedSlot.doctorDate &&
-      payload.time === selectedSlot.startTime,
-    [activeHoldId, selectedSlot],
+    (payload: SlotUpdatedPayload) => {
+      if (
+        holdingSlotKey !== null &&
+        bookableSlotRefKey({
+          doctorDate: payload.date,
+          startTime: payload.time,
+        }) === holdingSlotKey
+      ) {
+        return true;
+      }
+      return (
+        activeHoldId !== null &&
+        selectedSlot !== null &&
+        payload.date === selectedSlot.doctorDate &&
+        payload.time === selectedSlot.startTime
+      );
+    },
+    [activeHoldId, selectedSlot, holdingSlotKey],
   );
 
   useDoctorSlotsPusher({
@@ -993,11 +1005,15 @@ export default function BookAppointmentDoctorPage() {
     const stillAvailable = durationFilteredSlots.some(
       (ref) => bookableSlotRefKey(ref) === key,
     );
-    if (!stillAvailable) {
-      void releaseCurrentHold();
-      setSelectedSlot(null);
-      setSlotHoldAlert(SLOT_NO_LONGER_AVAILABLE_MESSAGE);
+    if (stillAvailable) {
+      setSlotHoldAlert((prev) =>
+        prev === SLOT_NO_LONGER_AVAILABLE_MESSAGE ? null : prev,
+      );
+      return;
     }
+    void releaseCurrentHold();
+    setSelectedSlot(null);
+    setSlotHoldAlert(SLOT_NO_LONGER_AVAILABLE_MESSAGE);
   }, [
     selectedSlot,
     durationFilteredSlots,
@@ -1005,12 +1021,6 @@ export default function BookAppointmentDoctorPage() {
     holdingSlotKey,
     slotsLoadingOrFetching,
   ]);
-
-  useEffect(() => {
-    if (selectedSlot !== null) {
-      setSlotHoldAlert(null);
-    }
-  }, [selectedSlot]);
 
   useEffect(() => {
     setSubmitError(null);

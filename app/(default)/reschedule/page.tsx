@@ -426,16 +426,20 @@ function RescheduleContent() {
     const stillAvailable = filteredSlots.some(
       (ref) => bookableSlotRefKey(ref) === key,
     );
-    if (!stillAvailable) {
-      const wasCurrentAppointment =
-        !!appointment &&
-        selectedSlot.doctorDate === appointment.date &&
-        selectedSlot.startTime === appointment.time;
-      if (hasSelectionInteraction && !wasCurrentAppointment) {
-        setSlotUnavailableAlert(SLOT_NO_LONGER_AVAILABLE_MESSAGE);
-      }
-      setSelectedSlot(null);
+    if (stillAvailable) {
+      setSlotUnavailableAlert((prev) =>
+        prev === SLOT_NO_LONGER_AVAILABLE_MESSAGE ? null : prev,
+      );
+      return;
     }
+    const wasCurrentAppointment =
+      !!appointment &&
+      selectedSlot.doctorDate === appointment.date &&
+      selectedSlot.startTime === appointment.time;
+    if (hasSelectionInteraction && !wasCurrentAppointment) {
+      setSlotUnavailableAlert(SLOT_NO_LONGER_AVAILABLE_MESSAGE);
+    }
+    setSelectedSlot(null);
   }, [
     selectedSlot,
     filteredSlots,
@@ -443,12 +447,6 @@ function RescheduleContent() {
     hasSelectionInteraction,
     slotsLoadingOrFetching,
   ]);
-
-  useEffect(() => {
-    if (selectedSlot !== null) {
-      setSlotUnavailableAlert(null);
-    }
-  }, [selectedSlot]);
 
   const onCalendarSelect = useCallback((ymd: string) => {
     setHasSelectionInteraction(true);
