@@ -26,6 +26,10 @@ import {
   isDoctorGoogleCalendarConnected,
 } from "@/lib/doctor-online-booking";
 import {
+  coerceAllowedSlotDurationMinutes,
+  resolveSlotMetaForStart,
+} from "@/lib/doctor-availability-slots";
+import {
   assertSlotAvailableForCheckout,
   SLOT_NO_LONGER_AVAILABLE_MESSAGE,
 } from "@/lib/slot-availability";
@@ -33,6 +37,13 @@ import {
 const schema = z.object({
   bookingSessionId: z.string().min(1),
 });
+
+function parseDateOnly(value: string): Date | null {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  date.setUTCHours(0, 0, 0, 0);
+  return date;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -109,6 +120,7 @@ export async function POST(request: NextRequest) {
       select: {
         name: true,
         currency: true,
+        slotDurationMinutes: true,
         consultationPriceCentsByDuration: true,
         googleCalendarRefreshToken: true,
       },
@@ -146,6 +158,35 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error: PAST_OR_UNAVAILABLE_SLOT_MESSAGE,
+          code: "SLOT_NO_LONGER_AVAILABLE",
+        },
+        { status: 409 },
+      );
+    }
+
+    const appointmentDate = parseDateOnly(doctorDateYmd);
+    if (!appointmentDate) {
+      return NextResponse.json(
+        { error: "Invalid date on booking session" },
+        { status: 400 },
+      );
+    }
+
+    const availabilityRows = await prisma.doctorAvailability.findMany({
+      where: { doctorId: bookingSession.doctorId, date: appointmentDate },
+    });
+    const fallbackDuration = coerceAllowedSlotDurationMinutes(
+      doctor.slotDurationMinutes,
+    );
+    const slotMeta = resolveSlotMetaForStart(
+      availabilityRows,
+      bookingSession.time,
+      fallbackDuration,
+    );
+    if (slotMeta === null) {
+      return NextResponse.json(
+        {
+          error: "This time slot is no longer available",
           code: "SLOT_NO_LONGER_AVAILABLE",
         },
         { status: 409 },

@@ -42,6 +42,10 @@ import { buildEmailPriceLabels } from "@/lib/email-price-labels";
 import { bookingConfirmationEmailMessage, slotConflictRefundEmailMessage } from "@/lib/reschedule-policy-copy";
 import { coerceSupportedCurrency } from "@/lib/currency";
 import { parsePriceMap, priceCentsForDuration } from "@/lib/doctor-pricing";
+import {
+  coerceAllowedSlotDurationMinutes,
+  resolveSlotMetaForStart,
+} from "@/lib/doctor-availability-slots";
 import { refundCheckoutSession } from "@/lib/refunds";
 import type { BookingSession } from "@/generated/prisma/client";
 
@@ -207,6 +211,28 @@ export async function POST(request: NextRequest) {
       });
       return new NextResponse("OK", { status: 200 });
     }
+
+    const availabilityRows = await prisma.doctorAvailability.findMany({
+      where: { doctorId: bookingSession.doctorId, date },
+    });
+    const slotMeta = resolveSlotMetaForStart(
+      availabilityRows,
+      bookingSession.time,
+      coerceAllowedSlotDurationMinutes(doctor.slotDurationMinutes),
+    );
+    if (slotMeta === null) {
+      console.error(
+        "[webhooks] Slot no longer in doctor availability (deleted/holiday), bookingSession:",
+        bookingSession.id,
+      );
+      await handleBookingSlotConflict({
+        bookingSession,
+        checkoutSession: session,
+        doctorDisplayName: formatDoctorDisplayName(doctor.name),
+      });
+      return new NextResponse("OK", { status: 200 });
+    }
+
     const fallbackPriceCentsAtBooking = priceCentsForDuration(
       parsePriceMap(doctor.consultationPriceCentsByDuration),
       bookingSession.durationMinutes,
