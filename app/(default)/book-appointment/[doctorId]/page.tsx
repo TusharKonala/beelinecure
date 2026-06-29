@@ -503,8 +503,9 @@ export default function BookAppointmentDoctorPage() {
         dateForSlots,
         consultationType,
         patientTimezone,
+        activeHoldId,
       ] as const,
-    [doctorId, dateForSlots, consultationType, patientTimezone],
+    [doctorId, dateForSlots, consultationType, patientTimezone, activeHoldId],
   );
 
   const {
@@ -1001,6 +1002,14 @@ export default function BookAppointmentDoctorPage() {
   useEffect(() => {
     if (!selectedSlot) return;
     if (holdingSlotKey !== null || slotsLoadingOrFetching) return;
+
+    if (activeHoldId !== null) {
+      setSlotHoldAlert((prev) =>
+        prev === SLOT_NO_LONGER_AVAILABLE_MESSAGE ? null : prev,
+      );
+      return;
+    }
+
     const key = bookableSlotRefKey(selectedSlot);
     const stillAvailable = durationFilteredSlots.some(
       (ref) => bookableSlotRefKey(ref) === key,
@@ -1011,6 +1020,7 @@ export default function BookAppointmentDoctorPage() {
       );
       return;
     }
+
     void releaseCurrentHold();
     setSelectedSlot(null);
     setSlotHoldAlert(SLOT_NO_LONGER_AVAILABLE_MESSAGE);
@@ -1020,6 +1030,7 @@ export default function BookAppointmentDoctorPage() {
     releaseCurrentHold,
     holdingSlotKey,
     slotsLoadingOrFetching,
+    activeHoldId,
   ]);
 
   useEffect(() => {
