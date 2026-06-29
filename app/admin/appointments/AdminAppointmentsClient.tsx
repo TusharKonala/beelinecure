@@ -19,6 +19,7 @@ import {
 } from "@/lib/timezone-display";
 import { filterReschedulableSlots } from "@/lib/reschedule-slots";
 import { useDoctorSlotsPusher } from "@/lib/use-doctor-slots-pusher";
+import { SLOT_NO_LONGER_AVAILABLE_MESSAGE } from "@/lib/slot-hold-shared";
 import type { PatientConsultationChoice } from "@/lib/doctor-availability-slots";
 import { formatDoctorDisplayName } from "@/lib/doctor-name";
 import { currencyForTimezone } from "@/lib/currency";
@@ -611,6 +612,7 @@ export default function AdminAppointmentsClient() {
 
   useEffect(() => {
     if (!selectedSlot) return;
+    if (slotsLoadingOrFetching) return;
     const stillAvailable = filteredSlots.some(
       (ref) => ref.startTime === selectedSlot && ref.doctorDate === selectedDate,
     );
@@ -620,9 +622,7 @@ export default function AdminAppointmentsClient() {
         selectedDate === rescheduleTarget.date &&
         selectedSlot === rescheduleTarget.time;
       if (hasSelectionInteraction && !wasCurrentAppointment) {
-        setRescheduleError(
-          "This time slot is no longer available. Please choose another.",
-        );
+        setRescheduleError(SLOT_NO_LONGER_AVAILABLE_MESSAGE);
       }
       setSelectedSlot(null);
     }
@@ -632,7 +632,15 @@ export default function AdminAppointmentsClient() {
     filteredSlots,
     rescheduleTarget,
     hasSelectionInteraction,
+    slotsLoadingOrFetching,
   ]);
+
+  useEffect(() => {
+    if (selectedSlot === null) return;
+    setRescheduleError((prev) =>
+      prev === SLOT_NO_LONGER_AVAILABLE_MESSAGE ? null : prev,
+    );
+  }, [selectedSlot]);
 
   function openReschedule(a: AdminAppointmentItem) {
     if (

@@ -421,6 +421,7 @@ function RescheduleContent() {
 
   useEffect(() => {
     if (!selectedSlot) return;
+    if (slotsLoadingOrFetching) return;
     const key = bookableSlotRefKey(selectedSlot);
     const stillAvailable = filteredSlots.some(
       (ref) => bookableSlotRefKey(ref) === key,
@@ -435,7 +436,19 @@ function RescheduleContent() {
       }
       setSelectedSlot(null);
     }
-  }, [selectedSlot, filteredSlots, appointment, hasSelectionInteraction]);
+  }, [
+    selectedSlot,
+    filteredSlots,
+    appointment,
+    hasSelectionInteraction,
+    slotsLoadingOrFetching,
+  ]);
+
+  useEffect(() => {
+    if (selectedSlot !== null) {
+      setSlotUnavailableAlert(null);
+    }
+  }, [selectedSlot]);
 
   const onCalendarSelect = useCallback((ymd: string) => {
     setHasSelectionInteraction(true);
