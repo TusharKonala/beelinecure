@@ -503,9 +503,8 @@ export default function BookAppointmentDoctorPage() {
         dateForSlots,
         consultationType,
         patientTimezone,
-        activeHoldId,
       ] as const,
-    [doctorId, dateForSlots, consultationType, patientTimezone, activeHoldId],
+    [doctorId, dateForSlots, consultationType, patientTimezone],
   );
 
   const {
