@@ -316,6 +316,14 @@ function RescheduleContent() {
     if (enabledDateSet.size === 0) return;
     if (!selectedDate) return;
     if (enabledDateSet.has(selectedDate)) return;
+    if (hasSelectionInteraction) {
+      setSelectedDate("");
+      setSelectedSlot(null);
+      setSlotUnavailableAlert(
+        "The date you selected is no longer available. Please choose another date.",
+      );
+      return;
+    }
     const sorted = [...enabledDateSet].sort();
     const next =
       sorted.find((d) => d >= minDate) ?? sorted[sorted.length - 1] ?? minDate;
@@ -326,6 +334,7 @@ function RescheduleContent() {
     enabledDateSet,
     selectedDate,
     minDate,
+    hasSelectionInteraction,
   ]);
 
   const selectedDoctorId = appointment?.doctorId ?? "";
@@ -508,9 +517,7 @@ function RescheduleContent() {
       }
 
       if (nextState === "slot_unavailable") {
-        setSubmitError(
-          "That time slot is no longer available. Please choose another.",
-        );
+        setSubmitError("This time slot is no longer available.");
         return;
       }
 

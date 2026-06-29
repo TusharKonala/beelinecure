@@ -27,6 +27,10 @@ import {
   cancelAppointmentStartedEvent,
   scheduleAppointmentStartedEvent,
 } from "@/lib/appointment-started-schedule";
+import {
+  coerceAllowedSlotDurationMinutes,
+  resolveSlotMetaForStart,
+} from "@/lib/doctor-availability-slots";
 import { triggerAppointmentsChanged, triggerSlotUpdated } from "@/lib/pusher-server";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -79,6 +83,22 @@ export async function reschedulePatientAppointment(input: {
     actorUserId,
     initiatedBy = "patient",
   } = input;
+
+  const doctorForSlots = await prisma.doctor.findUnique({
+    where: { id: appointment.doctorId },
+    select: { slotDurationMinutes: true },
+  });
+  const availabilityRows = await prisma.doctorAvailability.findMany({
+    where: { doctorId: appointment.doctorId, date },
+  });
+  const slotMeta = resolveSlotMetaForStart(
+    availabilityRows,
+    time,
+    coerceAllowedSlotDurationMinutes(doctorForSlots?.slotDurationMinutes ?? 30),
+  );
+  if (slotMeta === null) {
+    return { ok: false, code: "slot_unavailable" };
+  }
 
   const conflict = await prisma.appointment.findFirst({
     where: {
