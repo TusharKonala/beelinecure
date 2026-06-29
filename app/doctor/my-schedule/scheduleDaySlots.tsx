@@ -91,7 +91,6 @@ type BookedSlot = {
 export type GroupedSlotSummary = {
   available: ConsultationTypeGroup[];
   booked: BookedSlot[];
-  hasMixedDurations: boolean;
 };
 
 const CONSULT_TYPE_ORDER: SlotDetail["consultationType"][] = [
@@ -114,10 +113,7 @@ export function groupSlotsByTypeAndDuration(
     Map<number, string[]>
   >();
 
-  const allDurations = new Set<number>();
-
   for (const s of slots) {
-    allDurations.add(s.slotDurationMinutes);
     if (s.booked) {
       booked.push({
         startTime: s.startTime,
@@ -137,7 +133,6 @@ export function groupSlotsByTypeAndDuration(
   }
 
   booked.sort((a, b) => compareSlotStart(a.startTime, b.startTime));
-  const hasMixedDurations = allDurations.size > 1;
 
   const available: ConsultationTypeGroup[] = [];
   for (const ct of CONSULT_TYPE_ORDER) {
@@ -156,7 +151,7 @@ export function groupSlotsByTypeAndDuration(
     });
   }
 
-  return { available, booked, hasMixedDurations };
+  return { available, booked };
 }
 
 type SlotSummaryFromDetailsProps = {
@@ -169,8 +164,17 @@ export function SlotSummaryFromDetails({
   slots,
   bookedOnly = false,
 }: SlotSummaryFromDetailsProps) {
-  const { available, booked, hasMixedDurations } =
-    groupSlotsByTypeAndDuration(slots);
+  const { available, booked } = groupSlotsByTypeAndDuration(slots);
+
+  const bookedByDuration = (() => {
+    const byDur = new Map<number, BookedSlot[]>();
+    for (const b of booked) {
+      const list = byDur.get(b.slotDurationMinutes) ?? [];
+      list.push(b);
+      byDur.set(b.slotDurationMinutes, list);
+    }
+    return [...byDur.entries()].sort(([a], [b]) => a - b);
+  })();
 
   const showAvailability = !bookedOnly;
   const hasAny = bookedOnly
@@ -193,13 +197,7 @@ export function SlotSummaryFromDetails({
             <p className="font-semibold">{group.label}:</p>
             {group.durations.map((dur) => (
               <p key={dur.durationMinutes}>
-                {hasMixedDurations ? (
-                  <>
-                    <span className="font-medium">
-                      {dur.durationMinutes} min:
-                    </span>{" "}
-                  </>
-                ) : null}
+                <span className="font-medium">{dur.durationMinutes} min:</span>{" "}
                 <span className="text-[#333333]">
                   {dur.startTimes.join(", ")}
                 </span>
@@ -210,34 +208,11 @@ export function SlotSummaryFromDetails({
       {booked.length > 0 ? (
         <div>
           <p className="font-semibold">Booked:</p>
-          {hasMixedDurations ? (
-            (() => {
-              const byDur = new Map<number, BookedSlot[]>();
-              for (const b of booked) {
-                const list = byDur.get(b.slotDurationMinutes) ?? [];
-                list.push(b);
-                byDur.set(b.slotDurationMinutes, list);
-              }
-              return [...byDur.entries()]
-                .sort(([a], [b]) => a - b)
-                .map(([dur, items]) => (
-                  <p key={dur}>
-                    <span className="font-medium">{dur} min:</span>{" "}
-                    <span className="text-[#333333]">
-                      {items
-                        .map(
-                          (b) =>
-                            `${b.startTime} ${bookedConsultationAbbrev(b.consultationType)}`,
-                        )
-                        .join(", ")}
-                    </span>
-                  </p>
-                ));
-            })()
-          ) : (
-            <p>
+          {bookedByDuration.map(([dur, items]) => (
+            <p key={dur}>
+              <span className="font-medium">{dur} min:</span>{" "}
               <span className="text-[#333333]">
-                {booked
+                {items
                   .map(
                     (b) =>
                       `${b.startTime} ${bookedConsultationAbbrev(b.consultationType)}`,
@@ -245,7 +220,7 @@ export function SlotSummaryFromDetails({
                   .join(", ")}
               </span>
             </p>
-          )}
+          ))}
         </div>
       ) : null}
     </div>
