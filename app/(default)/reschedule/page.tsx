@@ -640,7 +640,8 @@ function RescheduleContent() {
                     <p className="mt-6 rounded-lg bg-[#f4f7ff] px-4 py-3 font-montserrat text-sm text-[#333333]">
                       Your original appointment was a {appointment.durationMinutes}-minute{" "}
                       {consultationTypeLabel(appointment.consultationType)} consultation.
-                      Only slots matching this duration and type are shown.
+                      Only slots matching this duration and consultation type are
+                      shown.
                     </p>
                     <div className="mt-8 flex flex-col gap-6">
                       <section>

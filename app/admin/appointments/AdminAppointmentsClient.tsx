@@ -1092,7 +1092,7 @@ export default function AdminAppointmentsClient() {
               <p className="mt-3 rounded-lg bg-[#f4f7ff] px-4 py-3 font-montserrat text-sm text-[#333333]">
                 Original appointment: {rescheduleTarget.durationMinutes}-minute{" "}
                 {consultationTypeLabel(rescheduleTarget.consultationType)} consultation.
-                Only slots matching this duration and type are shown.
+                Only slots matching this duration and consultation type are shown.
               </p>
 
               {rescheduleStep === "pick" && (
