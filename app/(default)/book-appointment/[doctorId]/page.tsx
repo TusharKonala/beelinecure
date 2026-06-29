@@ -80,6 +80,9 @@ type SubmitErrorState = {
 
 const PATIENT_APPOINTMENTS_PATH = "/patient/appointments";
 
+const DATE_NO_LONGER_AVAILABLE_MESSAGE =
+  "The date you selected is no longer available. Please choose another date.";
+
 const AUTH_GATED_BOOKING_ERROR_CODES = new Set([
   "UPCOMING_APPOINTMENT_LIMIT_REACHED",
   "EXISTING_APPOINTMENT_SAME_DATE",
@@ -634,6 +637,7 @@ export default function BookAppointmentDoctorPage() {
       if (next === "ONLINE" && !onlineConsultationAvailable) return;
       if (consultationType !== null && consultationType !== next) {
         void releaseCurrentHold();
+        setSlotHoldAlert(null);
         setSelectedSlot(null);
         setSelectedDate("");
         setSelectedDurationMinutes(null);
@@ -997,6 +1001,7 @@ export default function BookAppointmentDoctorPage() {
 
   useEffect(() => {
     setSubmitError(null);
+    if (!selectedDate) return;
     setSlotHoldAlert(null);
     void releaseCurrentHold();
     setSelectedSlot(null);
@@ -1040,10 +1045,17 @@ export default function BookAppointmentDoctorPage() {
     if (enabledDateSet.size === 0) return;
     if (!selectedDate) return;
     if (enabledDateSet.has(selectedDate)) return;
+    void releaseCurrentHold();
+    setSlotHoldAlert(DATE_NO_LONGER_AVAILABLE_MESSAGE);
     setSelectedDate("");
     setSelectedSlot(null);
     setSelectedDurationMinutes(null);
-  }, [availabilityCalendarFetching, enabledDateSet, selectedDate]);
+  }, [
+    availabilityCalendarFetching,
+    enabledDateSet,
+    selectedDate,
+    releaseCurrentHold,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1115,6 +1127,7 @@ export default function BookAppointmentDoctorPage() {
   );
 
   const onCalendarSelect = useCallback((ymd: string) => {
+    setSlotHoldAlert(null);
     setSelectedDate(ymd);
     setSelectedSlot(null);
     setSelectedDurationMinutes(null);
