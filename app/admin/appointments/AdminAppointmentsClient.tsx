@@ -18,6 +18,7 @@ import {
   todayYmdInTimeZone,
 } from "@/lib/timezone-display";
 import { filterReschedulableSlots } from "@/lib/reschedule-slots";
+import { useDoctorSlotsPusher } from "@/lib/use-doctor-slots-pusher";
 import type { PatientConsultationChoice } from "@/lib/doctor-availability-slots";
 import { formatDoctorDisplayName } from "@/lib/doctor-name";
 import { currencyForTimezone } from "@/lib/currency";
@@ -477,6 +478,14 @@ export default function AdminAppointmentsClient() {
     if (enabledDateSet.size === 0) return;
     if (!selectedDate) return;
     if (enabledDateSet.has(selectedDate)) return;
+    if (hasSelectionInteraction) {
+      setSelectedDate("");
+      setSelectedSlot(null);
+      setRescheduleError(
+        "The date you selected is no longer available. Please choose another date.",
+      );
+      return;
+    }
     const sorted = [...enabledDateSet].sort();
     const next =
       sorted.find((d) => d >= rescheduleMinDate) ??
@@ -491,6 +500,7 @@ export default function AdminAppointmentsClient() {
     enabledDateSet,
     selectedDate,
     rescheduleMinDate,
+    hasSelectionInteraction,
   ]);
 
   const onRescheduleCalendarSelect = useCallback((ymd: string) => {
@@ -533,6 +543,18 @@ export default function AdminAppointmentsClient() {
     },
     [],
   );
+
+  useDoctorSlotsPusher({
+    doctorId: rescheduleTarget?.doctorId ?? "",
+    enabled: !!rescheduleTarget?.doctorId && rescheduleStep === "pick",
+    queryKeys: {
+      slots: ["admin-reschedule-slots"],
+      availableDates: [
+        "admin-reschedule-available-dates",
+        rescheduleTarget?.doctorId ?? "",
+      ],
+    },
+  });
 
   const slotsEnabled =
     !!rescheduleTarget && rescheduleStep === "pick" && !!selectedDate;
@@ -581,6 +603,31 @@ export default function AdminAppointmentsClient() {
     selectedSlot === rescheduleTarget.time;
   const shouldBlockCurrentAppointmentSlot =
     hasSelectionInteraction && isCurrentAppointmentSlot;
+
+  useEffect(() => {
+    if (!selectedSlot) return;
+    const stillAvailable = filteredSlots.some(
+      (ref) => ref.startTime === selectedSlot && ref.doctorDate === selectedDate,
+    );
+    if (!stillAvailable) {
+      const wasCurrentAppointment =
+        !!rescheduleTarget &&
+        selectedDate === rescheduleTarget.date &&
+        selectedSlot === rescheduleTarget.time;
+      if (hasSelectionInteraction && !wasCurrentAppointment) {
+        setRescheduleError(
+          "This time slot is no longer available. Please choose another.",
+        );
+      }
+      setSelectedSlot(null);
+    }
+  }, [
+    selectedSlot,
+    selectedDate,
+    filteredSlots,
+    rescheduleTarget,
+    hasSelectionInteraction,
+  ]);
 
   function openReschedule(a: AdminAppointmentItem) {
     if (
