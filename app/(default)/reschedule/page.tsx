@@ -87,6 +87,10 @@ function consultationChoiceFromAppointment(
   return type === ConsultationType.ONLINE ? "ONLINE" : "CLINIC";
 }
 
+function consultationTypeLabel(type: "CLINIC" | "ONLINE"): string {
+  return type === "ONLINE" ? "online" : "in-clinic";
+}
+
 async function fetchAppointmentDetails(
   appointmentId: string,
   token: string,
@@ -633,6 +637,11 @@ function RescheduleContent() {
 
                 {!isLoadingAppointment && appointment && (
                   <>
+                    <p className="mt-6 rounded-lg bg-[#f4f7ff] px-4 py-3 font-montserrat text-sm text-[#333333]">
+                      Your original appointment was a {appointment.durationMinutes}-minute{" "}
+                      {consultationTypeLabel(appointment.consultationType)} consultation.
+                      Only slots matching this duration and type are shown.
+                    </p>
                     <div className="mt-8 flex flex-col gap-6">
                       <section>
                         <h2 className="font-montaga text-xl font-semibold leading-tight text-[#333333]">
@@ -671,12 +680,6 @@ function RescheduleContent() {
                         <h2 className="font-montaga text-xl font-semibold leading-tight text-[#333333]">
                           Available times
                         </h2>
-                        {!slotsLoadingOrFetching && appointment && (
-                          <p className="mt-2 font-montserrat text-sm text-[#5E5E5E]">
-                            {appointment.durationMinutes}-minute appointments (same
-                            length as your booking)
-                          </p>
-                        )}
 
                         {slotsLoadingOrFetching && (
                           <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:gap-4">

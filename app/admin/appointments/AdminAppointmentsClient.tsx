@@ -121,6 +121,10 @@ function consultationLabel(type: ConsultationType) {
   return type === "ONLINE" ? "Online" : "Clinic";
 }
 
+function consultationTypeLabel(type: "CLINIC" | "ONLINE"): string {
+  return type === "ONLINE" ? "online" : "in-clinic";
+}
+
 function badgeClass(kind: "consultation" | "status", value: string) {
   if (kind === "consultation") {
     return value === "Online"
@@ -1083,6 +1087,12 @@ export default function AdminAppointmentsClient() {
                   : slotTzView === "patient"
                     ? `Move this appointment to ${formatDateInPatientTz(selectedDate, selectedSlot!, doctorTz, rescheduleTarget.patientTimezone)} at ${formatTimeInPatientTz(selectedDate, selectedSlot!, doctorTz, rescheduleTarget.patientTimezone)} (${rescheduleTarget.patientTimezone})?`
                     : `Move this appointment to ${formatDateInDoctorTz(selectedDate, selectedSlot!, doctorTz)} at ${formatTimeInDoctorTz(selectedDate, selectedSlot!, doctorTz)} (${doctorTz})?`}
+              </p>
+
+              <p className="mt-3 rounded-lg bg-[#f4f7ff] px-4 py-3 font-montserrat text-sm text-[#333333]">
+                Original appointment: {rescheduleTarget.durationMinutes}-minute{" "}
+                {consultationTypeLabel(rescheduleTarget.consultationType)} consultation.
+                Only slots matching this duration and type are shown.
               </p>
 
               {rescheduleStep === "pick" && (
