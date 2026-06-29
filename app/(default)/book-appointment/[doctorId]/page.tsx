@@ -1002,13 +1002,6 @@ export default function BookAppointmentDoctorPage() {
     if (!selectedSlot) return;
     if (holdingSlotKey !== null || slotsLoadingOrFetching) return;
 
-    if (activeHoldId !== null) {
-      setSlotHoldAlert((prev) =>
-        prev === SLOT_NO_LONGER_AVAILABLE_MESSAGE ? null : prev,
-      );
-      return;
-    }
-
     const key = bookableSlotRefKey(selectedSlot);
     const stillAvailable = durationFilteredSlots.some(
       (ref) => bookableSlotRefKey(ref) === key,
@@ -1029,7 +1022,6 @@ export default function BookAppointmentDoctorPage() {
     releaseCurrentHold,
     holdingSlotKey,
     slotsLoadingOrFetching,
-    activeHoldId,
   ]);
 
   useEffect(() => {
