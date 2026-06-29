@@ -992,12 +992,11 @@ export default function BookAppointmentDoctorPage() {
       (ref) => bookableSlotRefKey(ref) === key,
     );
     if (!stillAvailable) {
-      if (activeHoldId) return;
       void releaseCurrentHold();
       setSelectedSlot(null);
       setSlotHoldAlert(SLOT_NO_LONGER_AVAILABLE_MESSAGE);
     }
-  }, [selectedSlot, durationFilteredSlots, releaseCurrentHold, activeHoldId]);
+  }, [selectedSlot, durationFilteredSlots, releaseCurrentHold]);
 
   useEffect(() => {
     setSubmitError(null);
@@ -1475,6 +1474,15 @@ export default function BookAppointmentDoctorPage() {
                     )}
                 </div>
 
+                {slotHoldAlert ? (
+                  <p
+                    className="mt-4 font-montserrat text-sm text-destructive"
+                    role="alert"
+                  >
+                    {slotHoldAlert}
+                  </p>
+                ) : null}
+
                 {slotsLoadingOrFetching && (
                   <p
                     className="mt-4 font-montserrat text-sm text-[#5E5E5E]"
@@ -1540,14 +1548,6 @@ export default function BookAppointmentDoctorPage() {
                       })}
                     </div>
                   )}
-                {slotHoldAlert ? (
-                  <p
-                    className="mt-4 font-montserrat text-sm text-destructive"
-                    role="alert"
-                  >
-                    {slotHoldAlert}
-                  </p>
-                ) : null}
               </section>
             )}
 
