@@ -712,6 +712,7 @@ export default function BookAppointmentDoctorPage() {
       if (consultationType === null) return;
       const refKey = bookableSlotRefKey(ref);
       setSlotHoldAlert(null);
+      setSubmitError(null);
       setHoldingSlotKey(refKey);
 
       try {
