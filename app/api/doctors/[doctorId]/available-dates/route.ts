@@ -48,6 +48,48 @@ function inclusiveYmdSpan(fromYmd: string, toYmd: string): number {
   return inclusiveDaySpan(from, to);
 }
 
+type ExpandedSlotDetail = ReturnType<typeof expandAvailabilityRowsDetailed>[number];
+
+function applyAvailabilityFilters(
+  slotDetails: ExpandedSlotDetail[],
+  consultationFilter: PatientConsultationChoice | null,
+  durationFilterMinutes: number | null,
+): ExpandedSlotDetail[] {
+  let filtered = slotDetails;
+  if (consultationFilter) {
+    filtered = filtered.filter((d) =>
+      slotSupportsPatientConsultationChoice(
+        d.consultationType,
+        consultationFilter,
+      ),
+    );
+  }
+  if (durationFilterMinutes !== null) {
+    filtered = filtered.filter(
+      (d) => d.slotDurationMinutes === durationFilterMinutes,
+    );
+  }
+  return filtered;
+}
+
+function bookableStartsOnDay(
+  slotDetails: ExpandedSlotDetail[],
+  dayKey: string,
+  booked: Set<string>,
+  tz: string,
+): string[] {
+  const seen = new Set<string>();
+  const starts: string[] = [];
+  for (const detail of slotDetails) {
+    if (booked.has(detail.startTime)) continue;
+    if (isDoctorTimeInPast(dayKey, detail.startTime, tz)) continue;
+    if (seen.has(detail.startTime)) continue;
+    seen.add(detail.startTime);
+    starts.push(detail.startTime);
+  }
+  return starts;
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ doctorId: string }> },
@@ -64,6 +106,19 @@ export async function GET(
       );
     }
     consultationFilter = choiceParam;
+  }
+
+  const durationParam = request.nextUrl.searchParams.get("slotDurationMinutes");
+  let durationFilterMinutes: number | null = null;
+  if (durationParam !== null && durationParam !== "") {
+    const parsed = Number(durationParam);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return NextResponse.json(
+        { error: "slotDurationMinutes must be a positive number" },
+        { status: 400 },
+      );
+    }
+    durationFilterMinutes = coerceAllowedSlotDurationMinutes(parsed);
   }
 
   const patientTimezoneParam = request.nextUrl.searchParams.get("patientTimezone");
@@ -260,20 +315,14 @@ export async function GET(
       })();
 
     for (const [dayKey, rows] of rowsByDay) {
-      let slotDetails = expandAvailabilityRowsDetailed(rows, fallback);
-      if (consultationFilter) {
-        slotDetails = slotDetails.filter((d) =>
-          slotSupportsPatientConsultationChoice(
-            d.consultationType,
-            consultationFilter,
-          ),
-        );
-      }
-      const slots = [...new Set(slotDetails.map((s) => s.startTime))].sort();
+      const slotDetails = applyAvailabilityFilters(
+        expandAvailabilityRowsDetailed(rows, fallback),
+        consultationFilter,
+        durationFilterMinutes,
+      );
       const booked = bookedByDay.get(dayKey) ?? new Set<string>();
-      const available = slots.filter((s) => !booked.has(s));
+      const available = bookableStartsOnDay(slotDetails, dayKey, booked, tz);
       for (const start of available) {
-        if (isDoctorTimeInPast(dayKey, start, tz)) continue;
         const patientYmd = doctorSlotToPatientLocalYmd(
           dayKey,
           start,
@@ -293,22 +342,14 @@ export async function GET(
   const datesWithSlots: string[] = [];
 
   for (const [dayKey, rows] of rowsByDay) {
-    let slotDetails = expandAvailabilityRowsDetailed(rows, fallback);
-    if (consultationFilter) {
-      slotDetails = slotDetails.filter((d) =>
-        slotSupportsPatientConsultationChoice(
-          d.consultationType,
-          consultationFilter,
-        ),
-      );
-    }
-    const slots = [...new Set(slotDetails.map((s) => s.startTime))].sort();
-    const booked = bookedByDay.get(dayKey) ?? new Set<string>();
-    const available = slots.filter((s) => !booked.has(s));
-    const hasBookableFuture = available.some(
-      (start) => !isDoctorTimeInPast(dayKey, start, tz),
+    const slotDetails = applyAvailabilityFilters(
+      expandAvailabilityRowsDetailed(rows, fallback),
+      consultationFilter,
+      durationFilterMinutes,
     );
-    if (hasBookableFuture) datesWithSlots.push(dayKey);
+    const booked = bookedByDay.get(dayKey) ?? new Set<string>();
+    const available = bookableStartsOnDay(slotDetails, dayKey, booked, tz);
+    if (available.length > 0) datesWithSlots.push(dayKey);
   }
 
   datesWithSlots.sort();

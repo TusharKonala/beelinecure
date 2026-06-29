@@ -113,12 +113,14 @@ async function getAvailableDatesChunk(
   from: string,
   to: string,
   patientTimezone: string,
+  slotDurationMinutes: number,
 ): Promise<{ dates: string[] }> {
   const params = new URLSearchParams({
     consultationType,
     from,
     to,
     patientTimezone,
+    slotDurationMinutes: String(slotDurationMinutes),
   });
   const res = await fetch(
     `/api/doctors/${doctorId}/available-dates?${params.toString()}`,
@@ -201,7 +203,6 @@ function RescheduleContent() {
     AvailabilityDateChunk[]
   >([]);
   const prevDoctorScopeRef = useRef<string>("");
-  const slotsSectionRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     if (!canLoad) return;
@@ -264,6 +265,7 @@ function RescheduleContent() {
               "reschedule-available-dates",
               appointment.doctorId,
               consultationType,
+              appointment.durationMinutes,
               from,
               to,
               patientTimezone,
@@ -275,6 +277,7 @@ function RescheduleContent() {
                 from,
                 to,
                 patientTimezone,
+                appointment.durationMinutes,
               ),
             enabled: Boolean(appointment.doctorId),
             staleTime: 5 * 60 * 1000,
@@ -422,12 +425,6 @@ function RescheduleContent() {
     setSelectedSlot(null);
     setSubmitError(null);
     setSlotUnavailableAlert(null);
-    requestAnimationFrame(() => {
-      slotsSectionRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    });
   }, []);
 
   const onCalendarViewingMonthChange = useCallback(
@@ -670,7 +667,7 @@ function RescheduleContent() {
                         )}
                       </section>
 
-                      <section ref={slotsSectionRef}>
+                      <section>
                         <h2 className="font-montaga text-xl font-semibold leading-tight text-[#333333]">
                           Available times
                         </h2>

@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import useInfiniteScroll from "react-infinite-scroll-hook";
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
+import { SetAvailabilityCalendar } from "@/app/doctor/my-schedule/SetAvailabilityCalendar";
 import { Button } from "@/components/ui/button";
 import { StaffCancelRefundPreview } from "@/components/appointments/StaffCancelRefundPreview";
 import { CharCountFooter } from "@/components/form/CharCountFooter";
@@ -14,8 +15,10 @@ import {
   formatDateInPatientTz,
   formatTimeInDoctorTz,
   formatTimeInPatientTz,
+  todayYmdInTimeZone,
 } from "@/lib/timezone-display";
 import { filterReschedulableSlots } from "@/lib/reschedule-slots";
+import type { PatientConsultationChoice } from "@/lib/doctor-availability-slots";
 import { formatDoctorDisplayName } from "@/lib/doctor-name";
 import { currencyForTimezone } from "@/lib/currency";
 import { useAppointmentsListPoll } from "@/lib/use-appointments-list-poll";
@@ -29,7 +32,33 @@ type AppointmentStatus = "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED";
 type TabKey = "upcoming" | "pending-review" | "completed" | "cancelled";
 type DateFilterValue = "asc" | "desc" | "today" | "week" | "month";
 const DEFAULT_DATE_FILTER: DateFilterValue = "desc";
+/** Must match `DEFAULT_HORIZON_DAYS` in `available-dates` API (inclusive span = this + 1). */
+const AVAILABILITY_RANGE_DAY_OFFSET = 60;
 type CancelReason = "patient_no_show" | "doctor_unavailable";
+type AvailabilityDateChunk = { from: string; to: string };
+
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+function addDaysToYmd(ymd: string, deltaDays: number): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + deltaDays));
+  return `${dt.getUTCFullYear()}-${pad2(dt.getUTCMonth() + 1)}-${pad2(dt.getUTCDate())}`;
+}
+
+function daysInMonthUtc(year: number, month0: number): number {
+  return new Date(Date.UTC(year, month0 + 1, 0)).getUTCDate();
+}
+
+function lastYmdOfMonthUtc(year: number, month0: number): string {
+  const dim = daysInMonthUtc(year, month0);
+  return `${year}-${pad2(month0 + 1)}-${pad2(dim)}`;
+}
+
+function minYmd(a: string, b: string): string {
+  return a <= b ? a : b;
+}
 
 type RefundPreviewPayload = {
   tier: "full_refund" | "partial_refund" | "no_refund_no_show";
@@ -117,6 +146,27 @@ function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+async function getAvailableDatesChunk(
+  doctorId: string,
+  consultationType: PatientConsultationChoice,
+  from: string,
+  to: string,
+  slotDurationMinutes: number,
+): Promise<{ dates: string[] }> {
+  const params = new URLSearchParams({
+    consultationType,
+    from,
+    to,
+    slotDurationMinutes: String(slotDurationMinutes),
+  });
+  const res = await fetch(
+    `/api/doctors/${doctorId}/available-dates?${params.toString()}`,
+    { cache: "no-store" },
+  );
+  if (!res.ok) throw new Error("Failed to fetch available dates");
+  return res.json();
+}
+
 async function getSlots(
   doctorId: string,
   date: string,
@@ -172,6 +222,10 @@ export default function AdminAppointmentsClient() {
   const [rescheduleSubmitting, setRescheduleSubmitting] = useState(false);
   const [rescheduleError, setRescheduleError] = useState<string | null>(null);
   const [slotTzView, setSlotTzView] = useState<"doctor" | "patient">("doctor");
+  const [availabilityDateChunks, setAvailabilityDateChunks] = useState<
+    AvailabilityDateChunk[]
+  >([]);
+  const prevRescheduleScopeRef = useRef("");
 
   useEffect(() => {
     setMounted(true);
@@ -339,6 +393,142 @@ export default function AdminAppointmentsClient() {
       setIsCanceling(false);
     }
   }
+
+  useLayoutEffect(() => {
+    if (!rescheduleTarget || rescheduleStep !== "pick") {
+      setAvailabilityDateChunks([]);
+      prevRescheduleScopeRef.current = "";
+      return;
+    }
+    const scope = rescheduleTarget.id;
+    if (prevRescheduleScopeRef.current === scope) return;
+    prevRescheduleScopeRef.current = scope;
+    const from = todayYmdInTimeZone(rescheduleTarget.timezone);
+    setAvailabilityDateChunks([
+      { from, to: addDaysToYmd(from, AVAILABILITY_RANGE_DAY_OFFSET) },
+    ]);
+  }, [rescheduleTarget, rescheduleStep]);
+
+  const rescheduleMinDate = useMemo(
+    () =>
+      rescheduleTarget
+        ? todayYmdInTimeZone(rescheduleTarget.timezone)
+        : todayISO(),
+    [rescheduleTarget],
+  );
+
+  const availabilityDateQueries = useQueries({
+    queries:
+      rescheduleTarget &&
+      rescheduleStep === "pick" &&
+      availabilityDateChunks.length > 0
+        ? availabilityDateChunks.map(({ from, to }) => ({
+            queryKey: [
+              "admin-reschedule-available-dates",
+              rescheduleTarget.doctorId,
+              rescheduleTarget.consultationType,
+              rescheduleTarget.durationMinutes,
+              from,
+              to,
+            ] as const,
+            queryFn: () =>
+              getAvailableDatesChunk(
+                rescheduleTarget.doctorId,
+                rescheduleTarget.consultationType,
+                from,
+                to,
+                rescheduleTarget.durationMinutes,
+              ),
+            enabled: Boolean(rescheduleTarget.doctorId),
+            staleTime: 5 * 60 * 1000,
+            refetchOnWindowFocus: false,
+          }))
+        : [],
+  });
+
+  const enabledDateSet = useMemo(() => {
+    const next = new Set<string>();
+    for (const q of availabilityDateQueries) {
+      for (const d of q.data?.dates ?? []) next.add(d);
+    }
+    return next;
+  }, [availabilityDateQueries]);
+
+  const availabilityCalendarFetching = useMemo(
+    () => availabilityDateQueries.some((q) => q.isPending),
+    [availabilityDateQueries],
+  );
+  const availabilityCalendarInitialLoading = useMemo(
+    () => availabilityCalendarFetching && enabledDateSet.size === 0,
+    [availabilityCalendarFetching, enabledDateSet.size],
+  );
+  const availabilityCalendarExtending = useMemo(
+    () => availabilityCalendarFetching && enabledDateSet.size > 0,
+    [availabilityCalendarFetching, enabledDateSet.size],
+  );
+
+  useEffect(() => {
+    if (!rescheduleTarget || rescheduleStep !== "pick") return;
+    if (availabilityCalendarFetching) return;
+    if (enabledDateSet.size === 0) return;
+    if (!selectedDate) return;
+    if (enabledDateSet.has(selectedDate)) return;
+    const sorted = [...enabledDateSet].sort();
+    const next =
+      sorted.find((d) => d >= rescheduleMinDate) ??
+      sorted[sorted.length - 1] ??
+      rescheduleMinDate;
+    setSelectedDate(next);
+    setSelectedSlot(null);
+  }, [
+    rescheduleTarget,
+    rescheduleStep,
+    availabilityCalendarFetching,
+    enabledDateSet,
+    selectedDate,
+    rescheduleMinDate,
+  ]);
+
+  const onRescheduleCalendarSelect = useCallback((ymd: string) => {
+    setHasSelectionInteraction(true);
+    setSelectedDate(ymd);
+    setSelectedSlot(null);
+    setRescheduleError(null);
+  }, []);
+
+  const onRescheduleCalendarViewingMonthChange = useCallback(
+    (year: number, month0: number) => {
+      setAvailabilityDateChunks((prev) => {
+        if (prev.length === 0) return prev;
+        const coverageTo = prev.reduce(
+          (max, c) => (c.to > max ? c.to : max),
+          prev[0]!.to,
+        );
+        const lastDay = lastYmdOfMonthUtc(year, month0);
+        if (lastDay <= coverageTo) return prev;
+        const fromNext = addDaysToYmd(coverageTo, 1);
+        const toNext = lastDay;
+        if (fromNext > toNext) return prev;
+
+        const additions: AvailabilityDateChunk[] = [];
+        let cursor = fromNext;
+        while (cursor <= toNext) {
+          const tentativeEnd = addDaysToYmd(
+            cursor,
+            AVAILABILITY_RANGE_DAY_OFFSET,
+          );
+          const chunkTo = minYmd(tentativeEnd, toNext);
+          if (!prev.some((c) => c.from === cursor && c.to === chunkTo)) {
+            additions.push({ from: cursor, to: chunkTo });
+          }
+          cursor = addDaysToYmd(chunkTo, 1);
+        }
+        if (additions.length === 0) return prev;
+        return [...prev, ...additions];
+      });
+    },
+    [],
+  );
 
   const slotsEnabled =
     !!rescheduleTarget && rescheduleStep === "pick" && !!selectedDate;
@@ -902,18 +1092,31 @@ export default function AdminAppointmentsClient() {
                       Date
                     </label>
                     <div className="mt-2">
-                      <input
-                        type="date"
-                        value={selectedDate}
-                        min={todayISO()}
-                        onChange={(e) => {
-                          setHasSelectionInteraction(true);
-                          setSelectedDate(e.target.value);
-                          setSelectedSlot(null);
-                          setRescheduleError(null);
-                        }}
-                        className="cursor-pointer rounded-xl border border-[#e5e5e5] bg-white px-4 py-3 font-montserrat text-sm text-[#111111] shadow-sm focus:border-[#2555F3] focus:outline-none focus:ring-2 focus:ring-[#2555F3]/30"
-                      />
+                      {availabilityCalendarInitialLoading ? (
+                        <Skeleton className="h-[340px] w-full max-w-sm rounded-xl bg-[#e5e5e5]" />
+                      ) : enabledDateSet.size === 0 ? (
+                        <p className="font-montserrat text-sm text-[#5E5E5E]">
+                          No upcoming slots are available to reschedule to yet.
+                        </p>
+                      ) : (
+                        <>
+                          <SetAvailabilityCalendar
+                            value={selectedDate}
+                            minDate={rescheduleMinDate}
+                            disabledDates={new Set()}
+                            enabledDates={enabledDateSet}
+                            loadingDisabledDates={false}
+                            gridAriaLabel="Select reschedule date"
+                            onViewingMonthChange={onRescheduleCalendarViewingMonthChange}
+                            onSelect={onRescheduleCalendarSelect}
+                          />
+                          {availabilityCalendarExtending ? (
+                            <p className="mt-2 font-montserrat text-xs text-[#5E5E5E]">
+                              Loading more dates…
+                            </p>
+                          ) : null}
+                        </>
+                      )}
                     </div>
                   </div>
                   <div>
