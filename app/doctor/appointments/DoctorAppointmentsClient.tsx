@@ -257,8 +257,13 @@ export default function DoctorAppointmentsClient({
       if (latestRequestIdRef.current !== requestId) return;
       const merged = results.flatMap((r) => r.items);
       const last = results[results.length - 1];
+      const savedScrollY = window.scrollY;
       setAppointments(merged);
       setHasMore(last?.hasMore ?? false);
+      requestAnimationFrame(() => {
+        if (latestRequestIdRef.current !== requestId) return;
+        window.scrollTo({ top: savedScrollY, behavior: "instant" });
+      });
     } catch {
       // Silent background refresh — no error banner.
     }
@@ -536,7 +541,7 @@ export default function DoctorAppointmentsClient({
           </p>
         </div>
       ) : (
-        <div className="mt-6 grid w-full grid-cols-1 gap-4">
+        <div className="mt-6 grid w-full grid-cols-1 gap-4 [overflow-anchor:none]">
           {appointments.map((a) => {
             const consultation = consultationLabel(a.consultationType);
             const shouldShowGoogleMeetLink =
