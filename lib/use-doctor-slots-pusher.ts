@@ -16,9 +16,11 @@ export function useDoctorSlotsPusher(input: {
   enabled: boolean;
   queryKeys: SlotsPusherQueryKeys;
   shouldIgnoreSlotUpdate?: (payload: SlotUpdatedPayload) => boolean;
+  onAvailabilityChanged?: (payload: AvailabilityChangedPayload) => void;
 }) {
   const queryClient = useQueryClient();
   const shouldIgnoreSlotUpdate = input.shouldIgnoreSlotUpdate;
+  const onAvailabilityChangedCallback = input.onAvailabilityChanged;
   const slotsQueryKey = input.queryKeys.slots;
   const availableDatesQueryKey = input.queryKeys.availableDates;
 
@@ -38,9 +40,10 @@ export function useDoctorSlotsPusher(input: {
       void queryClient.invalidateQueries({ queryKey: slotsQueryKey });
     };
 
-    const onAvailabilityChanged = (_payload: AvailabilityChangedPayload) => {
+    const onAvailabilityChanged = (payload: AvailabilityChangedPayload) => {
       void queryClient.invalidateQueries({ queryKey: slotsQueryKey });
       void queryClient.invalidateQueries({ queryKey: availableDatesQueryKey });
+      onAvailabilityChangedCallback?.(payload);
     };
 
     channel.bind("slot-updated", onSlotUpdated);
@@ -57,6 +60,7 @@ export function useDoctorSlotsPusher(input: {
     input.enabled,
     queryClient,
     shouldIgnoreSlotUpdate,
+    onAvailabilityChangedCallback,
     slotsQueryKey,
     availableDatesQueryKey,
   ]);

@@ -19,6 +19,7 @@ import {
 } from "@/lib/timezone-display";
 import { filterReschedulableSlots } from "@/lib/reschedule-slots";
 import { useDoctorSlotsPusher } from "@/lib/use-doctor-slots-pusher";
+import type { AvailabilityChangedPayload } from "@/lib/pusher-server";
 import { SLOT_NO_LONGER_AVAILABLE_MESSAGE } from "@/lib/slot-hold-shared";
 import type { PatientConsultationChoice } from "@/lib/doctor-availability-slots";
 import { formatDoctorDisplayName } from "@/lib/doctor-name";
@@ -227,6 +228,10 @@ export default function AdminAppointmentsClient() {
   const [hasSelectionInteraction, setHasSelectionInteraction] = useState(false);
   const [rescheduleSubmitting, setRescheduleSubmitting] = useState(false);
   const [rescheduleError, setRescheduleError] = useState<string | null>(null);
+  const [isVerifyingCancellation, setIsVerifyingCancellation] = useState(false);
+  const [rescheduleCancelled, setRescheduleCancelled] = useState(false);
+  const cancellationCheckRef = useRef(false);
+  const isMountedRef = useRef(true);
   const [slotTzView, setSlotTzView] = useState<"doctor" | "patient">("doctor");
   const [availabilityDateChunks, setAvailabilityDateChunks] = useState<
     AvailabilityDateChunk[]
@@ -235,6 +240,10 @@ export default function AdminAppointmentsClient() {
 
   useEffect(() => {
     setMounted(true);
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -545,9 +554,49 @@ export default function AdminAppointmentsClient() {
     [],
   );
 
+  const verifyRescheduleStillActive = useCallback(async () => {
+    const target = rescheduleTarget;
+    if (!target || cancellationCheckRef.current) return;
+    cancellationCheckRef.current = true;
+    setIsVerifyingCancellation(true);
+    try {
+      for (let i = 0; i < 6; i++) {
+        const res = await fetch(
+          `/api/admin/appointments/reschedule?appointmentId=${encodeURIComponent(
+            target.id,
+          )}`,
+          { cache: "no-store" },
+        );
+        const json = (await res.json().catch(() => null)) as {
+          status?: string;
+        } | null;
+        if (!isMountedRef.current) return;
+        if (json?.status && json.status !== "eligible") {
+          setRescheduleCancelled(true);
+          await loadAppointments(1, false, { silent: true });
+          return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 1300));
+        if (!isMountedRef.current) return;
+      }
+    } finally {
+      if (isMountedRef.current) setIsVerifyingCancellation(false);
+      cancellationCheckRef.current = false;
+    }
+  }, [rescheduleTarget, loadAppointments]);
+
+  const handleAvailabilityChanged = useCallback(
+    (payload: AvailabilityChangedPayload) => {
+      if (!rescheduleTarget) return;
+      if (!payload.dates.includes(rescheduleTarget.date)) return;
+      void verifyRescheduleStillActive();
+    },
+    [rescheduleTarget, verifyRescheduleStillActive],
+  );
+
   useDoctorSlotsPusher({
     doctorId: rescheduleTarget?.doctorId ?? "",
-    enabled: !!rescheduleTarget?.doctorId && rescheduleStep === "pick",
+    enabled: !!rescheduleTarget?.doctorId,
     queryKeys: {
       slots: ["admin-reschedule-slots"],
       availableDates: [
@@ -555,6 +604,7 @@ export default function AdminAppointmentsClient() {
         rescheduleTarget?.doctorId ?? "",
       ],
     },
+    onAvailabilityChanged: handleAvailabilityChanged,
   });
 
   const slotsEnabled =
@@ -656,6 +706,9 @@ export default function AdminAppointmentsClient() {
     setSelectedSlot(null);
     setHasSelectionInteraction(false);
     setRescheduleError(null);
+    setIsVerifyingCancellation(false);
+    setRescheduleCancelled(false);
+    cancellationCheckRef.current = false;
   }
 
   function closeReschedule() {
@@ -664,6 +717,9 @@ export default function AdminAppointmentsClient() {
     setRescheduleStep("pick");
     setSelectedSlot(null);
     setRescheduleError(null);
+    setIsVerifyingCancellation(false);
+    setRescheduleCancelled(false);
+    cancellationCheckRef.current = false;
   }
 
   async function submitAdminReschedule() {
@@ -1136,8 +1192,35 @@ export default function AdminAppointmentsClient() {
                 id="admin-reschedule-title"
                 className="font-montaga text-xl font-semibold text-[#333333]"
               >
-                {rescheduleStep === "pick" ? "Reschedule appointment" : "Confirm reschedule"}
+                {rescheduleCancelled
+                  ? "Appointment cancelled"
+                  : rescheduleStep === "pick"
+                    ? "Reschedule appointment"
+                    : "Confirm reschedule"}
               </h2>
+              {rescheduleCancelled ? (
+                <div className="mt-4 flex flex-col gap-4">
+                  <p className="font-montserrat text-sm text-[#5E5E5E]">
+                    This appointment has been cancelled because the doctor marked
+                    the day as a holiday. It can no longer be rescheduled.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="cursor-pointer"
+                      onClick={() => closeReschedule()}
+                    >
+                      Close
+                    </Button>
+                  </div>
+                </div>
+              ) : isVerifyingCancellation ? (
+                <p className="mt-4 font-montserrat text-sm text-[#5E5E5E]">
+                  Checking appointment status…
+                </p>
+              ) : (
+                <>
               <p className="mt-2 font-montserrat text-sm text-[#5E5E5E]">
                 {rescheduleStep === "pick"
                   ? `Choose a new slot for ${rescheduleTarget.patientName} with ${formatDoctorDisplayName(rescheduleTarget.doctor.name)}. Only ${rescheduleTarget.durationMinutes}-minute slots are shown. ${RESCHEDULE_ONLY_MORE_THAN_24H}`
@@ -1359,6 +1442,8 @@ export default function AdminAppointmentsClient() {
                     </Button>
                   </div>
                 </div>
+              )}
+                </>
               )}
             </div>
           </div>,

@@ -31,6 +31,7 @@ import {
 } from "@/lib/reschedule-slots";
 import { useSlotExpiryTick } from "@/lib/use-slot-expiry-tick";
 import { useDoctorSlotsPusher } from "@/lib/use-doctor-slots-pusher";
+import type { AvailabilityChangedPayload } from "@/lib/pusher-server";
 import { SLOT_NO_LONGER_AVAILABLE_MESSAGE } from "@/lib/slot-hold-shared";
 import type { PatientConsultationChoice } from "@/lib/doctor-availability-slots";
 
@@ -186,6 +187,9 @@ function RescheduleContent() {
   const [isLoadingAppointment, setIsLoadingAppointment] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [isVerifyingCancellation, setIsVerifyingCancellation] = useState(false);
+  const cancellationCheckRef = useRef(false);
+  const isMountedRef = useRef(true);
   const [slotUnavailableAlert, setSlotUnavailableAlert] = useState<string | null>(
     null,
   );
@@ -207,6 +211,13 @@ function RescheduleContent() {
     AvailabilityDateChunk[]
   >([]);
   const prevDoctorScopeRef = useRef<string>("");
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!canLoad) return;
@@ -349,6 +360,38 @@ function RescheduleContent() {
   const shouldBlockCurrentAppointmentSlot =
     hasSelectionInteraction && isCurrentAppointmentSlot;
 
+  const appointmentDoctorDate = appointment?.date ?? "";
+
+  const verifyAppointmentStillActive = useCallback(async () => {
+    if (cancellationCheckRef.current || !canLoad) return;
+    cancellationCheckRef.current = true;
+    setIsVerifyingCancellation(true);
+    try {
+      for (let i = 0; i < 6; i++) {
+        const json = await fetchAppointmentDetails(appointmentId, token);
+        if (!isMountedRef.current) return;
+        if (json.status !== "success") {
+          setState(json.status);
+          return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 1300));
+        if (!isMountedRef.current) return;
+      }
+    } finally {
+      if (isMountedRef.current) setIsVerifyingCancellation(false);
+      cancellationCheckRef.current = false;
+    }
+  }, [appointmentId, token, canLoad]);
+
+  const handleAvailabilityChanged = useCallback(
+    (payload: AvailabilityChangedPayload) => {
+      if (state !== "idle" || !appointmentDoctorDate) return;
+      if (!payload.dates.includes(appointmentDoctorDate)) return;
+      void verifyAppointmentStillActive();
+    },
+    [state, appointmentDoctorDate, verifyAppointmentStillActive],
+  );
+
   useDoctorSlotsPusher({
     doctorId: appointment?.doctorId ?? "",
     enabled: state === "idle" && !!appointment?.doctorId,
@@ -356,6 +399,7 @@ function RescheduleContent() {
       slots: ["reschedule-slots", appointment?.doctorId ?? ""],
       availableDates: ["reschedule-available-dates", appointment?.doctorId ?? ""],
     },
+    onAvailabilityChanged: handleAvailabilityChanged,
   });
 
   const {
@@ -658,7 +702,13 @@ function RescheduleContent() {
                   </div>
                 )}
 
-                {!isLoadingAppointment && appointment && (
+                {!isLoadingAppointment && appointment && isVerifyingCancellation && (
+                  <p className="mt-8 font-montserrat text-sm text-[#5E5E5E]">
+                    Checking your appointment status…
+                  </p>
+                )}
+
+                {!isLoadingAppointment && appointment && !isVerifyingCancellation && (
                   <>
                     <p className="mt-6 rounded-lg bg-[#f4f7ff] px-4 py-3 font-montserrat text-sm text-[#333333]">
                       Your original appointment was a {appointment.durationMinutes}-minute{" "}

@@ -47,6 +47,34 @@ function adminErrorFromEligibility(
   }
 }
 
+export async function GET(request: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (session.user.role !== UserRole.ADMIN) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const appointmentId =
+    request.nextUrl.searchParams.get("appointmentId") ?? "";
+  if (!appointmentId) {
+    return NextResponse.json({ status: "not_found" }, { status: 400 });
+  }
+
+  const appointment = await prisma.appointment.findUnique({
+    where: { id: appointmentId },
+  });
+  if (!appointment) {
+    return NextResponse.json({ status: "not_found" }, { status: 404 });
+  }
+
+  const eligibility = evaluateRescheduleEligibility(appointment, {
+    requireTokens: true,
+  });
+  return NextResponse.json({ status: eligibility });
+}
+
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
