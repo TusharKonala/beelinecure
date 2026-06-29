@@ -10,7 +10,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery, keepPreviousData } from "@tanstack/react-query";
 import { SetAvailabilityCalendar } from "@/app/doctor/my-schedule/SetAvailabilityCalendar";
 import { Button } from "@/components/ui/button";
 import { Container } from "@/components/layout/Container";
@@ -362,6 +362,7 @@ function RescheduleContent() {
     data: slotsData,
     isLoading: slotsLoading,
     isFetching: slotsFetching,
+    isPlaceholderData,
   } = useQuery({
     queryKey: [
       "reschedule-slots",
@@ -378,11 +379,15 @@ function RescheduleContent() {
         patientTimezone,
         appointment?.id ?? "",
       ),
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    placeholderData: keepPreviousData,
   });
 
   const doctorTz = slotsData?.doctorTimezone ?? appointment?.timezone ?? "UTC";
   const slotDetails = slotsData?.slotDetails ?? [];
-  const slotsLoadingOrFetching = slotsLoading || slotsFetching;
+  const slotsLoadingOrFetching =
+    slotsLoading || (slotsFetching && isPlaceholderData);
 
   const slotExpiryTick = useSlotExpiryTick(state === "idle" && !!appointment);
 

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import useInfiniteScroll from "react-infinite-scroll-hook";
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery, keepPreviousData } from "@tanstack/react-query";
 import { SetAvailabilityCalendar } from "@/app/doctor/my-schedule/SetAvailabilityCalendar";
 import { Button } from "@/components/ui/button";
 import { StaffCancelRefundPreview } from "@/components/appointments/StaffCancelRefundPreview";
@@ -562,6 +562,7 @@ export default function AdminAppointmentsClient() {
     data: slotsData,
     isLoading: slotsLoading,
     isFetching: slotsFetching,
+    isPlaceholderData,
   } = useQuery({
     queryKey: ["admin-reschedule-slots", rescheduleTarget?.id, rescheduleTarget?.doctorId, selectedDate],
     enabled: slotsEnabled && !!rescheduleTarget?.doctorId,
@@ -571,11 +572,15 @@ export default function AdminAppointmentsClient() {
         selectedDate,
         rescheduleTarget!.id,
       ),
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    placeholderData: keepPreviousData,
   });
 
   const doctorTz = slotsData?.doctorTimezone ?? rescheduleTarget?.timezone ?? "UTC";
   const slotDetails = slotsData?.slotDetails ?? [];
-  const slotsLoadingOrFetching = slotsLoading || slotsFetching;
+  const slotsLoadingOrFetching =
+    slotsLoading || (slotsFetching && isPlaceholderData);
   const filteredSlots =
     rescheduleTarget && selectedDate
       ? filterReschedulableSlots({
