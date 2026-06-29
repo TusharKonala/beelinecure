@@ -31,6 +31,10 @@ import {
   coerceAllowedSlotDurationMinutes,
   resolveSlotMetaForStart,
 } from "@/lib/doctor-availability-slots";
+import {
+  acquireDoctorDateLock,
+  SlotUnavailableError,
+} from "@/lib/slot-lock";
 import { triggerAppointmentsChanged, triggerSlotUpdated } from "@/lib/pusher-server";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -88,42 +92,55 @@ export async function reschedulePatientAppointment(input: {
     where: { id: appointment.doctorId },
     select: { slotDurationMinutes: true },
   });
-  const availabilityRows = await prisma.doctorAvailability.findMany({
-    where: { doctorId: appointment.doctorId, date },
-  });
-  const slotMeta = resolveSlotMetaForStart(
-    availabilityRows,
-    time,
-    coerceAllowedSlotDurationMinutes(doctorForSlots?.slotDurationMinutes ?? 30),
+  const fallbackDuration = coerceAllowedSlotDurationMinutes(
+    doctorForSlots?.slotDurationMinutes ?? 30,
   );
-  if (slotMeta === null) {
-    return { ok: false, code: "slot_unavailable" };
+
+  let updatedAppointment;
+  try {
+    updatedAppointment = await prisma.$transaction(async (tx) => {
+      await acquireDoctorDateLock(tx, appointment.doctorId, dateParam);
+
+      const availabilityRows = await tx.doctorAvailability.findMany({
+        where: { doctorId: appointment.doctorId, date },
+      });
+      if (
+        resolveSlotMetaForStart(availabilityRows, time, fallbackDuration) ===
+        null
+      ) {
+        throw new SlotUnavailableError();
+      }
+
+      const conflict = await tx.appointment.findFirst({
+        where: {
+          doctorId: appointment.doctorId,
+          date,
+          time,
+          status: { not: AppointmentStatus.CANCELLED },
+          id: { not: appointment.id },
+        },
+      });
+      if (conflict) {
+        throw new SlotUnavailableError();
+      }
+
+      return tx.appointment.update({
+        where: { id: appointment.id },
+        data: {
+          date,
+          time,
+          ...(patientTimezoneOverride
+            ? { patientTimezone: patientTimezoneOverride }
+            : {}),
+        },
+      });
+    });
+  } catch (err) {
+    if (err instanceof SlotUnavailableError) {
+      return { ok: false, code: "slot_unavailable" };
+    }
+    throw err;
   }
-
-  const conflict = await prisma.appointment.findFirst({
-    where: {
-      doctorId: appointment.doctorId,
-      date,
-      time,
-      status: { not: AppointmentStatus.CANCELLED },
-      id: { not: appointment.id },
-    },
-  });
-
-  if (conflict) {
-    return { ok: false, code: "slot_unavailable" };
-  }
-
-  const updatedAppointment = await prisma.appointment.update({
-    where: { id: appointment.id },
-    data: {
-      date,
-      time,
-      ...(patientTimezoneOverride
-        ? { patientTimezone: patientTimezoneOverride }
-        : {}),
-    },
-  });
 
   await triggerSlotUpdated(appointment.doctorId, {
     date: appointment.previousDateYmd,

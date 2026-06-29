@@ -31,6 +31,10 @@ import {
   assertSlotBookable,
   SLOT_NO_LONGER_AVAILABLE_MESSAGE,
 } from "@/lib/slot-availability";
+import {
+  acquireDoctorDateLock,
+  SlotUnavailableError,
+} from "@/lib/slot-lock";
 import { triggerSlotUpdated } from "@/lib/pusher-server";
 
 const bookingSessionSchema = z.object({
@@ -263,15 +267,25 @@ export async function POST(request: NextRequest) {
   // anchored to this moment, even if the doctor edits their pricing map
   // before checkout completes.
   const priceMap = parsePriceMap(doctor.consultationPriceCentsByDuration);
-  const priceCentsAtBooking = priceCentsForDuration(
-    priceMap,
-    slotMeta.slotDurationMinutes,
-  );
   const currencyAtBooking = coerceSupportedCurrency(doctor.currency);
 
   let bookingSession;
   try {
     bookingSession = await prisma.$transaction(async (tx) => {
+      await acquireDoctorDateLock(tx, doctorId, date);
+
+      const rows = await tx.doctorAvailability.findMany({
+        where: { doctorId, date: appointmentDate },
+      });
+      const txSlotMeta = resolveSlotMetaForStart(
+        rows,
+        time,
+        fallbackDuration,
+      );
+      if (txSlotMeta === null) {
+        throw new SlotUnavailableError();
+      }
+
       await tx.bookingSession.updateMany({
         where: {
           status: BookingSessionStatus.PENDING,
@@ -288,8 +302,11 @@ export async function POST(request: NextRequest) {
           phone,
           date,
           time,
-          durationMinutes: slotMeta.slotDurationMinutes,
-          priceCentsAtBooking,
+          durationMinutes: txSlotMeta.slotDurationMinutes,
+          priceCentsAtBooking: priceCentsForDuration(
+            priceMap,
+            txSlotMeta.slotDurationMinutes,
+          ),
           currencyAtBooking,
           timezone: doctorTimezone,
           patientTimezone,
@@ -316,6 +333,12 @@ export async function POST(request: NextRequest) {
       return created;
     });
   } catch (err) {
+    if (err instanceof SlotUnavailableError) {
+      return NextResponse.json(
+        { error: "This time slot is no longer available" },
+        { status: 409 },
+      );
+    }
     if (err instanceof PrismaClientKnownRequestError && err.code === "P2002") {
       return NextResponse.json(
         { error: SLOT_NO_LONGER_AVAILABLE_MESSAGE },

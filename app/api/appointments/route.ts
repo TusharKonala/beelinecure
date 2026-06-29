@@ -50,6 +50,10 @@ import {
   SLOT_NO_LONGER_AVAILABLE_MESSAGE,
 } from "@/lib/slot-availability";
 import { consumeSlotHold } from "@/lib/slot-hold-server";
+import {
+  acquireDoctorDateLock,
+  SlotUnavailableError,
+} from "@/lib/slot-lock";
 import { scheduleAppointmentStartedEvent } from "@/lib/appointment-started-schedule";
 import { triggerAppointmentsChanged, triggerSlotUpdated } from "@/lib/pusher-server";
 
@@ -261,28 +265,46 @@ export async function POST(request: NextRequest) {
 
   let appointment;
   try {
-    appointment = await prisma.appointment.create({
-      data: {
-        doctorId,
-        date,
-        time,
-        patientName,
-        email,
-        phone,
-        notes,
-        consultationType,
-        durationMinutes: slotMeta.slotDurationMinutes,
-        priceCentsAtBooking,
-        currencyAtBooking,
-        timezone: doctorTimezone,
-        patientTimezone,
-        status: AppointmentStatus.CONFIRMED,
-        paymentMethod: PaymentMethod.PAY_AT_CLINIC,
-        cancelToken,
-        rescheduleToken,
-      },
+    appointment = await prisma.$transaction(async (tx) => {
+      await acquireDoctorDateLock(tx, doctorId, dateParam);
+
+      const rows = await tx.doctorAvailability.findMany({
+        where: { doctorId, date },
+      });
+      const meta = resolveSlotMetaForStart(rows, time, fallbackDuration);
+      if (meta === null || meta.consultationType === "ONLINE") {
+        throw new SlotUnavailableError();
+      }
+
+      return tx.appointment.create({
+        data: {
+          doctorId,
+          date,
+          time,
+          patientName,
+          email,
+          phone,
+          notes,
+          consultationType,
+          durationMinutes: meta.slotDurationMinutes,
+          priceCentsAtBooking,
+          currencyAtBooking,
+          timezone: doctorTimezone,
+          patientTimezone,
+          status: AppointmentStatus.CONFIRMED,
+          paymentMethod: PaymentMethod.PAY_AT_CLINIC,
+          cancelToken,
+          rescheduleToken,
+        },
+      });
     });
   } catch (err) {
+    if (err instanceof SlotUnavailableError) {
+      return NextResponse.json(
+        { error: "This time slot is no longer available" },
+        { status: 409 },
+      );
+    }
     if (err instanceof PrismaClientKnownRequestError && err.code === "P2002") {
       return NextResponse.json(
         { error: SLOT_NO_LONGER_AVAILABLE_MESSAGE },

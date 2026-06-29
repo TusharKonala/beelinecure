@@ -26,6 +26,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { inngest } from "@/inngest/client";
 import { triggerAvailabilityChanged } from "@/lib/pusher-server";
+import { acquireDoctorDateLocks, acquireDoctorDateLock } from "@/lib/slot-lock";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -856,6 +857,7 @@ export async function PUT(request: Request) {
 
       await prisma.$transaction(
         async (tx) => {
+          await acquireDoctorDateLocks(tx, doctor.id, affectedYmd);
           await tx.doctor.update({
             where: { id: doctor.id },
             data: { slotDurationMinutes: duration },
@@ -872,6 +874,7 @@ export async function PUT(request: Request) {
     } else if (clearDay) {
       await prisma.$transaction(
         async (tx) => {
+          await acquireDoctorDateLocks(tx, doctor.id, affectedYmd);
           await tx.doctor.update({
             where: { id: doctor.id },
             data: { slotDurationMinutes: duration },
@@ -885,6 +888,7 @@ export async function PUT(request: Request) {
     } else {
       await prisma.$transaction(
         async (tx) => {
+          await acquireDoctorDateLocks(tx, doctor.id, affectedYmd);
           await tx.doctor.update({
             where: { id: doctor.id },
             data: { slotDurationMinutes: duration },
@@ -1032,35 +1036,55 @@ export async function DELETE(request: Request) {
   const date = ymdToPrismaDate(parsed.date);
   const slotStartSet = new Set(parsed.slotStarts);
 
-  const bookedAppointments = await prisma.appointment.findMany({
-    where: {
-      doctorId: doctor.id,
-      date,
-      status: { in: [AppointmentStatus.CONFIRMED, AppointmentStatus.PENDING] },
-      time: { in: [...slotStartSet] },
-    },
-    select: { time: true },
-  });
-
-  if (bookedAppointments.length > 0) {
-    const bookedTimes = bookedAppointments.map((a) => a.time).sort();
-    return NextResponse.json(
-      {
-        error: `Cannot delete booked slots (${bookedTimes.join(", ")}). Cancel the appointments first.`,
-      },
-      { status: 409 },
-    );
+  class BookedSlotsDeleteConflictError extends Error {
+    constructor(public readonly bookedTimes: string[]) {
+      super("Cannot delete booked slots");
+      this.name = "BookedSlotsDeleteConflictError";
+    }
   }
 
-  const result = await prisma.doctorAvailability.deleteMany({
-    where: {
-      doctorId: doctor.id,
-      date,
-      startTime: { in: [...slotStartSet] },
-    },
-  });
+  let deleteResult;
+  try {
+    deleteResult = await prisma.$transaction(async (tx) => {
+      await acquireDoctorDateLock(tx, doctor.id, parsed.date);
+
+      const bookedAppointments = await tx.appointment.findMany({
+        where: {
+          doctorId: doctor.id,
+          date,
+          status: { in: [AppointmentStatus.CONFIRMED, AppointmentStatus.PENDING] },
+          time: { in: [...slotStartSet] },
+        },
+        select: { time: true },
+      });
+
+      if (bookedAppointments.length > 0) {
+        throw new BookedSlotsDeleteConflictError(
+          bookedAppointments.map((a) => a.time).sort(),
+        );
+      }
+
+      return tx.doctorAvailability.deleteMany({
+        where: {
+          doctorId: doctor.id,
+          date,
+          startTime: { in: [...slotStartSet] },
+        },
+      });
+    });
+  } catch (err) {
+    if (err instanceof BookedSlotsDeleteConflictError) {
+      return NextResponse.json(
+        {
+          error: `Cannot delete booked slots (${err.bookedTimes.join(", ")}). Cancel the appointments first.`,
+        },
+        { status: 409 },
+      );
+    }
+    throw err;
+  }
 
   await triggerAvailabilityChanged(doctor.id, { dates: [parsed.date] });
 
-  return NextResponse.json({ ok: true, deletedCount: result.count });
+  return NextResponse.json({ ok: true, deletedCount: deleteResult.count });
 }

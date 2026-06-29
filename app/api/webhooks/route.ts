@@ -46,6 +46,10 @@ import {
   coerceAllowedSlotDurationMinutes,
   resolveSlotMetaForStart,
 } from "@/lib/doctor-availability-slots";
+import {
+  acquireDoctorDateLock,
+  SlotUnavailableError,
+} from "@/lib/slot-lock";
 import { refundCheckoutSession } from "@/lib/refunds";
 import type { BookingSession } from "@/generated/prisma/client";
 
@@ -255,33 +259,69 @@ export async function POST(request: NextRequest) {
 
     const cancelToken = randomBytes(32).toString("hex");
     const rescheduleToken = randomBytes(32).toString("hex");
+    const slotDurationFallback = coerceAllowedSlotDurationMinutes(
+      doctor.slotDurationMinutes,
+    );
     // Create the confirmed appointment from the booking session data
     let appointment;
     try {
-      appointment = await prisma.appointment.create({
-        data: {
-          doctorId: bookingSession.doctorId,
-          date,
-          time: bookingSession.time,
-          durationMinutes: bookingSession.durationMinutes,
-          patientName: bookingSession.patientName,
-          email: bookingSession.email,
-          phone: bookingSession.phone,
-          notes: bookingSession.notes,
-          status: AppointmentStatus.CONFIRMED,
-          consultationType: appointmentConsultationType,
-          priceCentsAtBooking,
-          currencyAtBooking,
-          stripePaymentId: session.id,
-          paymentStatus: PaymentStatus.PAID,
-          paymentMethod: PaymentMethod.ONLINE,
-          cancelToken,
-          rescheduleToken,
-          timezone: bookingSession.timezone,
-          patientTimezone: bookingSession.patientTimezone,
-        },
+      appointment = await prisma.$transaction(async (tx) => {
+        await acquireDoctorDateLock(
+          tx,
+          bookingSession.doctorId,
+          bookingSession.date,
+        );
+
+        const rows = await tx.doctorAvailability.findMany({
+          where: { doctorId: bookingSession.doctorId, date },
+        });
+        if (
+          resolveSlotMetaForStart(
+            rows,
+            bookingSession.time,
+            slotDurationFallback,
+          ) === null
+        ) {
+          throw new SlotUnavailableError();
+        }
+
+        return tx.appointment.create({
+          data: {
+            doctorId: bookingSession.doctorId,
+            date,
+            time: bookingSession.time,
+            durationMinutes: bookingSession.durationMinutes,
+            patientName: bookingSession.patientName,
+            email: bookingSession.email,
+            phone: bookingSession.phone,
+            notes: bookingSession.notes,
+            status: AppointmentStatus.CONFIRMED,
+            consultationType: appointmentConsultationType,
+            priceCentsAtBooking,
+            currencyAtBooking,
+            stripePaymentId: session.id,
+            paymentStatus: PaymentStatus.PAID,
+            paymentMethod: PaymentMethod.ONLINE,
+            cancelToken,
+            rescheduleToken,
+            timezone: bookingSession.timezone,
+            patientTimezone: bookingSession.patientTimezone,
+          },
+        });
       });
     } catch (err) {
+      if (err instanceof SlotUnavailableError) {
+        console.error(
+          "[webhooks] Slot gone at fulfillment, refunding:",
+          bookingSession.id,
+        );
+        await handleBookingSlotConflict({
+          bookingSession,
+          checkoutSession: session,
+          doctorDisplayName: formatDoctorDisplayName(doctor.name),
+        });
+        return new NextResponse("OK", { status: 200 });
+      }
       if (
         err instanceof PrismaClientKnownRequestError &&
         err.code === "P2002"
