@@ -598,13 +598,16 @@ export default function AdminAppointmentsClient() {
     doctorId: rescheduleTarget?.doctorId ?? "",
     enabled: !!rescheduleTarget?.doctorId,
     queryKeys: {
-      slots: ["admin-reschedule-slots"],
+      slots: ["admin-reschedule-slots", rescheduleTarget?.id ?? ""],
       availableDates: [
         "admin-reschedule-available-dates",
         rescheduleTarget?.doctorId ?? "",
       ],
     },
     onAvailabilityChanged: handleAvailabilityChanged,
+    // Admin selectedDate is already doctor-local, so it maps directly to the
+    // doctor-local dates carried by slot-updated / availability-changed events.
+    currentDoctorDates: selectedDate ? [selectedDate] : [],
   });
 
   const slotsEnabled =

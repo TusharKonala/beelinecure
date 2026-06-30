@@ -451,6 +451,7 @@ export async function GET(request: NextRequest) {
 
   if (!dateParam) {
     return NextResponse.json({
+      doctorId: doctor.id,
       timezone: tz,
       today,
       slotDurationMinutes: fallbackDuration,

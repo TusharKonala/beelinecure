@@ -557,6 +557,13 @@ export default function BookAppointmentDoctorPage() {
     [activeHoldId, selectedSlot, holdingSlotKey],
   );
 
+  const currentDoctorDates = useMemo(
+    () => [
+      ...new Set((slotsData?.slotDetails ?? []).map((d) => d.doctorDate)),
+    ],
+    [slotsData?.slotDetails],
+  );
+
   useDoctorSlotsPusher({
     doctorId,
     enabled: !!doctorId && consultationType !== null,
@@ -565,6 +572,7 @@ export default function BookAppointmentDoctorPage() {
       slots: ["slots", doctorId],
       availableDates: ["available-dates", doctorId],
     },
+    currentDoctorDates,
   });
 
   const doctorTz = slotsData?.doctorTimezone ?? "UTC";

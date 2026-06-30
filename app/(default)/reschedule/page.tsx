@@ -31,7 +31,6 @@ import {
 } from "@/lib/reschedule-slots";
 import { useSlotExpiryTick } from "@/lib/use-slot-expiry-tick";
 import { useDoctorSlotsPusher } from "@/lib/use-doctor-slots-pusher";
-import type { AvailabilityChangedPayload } from "@/lib/pusher-server";
 import { SLOT_NO_LONGER_AVAILABLE_MESSAGE } from "@/lib/slot-hold-shared";
 import type { PatientConsultationChoice } from "@/lib/doctor-availability-slots";
 
@@ -187,9 +186,12 @@ function RescheduleContent() {
   const [isLoadingAppointment, setIsLoadingAppointment] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [isVerifyingCancellation, setIsVerifyingCancellation] = useState(false);
   const cancellationCheckRef = useRef(false);
   const isMountedRef = useRef(true);
+  /** Patient-local YMD of the original appointment; used to detect when that day leaves availability (holiday). */
+  const [appointmentPatientDate, setAppointmentPatientDate] = useState<string>("");
+  /** Armed once the appointment's date is seen in availability, so we only verify on a true present -> absent drop. */
+  const apptDatePresentRef = useRef(false);
   const [slotUnavailableAlert, setSlotUnavailableAlert] = useState<string | null>(
     null,
   );
@@ -237,6 +239,8 @@ function RescheduleContent() {
             patientTimezone,
           );
           setSelectedDate(patientDate);
+          setAppointmentPatientDate(patientDate);
+          apptDatePresentRef.current = false;
           setSelectedSlot({
             doctorDate: appt.date,
             startTime: appt.time,
@@ -360,12 +364,14 @@ function RescheduleContent() {
   const shouldBlockCurrentAppointmentSlot =
     hasSelectionInteraction && isCurrentAppointmentSlot;
 
-  const appointmentDoctorDate = appointment?.date ?? "";
-
+  /**
+   * Background eligibility re-check (holiday cancellation is async via Inngest,
+   * so retry a few times). Runs silently without blocking the reschedule UI;
+   * only a confirmed non-success flips the page to its terminal state.
+   */
   const verifyAppointmentStillActive = useCallback(async () => {
     if (cancellationCheckRef.current || !canLoad) return;
     cancellationCheckRef.current = true;
-    setIsVerifyingCancellation(true);
     try {
       for (let i = 0; i < 6; i++) {
         const json = await fetchAppointmentDetails(appointmentId, token);
@@ -378,29 +384,9 @@ function RescheduleContent() {
         if (!isMountedRef.current) return;
       }
     } finally {
-      if (isMountedRef.current) setIsVerifyingCancellation(false);
       cancellationCheckRef.current = false;
     }
   }, [appointmentId, token, canLoad]);
-
-  const handleAvailabilityChanged = useCallback(
-    (payload: AvailabilityChangedPayload) => {
-      if (state !== "idle" || !appointmentDoctorDate) return;
-      if (!payload.dates.includes(appointmentDoctorDate)) return;
-      void verifyAppointmentStillActive();
-    },
-    [state, appointmentDoctorDate, verifyAppointmentStillActive],
-  );
-
-  useDoctorSlotsPusher({
-    doctorId: appointment?.doctorId ?? "",
-    enabled: state === "idle" && !!appointment?.doctorId,
-    queryKeys: {
-      slots: ["reschedule-slots", appointment?.doctorId ?? ""],
-      availableDates: ["reschedule-available-dates", appointment?.doctorId ?? ""],
-    },
-    onAvailabilityChanged: handleAvailabilityChanged,
-  });
 
   const {
     data: slotsData,
@@ -432,6 +418,47 @@ function RescheduleContent() {
   const slotDetails = slotsData?.slotDetails ?? [];
   const slotsLoadingOrFetching =
     slotsLoading || (slotsFetching && isPlaceholderData);
+
+  const currentDoctorDates = useMemo(
+    () => [...new Set((slotsData?.slotDetails ?? []).map((d) => d.doctorDate))],
+    [slotsData?.slotDetails],
+  );
+
+  useDoctorSlotsPusher({
+    doctorId: appointment?.doctorId ?? "",
+    enabled: state === "idle" && !!appointment?.doctorId,
+    queryKeys: {
+      slots: ["reschedule-slots", appointment?.doctorId ?? ""],
+      availableDates: ["reschedule-available-dates", appointment?.doctorId ?? ""],
+    },
+    currentDoctorDates,
+  });
+
+  // Holiday detection: when the appointment's own date drops out of
+  // availability (its whole day was cleared), re-verify eligibility. Narrowed
+  // to a true present -> absent transition so benign single-slot edits on the
+  // day don't kick off needless background checks.
+  useEffect(() => {
+    if (state !== "idle" || !appointment) return;
+    if (availabilityCalendarFetching) return;
+    if (enabledDateSet.size === 0) return;
+    if (!appointmentPatientDate) return;
+    if (enabledDateSet.has(appointmentPatientDate)) {
+      apptDatePresentRef.current = true;
+      return;
+    }
+    if (apptDatePresentRef.current) {
+      apptDatePresentRef.current = false;
+      void verifyAppointmentStillActive();
+    }
+  }, [
+    state,
+    appointment,
+    availabilityCalendarFetching,
+    enabledDateSet,
+    appointmentPatientDate,
+    verifyAppointmentStillActive,
+  ]);
 
   const slotExpiryTick = useSlotExpiryTick(state === "idle" && !!appointment);
 
@@ -483,6 +510,12 @@ function RescheduleContent() {
     if (hasSelectionInteraction && !wasCurrentAppointment) {
       setSlotUnavailableAlert(SLOT_NO_LONGER_AVAILABLE_MESSAGE);
     }
+    // The original appointment slot vanishing from its own day (while viewing
+    // it) is the holiday signal when the date itself isn't tracked in
+    // availability — re-verify eligibility.
+    if (wasCurrentAppointment) {
+      void verifyAppointmentStillActive();
+    }
     setSelectedSlot(null);
   }, [
     selectedSlot,
@@ -490,6 +523,7 @@ function RescheduleContent() {
     appointment,
     hasSelectionInteraction,
     slotsLoadingOrFetching,
+    verifyAppointmentStillActive,
   ]);
 
   const onCalendarSelect = useCallback((ymd: string) => {
@@ -702,13 +736,7 @@ function RescheduleContent() {
                   </div>
                 )}
 
-                {!isLoadingAppointment && appointment && isVerifyingCancellation && (
-                  <p className="mt-8 font-montserrat text-sm text-[#5E5E5E]">
-                    Checking your appointment status…
-                  </p>
-                )}
-
-                {!isLoadingAppointment && appointment && !isVerifyingCancellation && (
+                {!isLoadingAppointment && appointment && (
                   <>
                     <p className="mt-6 rounded-lg bg-[#f4f7ff] px-4 py-3 font-montserrat text-sm text-[#333333]">
                       Your original appointment was a {appointment.durationMinutes}-minute{" "}

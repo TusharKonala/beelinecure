@@ -12,6 +12,7 @@ import { createPortal } from "react-dom";
 import useInfiniteScroll from "react-infinite-scroll-hook";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { useDoctorAppointmentsPusher } from "@/lib/use-doctor-appointments-pusher";
 import {
   ScheduleDaySlotSummary,
   SlotSummaryFromDetails,
@@ -268,6 +269,7 @@ function ViewScheduleFilterHeader({
 }
 
 type ViewSchedulePanelProps = {
+  doctorId: string;
   timezone: string;
   onEditDate: (isoDate: string) => void;
   /** Parent bumps after a successful Set-tab save so the list refetches; not tied to Set date picker. */
@@ -283,6 +285,7 @@ type ViewSchedulePanelProps = {
 };
 
 export function ViewSchedulePanel({
+  doctorId,
   timezone,
   onEditDate,
   listRefreshVersion,
@@ -335,6 +338,16 @@ export function ViewSchedulePanel({
 
   const quickCheckInputRef = useRef<HTMLInputElement>(null);
   const latestListRequestIdRef = useRef(0);
+  /** Number of list pages currently loaded, so a silent refresh can re-fetch them all. */
+  const loadedPageRef = useRef(1);
+  /** Latest filters mirrored for the stable Pusher refresh callback. */
+  const listFiltersRef = useRef({
+    selectedMonth: ALL_MONTHS_VALUE as typeof ALL_MONTHS_VALUE | string,
+    bookedOnly: false,
+    selectedDateFilter: "all" as "all" | string,
+  });
+  /** Skip live refresh while a holiday confirm/clear is in flight. */
+  const blockRefreshRef = useRef(false);
   const [quickCheckDate, setQuickCheckDate] = useState("");
   const [quickCheckSlotDetails, setQuickCheckSlotDetails] = useState<
     SlotDetail[] | null
@@ -463,7 +476,9 @@ export function ViewSchedulePanel({
         append ? [...(current ?? []), ...nextDays] : nextDays,
       );
       setHasMore(Boolean(data.hasMore));
-      setPage(typeof data.page === "number" ? data.page : nextPage);
+      const resolvedPage = typeof data.page === "number" ? data.page : nextPage;
+      setPage(resolvedPage);
+      loadedPageRef.current = resolvedPage;
       setError(null);
       setIsListLoading(false);
     },
@@ -485,6 +500,95 @@ export function ViewSchedulePanel({
       cancelled = true;
     };
   }, [loadList, listRefreshVersion, selectedMonth, bookedOnly, selectedDateFilter]);
+
+  listFiltersRef.current = { selectedMonth, bookedOnly, selectedDateFilter };
+  blockRefreshRef.current = holidayConfirmDate !== null || clearingDate !== null;
+
+  const fetchListPageRaw = useCallback(
+    async (
+      nextPage: number,
+      monthFilter: typeof ALL_MONTHS_VALUE | string,
+      bookedOnlyFilter: boolean,
+      dateFilter: "all" | string,
+    ) => {
+      const params = new URLSearchParams({
+        view: "list",
+        page: String(nextPage),
+        limit: "10",
+      });
+      if (monthFilter !== ALL_MONTHS_VALUE) params.set("month", monthFilter);
+      if (bookedOnlyFilter) params.set("bookedOnly", "true");
+      if (dateFilter !== "all") params.set("date", dateFilter);
+      const res = await fetch(`/api/doctor/availability?${params.toString()}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) throw new Error("Failed to load schedule");
+      return (await res.json()) as {
+        days: ListDay[];
+        today: string;
+        hasMore?: boolean;
+        page?: number;
+        monthsWithAvailability?: string[];
+        datesByMonth?: Record<string, string[]>;
+      };
+    },
+    [],
+  );
+
+  /**
+   * Silent refresh of all loaded list pages (preserves scroll). Used by the
+   * Pusher subscription so patient bookings/cancellations reflect live without
+   * a manual reload and without the loading skeleton.
+   */
+  const refreshLoadedPages = useCallback(async () => {
+    const { selectedMonth, bookedOnly, selectedDateFilter } =
+      listFiltersRef.current;
+    const pagesToLoad = Math.max(1, loadedPageRef.current);
+    const requestId = ++latestListRequestIdRef.current;
+    try {
+      const results = await Promise.all(
+        Array.from({ length: pagesToLoad }, (_, i) =>
+          fetchListPageRaw(i + 1, selectedMonth, bookedOnly, selectedDateFilter),
+        ),
+      );
+      if (latestListRequestIdRef.current !== requestId) return;
+      const mergedDays = results.flatMap((r) =>
+        Array.isArray(r.days) ? r.days : [],
+      );
+      const last = results[results.length - 1];
+      const savedScrollY = window.scrollY;
+      setTodayFromApi(last?.today ?? null);
+      setScheduleMonthsWithAvailability(
+        Array.isArray(last?.monthsWithAvailability)
+          ? last!.monthsWithAvailability!
+          : [],
+      );
+      setScheduleDatesByMonth(
+        last?.datesByMonth && typeof last.datesByMonth === "object"
+          ? last.datesByMonth
+          : {},
+      );
+      setDays(mergedDays);
+      setHasMore(Boolean(last?.hasMore));
+      requestAnimationFrame(() => {
+        if (latestListRequestIdRef.current !== requestId) return;
+        window.scrollTo({ top: savedScrollY, behavior: "instant" });
+      });
+    } catch {
+      // Silent background refresh — no error banner.
+    }
+  }, [fetchListPageRaw]);
+
+  const onAppointmentsChanged = useCallback(() => {
+    if (blockRefreshRef.current) return;
+    void refreshLoadedPages();
+  }, [refreshLoadedPages]);
+
+  useDoctorAppointmentsPusher({
+    doctorId,
+    enabled: !!doctorId,
+    onAppointmentsChanged,
+  });
 
   /** Single-date view is short; the sentinel stays in view and would page until `hasMore` is false. */
   const allowScheduleListPagination = selectedDateFilter === "all";

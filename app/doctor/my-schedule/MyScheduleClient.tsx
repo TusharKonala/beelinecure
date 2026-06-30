@@ -25,6 +25,7 @@ import {
 } from "@/lib/doctor-local-date";
 import { isDoctorTimeInPast } from "@/lib/timezone-display";
 import { cn } from "@/lib/utils";
+import { useDoctorSlotsPusher } from "@/lib/use-doctor-slots-pusher";
 import { ViewSchedulePanel } from "./ViewSchedulePanel";
 import { SetAvailabilityCalendar } from "./SetAvailabilityCalendar";
 import {
@@ -34,6 +35,7 @@ import {
 } from "./scheduleDaySlots";
 
 type Meta = {
+  doctorId: string;
   timezone: string;
   today: string;
   slotDurationMinutes: AllowedSlotDurationMinutes;
@@ -477,6 +479,27 @@ export function MyScheduleClient({
     },
     [],
   );
+
+  // Live-update the Set Availability day: when a patient books/cancels the
+  // currently edited day, refresh booked guards in place (no manual reload,
+  // without resetting the in-progress edit window/selection).
+  useDoctorSlotsPusher({
+    doctorId: meta?.doctorId ?? "",
+    enabled:
+      !!meta?.doctorId &&
+      mainTab === "set" &&
+      mode === "single" &&
+      !!singleDate,
+    queryKeys: {
+      slots: ["my-schedule-set-slots-noop"],
+      availableDates: ["my-schedule-set-dates-noop"],
+    },
+    onSlotUpdated: (payload) => {
+      if (payload.date === singleDate) {
+        void refreshCurrentDaySlotDetailsOnly(singleDate);
+      }
+    },
+  });
 
   /** Local-only: duration is persisted on Save (PUT). Avoid PATCH so changing length here does not clobber saved-day inference or snap the dropdown back from the API. */
   const applySlotDurationForEditing = useCallback(
@@ -1043,6 +1066,7 @@ export function MyScheduleClient({
             aria-hidden={mainTab !== "view"}
           >
             <ViewSchedulePanel
+              doctorId={meta.doctorId}
               timezone={meta.timezone}
               onEditDate={handleEditDateFromView}
               listRefreshVersion={viewScheduleListVersion}
