@@ -247,7 +247,16 @@ export default function AdminAppointmentsClient() {
   const [selectedSlot, setSelectedSlot] = useState<BookableSlotRef | null>(null);
   const [hasSelectionInteraction, setHasSelectionInteraction] = useState(false);
   const [rescheduleSubmitting, setRescheduleSubmitting] = useState(false);
+  /** Submit/POST-originated error (owned by submitAdminReschedule). */
   const [rescheduleError, setRescheduleError] = useState<string | null>(null);
+  /**
+   * Live "slot no longer available" alert owned by the slot-gone effect. Kept
+   * separate from rescheduleError so the effect (which can run against stale,
+   * keepPreviousData slot lists) can never clear an error the submit handler set.
+   */
+  const [slotUnavailableAlert, setSlotUnavailableAlert] = useState<string | null>(
+    null,
+  );
   const [rescheduleCancelled, setRescheduleCancelled] = useState(false);
   const cancellationCheckRef = useRef(false);
   const isMountedRef = useRef(true);
@@ -549,6 +558,7 @@ export default function AdminAppointmentsClient() {
     setSelectedDate(ymd);
     setSelectedSlot(null);
     setRescheduleError(null);
+    setSlotUnavailableAlert(null);
   }, []);
 
   const onRescheduleCalendarViewingMonthChange = useCallback(
@@ -738,6 +748,11 @@ export default function AdminAppointmentsClient() {
     hasSelectionInteraction && isCurrentAppointmentSlot;
 
   useEffect(() => {
+    // Only run live slot-gone detection on the pick step. In the confirm step
+    // the slots query is disabled and `filteredSlots` is stale (keepPreviousData),
+    // so any detection here would act on outdated data and could fight the submit
+    // handler. During confirm/submit the POST response is authoritative.
+    if (rescheduleStep !== "pick") return;
     if (!selectedSlot) return;
     if (slotsInitialLoading) return;
     const stillAvailable = filteredSlots.some(
@@ -746,7 +761,7 @@ export default function AdminAppointmentsClient() {
         ref.doctorDate === selectedSlot.doctorDate,
     );
     if (stillAvailable) {
-      setRescheduleError((prev) =>
+      setSlotUnavailableAlert((prev) =>
         prev === SLOT_NO_LONGER_AVAILABLE_MESSAGE ? null : prev,
       );
       return;
@@ -766,10 +781,11 @@ export default function AdminAppointmentsClient() {
       return;
     }
     if (hasSelectionInteraction) {
-      setRescheduleError(SLOT_NO_LONGER_AVAILABLE_MESSAGE);
+      setSlotUnavailableAlert(SLOT_NO_LONGER_AVAILABLE_MESSAGE);
     }
     setSelectedSlot(null);
   }, [
+    rescheduleStep,
     selectedSlot,
     selectedDate,
     filteredSlots,
@@ -797,6 +813,7 @@ export default function AdminAppointmentsClient() {
     setSelectedSlot(null);
     setHasSelectionInteraction(false);
     setRescheduleError(null);
+    setSlotUnavailableAlert(null);
     setRescheduleCancelled(false);
     apptDatePresentRef.current = false;
     initialDateAppliedRef.current = false;
@@ -809,6 +826,7 @@ export default function AdminAppointmentsClient() {
     setRescheduleStep("pick");
     setSelectedSlot(null);
     setRescheduleError(null);
+    setSlotUnavailableAlert(null);
     setRescheduleCancelled(false);
     apptDatePresentRef.current = false;
     initialDateAppliedRef.current = false;
@@ -820,6 +838,7 @@ export default function AdminAppointmentsClient() {
     if (isCurrentAppointmentSlot) return;
     setRescheduleSubmitting(true);
     setRescheduleError(null);
+    setSlotUnavailableAlert(null);
     try {
       const eligibility = await fetchAdminRescheduleEligibility(
         rescheduleTarget.id,
@@ -1473,6 +1492,7 @@ export default function AdminAppointmentsClient() {
                                   startTime: ref.startTime,
                                 });
                                 setRescheduleError(null);
+                                setSlotUnavailableAlert(null);
                               }}
                             >
                               <span className="inline-flex flex-col items-center leading-tight">
@@ -1507,8 +1527,10 @@ export default function AdminAppointmentsClient() {
                       This is the current slot — pick a different time to reschedule.
                     </p>
                   )}
-                  {rescheduleError && (
-                    <p className="font-montserrat text-sm text-red-600">{rescheduleError}</p>
+                  {(rescheduleError ?? slotUnavailableAlert) && (
+                    <p className="font-montserrat text-sm text-red-600">
+                      {rescheduleError ?? slotUnavailableAlert}
+                    </p>
                   )}
                   <div className="flex flex-wrap gap-2">
                     <Button
@@ -1539,8 +1561,10 @@ export default function AdminAppointmentsClient() {
 
               {rescheduleStep === "confirm" && (
                 <div className="mt-6 flex flex-col gap-4">
-                  {rescheduleError && (
-                    <p className="font-montserrat text-sm text-red-600">{rescheduleError}</p>
+                  {(rescheduleError ?? slotUnavailableAlert) && (
+                    <p className="font-montserrat text-sm text-red-600">
+                      {rescheduleError ?? slotUnavailableAlert}
+                    </p>
                   )}
                   <div className="flex flex-wrap gap-2">
                     <Button
@@ -1551,6 +1575,7 @@ export default function AdminAppointmentsClient() {
                       onClick={() => {
                         setRescheduleStep("pick");
                         setRescheduleError(null);
+                        setSlotUnavailableAlert(null);
                       }}
                     >
                       Back
