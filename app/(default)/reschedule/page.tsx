@@ -29,6 +29,7 @@ import {
   filterReschedulableSlots,
   type BookableSlotRef,
 } from "@/lib/reschedule-slots";
+import { scrollIntoViewIfMobile } from "@/lib/scroll-into-view-mobile";
 import { useSlotExpiryTick } from "@/lib/use-slot-expiry-tick";
 import { useDoctorSlotsPusher } from "@/lib/use-doctor-slots-pusher";
 import { useDoctorAppointmentsPusher } from "@/lib/use-doctor-appointments-pusher";
@@ -518,7 +519,19 @@ function RescheduleContent() {
     verifyAppointmentStillActive,
   ]);
 
-  const slotExpiryTick = useSlotExpiryTick(state === "idle" && !!appointment);
+  const slotExpiryInputs = useMemo(
+    () =>
+      slotDetails.map((d) => ({
+        doctorDate: d.doctorDate ?? selectedDate,
+        startTime: d.startTime,
+        doctorTimezone: doctorTz,
+      })),
+    [slotDetails, selectedDate, doctorTz],
+  );
+  const slotExpiryTick = useSlotExpiryTick(
+    state === "idle" && !!appointment,
+    slotExpiryInputs,
+  );
 
   const filteredSlots = useMemo(
     () =>
@@ -597,7 +610,7 @@ function RescheduleContent() {
     setSubmitError(null);
     setSlotUnavailableAlert(null);
     requestAnimationFrame(() => {
-      slotsSectionRef.current?.scrollIntoView({
+      scrollIntoViewIfMobile(slotsSectionRef.current, {
         behavior: "smooth",
         block: "start",
       });
@@ -837,15 +850,11 @@ function RescheduleContent() {
                               disabledDates={new Set()}
                               enabledDates={enabledDateSet}
                               loadingDisabledDates={false}
+                              monthLoading={availabilityCalendarExtending}
                               gridAriaLabel="Select reschedule date"
                               onViewingMonthChange={onCalendarViewingMonthChange}
                               onSelect={onCalendarSelect}
                             />
-                            {availabilityCalendarExtending ? (
-                              <p className="mt-2 font-montserrat text-xs text-[#5E5E5E]">
-                                Loading more dates…
-                              </p>
-                            ) : null}
                           </div>
                         )}
                       </section>

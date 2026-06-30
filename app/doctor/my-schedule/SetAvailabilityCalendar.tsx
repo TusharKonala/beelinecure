@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -29,6 +29,8 @@ type Props = {
   gridAriaLabel?: string;
   /** When true, month controls are disabled and the grid is non-interactive (e.g. booking preview before consultation type). */
   readOnly?: boolean;
+  /** While true, show a loading overlay on the date grid (e.g. fetching availability for a new month). */
+  monthLoading?: boolean;
   /** Called when the visible calendar month changes (navigation, controlled value sync, or initial mount). */
   onViewingMonthChange?: (year: number, month0: number) => void;
   onSelect: (ymd: string) => void;
@@ -74,6 +76,7 @@ export function SetAvailabilityCalendar({
   loadingCaption,
   gridAriaLabel,
   readOnly = false,
+  monthLoading = false,
   onViewingMonthChange,
   onSelect,
 }: Props) {
@@ -143,7 +146,7 @@ export function SetAvailabilityCalendar({
         <button
           type="button"
           onClick={goPrevMonth}
-          disabled={!canGoPrev || loadingDisabledDates || readOnly}
+          disabled={!canGoPrev || loadingDisabledDates || readOnly || monthLoading}
           aria-label="Previous month"
           className={cn(
             "inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-[#e5e5e5] bg-white text-[#333333] transition-colors hover:bg-[#f5f5f5]",
@@ -161,7 +164,7 @@ export function SetAvailabilityCalendar({
         <button
           type="button"
           onClick={goNextMonth}
-          disabled={loadingDisabledDates || readOnly}
+          disabled={loadingDisabledDates || readOnly || monthLoading}
           aria-label="Next month"
           className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-[#e5e5e5] bg-white text-[#333333] transition-colors hover:bg-[#f5f5f5] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
         >
@@ -177,12 +180,13 @@ export function SetAvailabilityCalendar({
         ))}
       </div>
 
-      <div
-        className="mt-1 grid grid-cols-7 gap-1"
-        role="grid"
-        aria-label={gridAriaLabel ?? "Select availability date"}
-        aria-busy={loadingDisabledDates}
-      >
+      <div className="relative mt-1">
+        <div
+          className="grid grid-cols-7 gap-1"
+          role="grid"
+          aria-label={gridAriaLabel ?? "Select availability date"}
+          aria-busy={loadingDisabledDates || monthLoading}
+        >
         {cells.map((cell, idx) => {
           if (!cell) {
             return <div key={`pad-${idx}`} className="h-9" aria-hidden="true" />;
@@ -197,6 +201,7 @@ export function SetAvailabilityCalendar({
             !exceptionDates?.has(cell.ymd);
           const isDisabled =
             readOnly ||
+            monthLoading ||
             loadingDisabledDates ||
             isPast ||
             isExisting ||
@@ -257,6 +262,21 @@ export function SetAvailabilityCalendar({
             </button>
           );
         })}
+        </div>
+        {monthLoading ? (
+          <div
+            className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-lg bg-white/75"
+            aria-live="polite"
+          >
+            <Loader2
+              className="size-6 animate-spin text-[#2555F3]"
+              aria-hidden
+            />
+            <span className="font-montserrat text-xs text-[#5E5E5E]">
+              Loading dates…
+            </span>
+          </div>
+        ) : null}
       </div>
       {loadingDisabledDates ? (
         <p className="mt-2 font-montserrat text-xs text-[#5E5E5E]">

@@ -660,6 +660,15 @@ export function MyScheduleClient({
     );
   }, [meta, scheduleIncludesToday, displaySlots]);
 
+  const hasSavableSelectedSlots = useMemo(() => {
+    if (!meta) return false;
+    for (const t of selected) {
+      if (!scheduleIncludesToday) return true;
+      if (!isDoctorTimeInPast(meta.today, t, meta.timezone)) return true;
+    }
+    return false;
+  }, [meta, selected, scheduleIncludesToday]);
+
   const builderOverlapsExisting = useMemo(() => {
     const windowOk = timeToMinutes(slotWindowEnd) > timeToMinutes(slotWindowStart);
     if (!windowOk) return false;
@@ -1737,6 +1746,7 @@ export function MyScheduleClient({
               className="h-11 cursor-pointer rounded-xl bg-[#2555F3] font-montserrat text-sm font-medium text-white hover:bg-[#1e44c7] disabled:cursor-not-allowed"
               disabled={
                 saving ||
+                !hasSavableSelectedSlots ||
                 (mode === "single" && loadingSlots) ||
                 (mode === "range" &&
                   (!rangeEnd ||

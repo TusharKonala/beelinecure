@@ -23,6 +23,7 @@ import {
   type BookableSlotRef,
 } from "@/lib/reschedule-slots";
 import { useDoctorSlotsPusher } from "@/lib/use-doctor-slots-pusher";
+import { useSlotExpiryTick } from "@/lib/use-slot-expiry-tick";
 import { useDoctorAppointmentsPusher } from "@/lib/use-doctor-appointments-pusher";
 import type { AvailabilityChangedPayload } from "@/lib/pusher-server";
 import type { AppointmentsChangedPayload } from "@/lib/pusher-server";
@@ -747,16 +748,38 @@ export default function AdminAppointmentsClient() {
   const slotDetails = slotsData?.slotDetails ?? [];
   const slotsLoadingOrFetching =
     slotsLoading || (slotsFetching && isPlaceholderData);
-  const filteredSlots =
-    rescheduleTarget && selectedDate
-      ? filterReschedulableSlots({
-          slotDetails,
-          bookedDurationMinutes: rescheduleTarget.durationMinutes,
-          bookedConsultationType: rescheduleTarget.consultationType,
-          selectedDate,
-          doctorTimezone: doctorTz,
-        })
-      : [];
+  const slotExpiryInputs = useMemo(
+    () =>
+      slotDetails.map((d) => ({
+        doctorDate: selectedDate,
+        startTime: d.startTime,
+        doctorTimezone: doctorTz,
+      })),
+    [slotDetails, selectedDate, doctorTz],
+  );
+  const slotExpiryTick = useSlotExpiryTick(
+    !!rescheduleTarget && rescheduleStep === "pick" && !!selectedDate,
+    slotExpiryInputs,
+  );
+  const filteredSlots = useMemo(
+    () =>
+      rescheduleTarget && selectedDate
+        ? filterReschedulableSlots({
+            slotDetails,
+            bookedDurationMinutes: rescheduleTarget.durationMinutes,
+            bookedConsultationType: rescheduleTarget.consultationType,
+            selectedDate,
+            doctorTimezone: doctorTz,
+          })
+        : [],
+    [
+      rescheduleTarget,
+      selectedDate,
+      slotDetails,
+      doctorTz,
+      slotExpiryTick,
+    ],
+  );
   const hasSelectableSlots = filteredSlots.some(
     (ref) =>
       !(
@@ -1442,15 +1465,11 @@ export default function AdminAppointmentsClient() {
                             disabledDates={new Set()}
                             enabledDates={enabledDateSet}
                             loadingDisabledDates={false}
+                            monthLoading={availabilityCalendarExtending}
                             gridAriaLabel="Select reschedule date"
                             onViewingMonthChange={onRescheduleCalendarViewingMonthChange}
                             onSelect={onRescheduleCalendarSelect}
                           />
-                          {availabilityCalendarExtending ? (
-                            <p className="mt-2 font-montserrat text-xs text-[#5E5E5E]">
-                              Loading more dates…
-                            </p>
-                          ) : null}
                         </>
                       )}
                     </div>

@@ -16,6 +16,7 @@ import { useQueries, useQuery, useQueryClient, keepPreviousData } from "@tanstac
 import { Controller, useForm } from "react-hook-form";
 import PhoneInput, { isValidPhoneNumber } from "react-phone-number-input";
 import { z } from "zod";
+import { UserRole } from "@/generated/prisma/client";
 import { SetAvailabilityCalendar } from "@/app/doctor/my-schedule/SetAvailabilityCalendar";
 import { Container } from "@/components/layout/Container";
 import { useRedirectOverlay } from "@/components/nav/RedirectOverlayProvider";
@@ -309,6 +310,7 @@ export default function BookAppointmentDoctorPage() {
 
   useEffect(() => {
     if (sessionStatus !== "authenticated" || !session?.user) return;
+    if (session.user.role === UserRole.ADMIN) return;
     const name = (session.user.name ?? "").trim();
     const email = (session.user.email ?? "").trim();
     if (!name && !email) return;
@@ -324,6 +326,7 @@ export default function BookAppointmentDoctorPage() {
 
   useEffect(() => {
     if (sessionStatus !== "authenticated") return;
+    if (session?.user?.role !== UserRole.PATIENT) return;
     let cancelled = false;
     void fetch("/api/patient/profile", { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
@@ -349,7 +352,7 @@ export default function BookAppointmentDoctorPage() {
     return () => {
       cancelled = true;
     };
-  }, [sessionStatus, getValues, reset]);
+  }, [sessionStatus, session?.user, getValues, reset]);
 
   const [submitError, setSubmitError] = useState<SubmitErrorState>(null);
   const submitErrorRef = useRef<HTMLDivElement>(null);
@@ -598,7 +601,19 @@ export default function BookAppointmentDoctorPage() {
       })),
     [slotsData?.slotDetails],
   );
-  const slotExpiryTick = useSlotExpiryTick(consultationType !== null);
+  const slotExpiryInputs = useMemo(
+    () =>
+      bookableSlotRefs.map((ref) => ({
+        doctorDate: ref.doctorDate,
+        startTime: ref.startTime,
+        doctorTimezone: doctorTz,
+      })),
+    [bookableSlotRefs, doctorTz],
+  );
+  const slotExpiryTick = useSlotExpiryTick(
+    consultationType !== null,
+    slotExpiryInputs,
+  );
   const nonPastSlotRefs = useMemo(
     () =>
       bookableSlotRefs.filter(
@@ -712,8 +727,10 @@ export default function BookAppointmentDoctorPage() {
   // Lock the email field when the patient is signed in so they can't book
   // under an email different from their account; the field is prefilled from
   // the session above.
-  const isPatientSignedIn =
-    sessionStatus === "authenticated" && Boolean(session?.user?.email);
+  const lockBookingEmail =
+    sessionStatus === "authenticated" &&
+    session?.user?.role === UserRole.PATIENT &&
+    Boolean(session?.user?.email);
 
   const acquireSlotHold = useCallback(
     async (ref: BookableSlotRef) => {
@@ -1431,6 +1448,7 @@ export default function BookAppointmentDoctorPage() {
                       canPickDates ? enabledDateSet : new Set<string>()
                     }
                     loadingDisabledDates={false}
+                    monthLoading={availabilityCalendarExtending}
                     readOnly={!canPickDates}
                     gridAriaLabel={
                       consultationType === null
@@ -1443,11 +1461,6 @@ export default function BookAppointmentDoctorPage() {
                     onViewingMonthChange={onCalendarViewingMonthChange}
                     onSelect={onCalendarSelect}
                   />
-                  {availabilityCalendarExtending ? (
-                    <p className="mt-2 font-montserrat text-xs text-[#5E5E5E]">
-                      Loading more dates…
-                    </p>
-                  ) : null}
                 </div>
               )}
               {canPickDates ? (
@@ -1635,10 +1648,10 @@ export default function BookAppointmentDoctorPage() {
                       id="email"
                       type="email"
                       {...register("email")}
-                      readOnly={isPatientSignedIn}
-                      aria-readonly={isPatientSignedIn}
+                      readOnly={lockBookingEmail}
+                      aria-readonly={lockBookingEmail}
                       className={`rounded-xl border border-[#e5e5e5] px-4 py-3 font-montserrat text-sm text-[#111111] shadow-sm focus:border-[#2555F3] focus:outline-none focus:ring-2 focus:ring-[#2555F3]/30 md:py-2.5 ${
-                        isPatientSignedIn
+                        lockBookingEmail
                           ? "bg-[#f5f5f5] cursor-not-allowed"
                           : "bg-white"
                       }`}
@@ -1649,7 +1662,7 @@ export default function BookAppointmentDoctorPage() {
                         {errors.email.message}
                       </p>
                     )}
-                    {isPatientSignedIn && (
+                    {lockBookingEmail && (
                       <p className="font-montserrat text-xs text-[#5E5E5E]">
                         Email is linked to your appointment history and cannot
                         be changed.
