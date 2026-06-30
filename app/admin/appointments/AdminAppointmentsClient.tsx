@@ -43,6 +43,7 @@ const DEFAULT_DATE_FILTER: DateFilterValue = "desc";
 /** Must match `DEFAULT_HORIZON_DAYS` in `available-dates` API (inclusive span = this + 1). */
 const AVAILABILITY_RANGE_DAY_OFFSET = 60;
 type CancelReason = "patient_no_show" | "doctor_unavailable";
+type RescheduleTerminalReason = "holiday" | "cancelled";
 type AvailabilityDateChunk = { from: string; to: string };
 
 function pad2(n: number): string {
@@ -257,7 +258,9 @@ export default function AdminAppointmentsClient() {
   const [slotUnavailableAlert, setSlotUnavailableAlert] = useState<string | null>(
     null,
   );
-  const [rescheduleCancelled, setRescheduleCancelled] = useState(false);
+  const [rescheduleTerminalReason, setRescheduleTerminalReason] =
+    useState<RescheduleTerminalReason | null>(null);
+  const isRescheduleTerminal = rescheduleTerminalReason !== null;
   const cancellationCheckRef = useRef(false);
   const isMountedRef = useRef(true);
   /** Armed once the appointment's date is seen in availability, so we only verify on a true present -> absent drop. */
@@ -595,12 +598,20 @@ export default function AdminAppointmentsClient() {
     [],
   );
 
-  const markRescheduleTerminalCancelled = useCallback(async () => {
-    setRescheduleCancelled(true);
-    await loadAppointments(1, false, { silent: true });
-  }, [loadAppointments]);
+  const markRescheduleTerminalCancelled = useCallback(
+    async (reason: RescheduleTerminalReason) => {
+      setRescheduleTerminalReason((prev) => {
+        // External cancel (patient/doctor/admin) is authoritative over holiday inference.
+        if (reason === "cancelled" || prev === "cancelled") return "cancelled";
+        return reason;
+      });
+      await loadAppointments(1, false, { silent: true });
+    },
+    [loadAppointments],
+  );
 
-  const verifyRescheduleStillActive = useCallback(async () => {
+  const verifyRescheduleStillActive = useCallback(
+    async (terminalReason: RescheduleTerminalReason = "holiday") => {
     const target = rescheduleTarget;
     if (!target || cancellationCheckRef.current) return;
     cancellationCheckRef.current = true;
@@ -609,7 +620,9 @@ export default function AdminAppointmentsClient() {
         const status = await fetchAdminRescheduleEligibility(target.id);
         if (!isMountedRef.current) return;
         if (status && status !== "eligible") {
-          await markRescheduleTerminalCancelled();
+          const reason: RescheduleTerminalReason =
+            status === "cancelled" ? "cancelled" : terminalReason;
+          await markRescheduleTerminalCancelled(reason);
           return;
         }
         await new Promise((resolve) => setTimeout(resolve, 1300));
@@ -618,11 +631,13 @@ export default function AdminAppointmentsClient() {
     } finally {
       cancellationCheckRef.current = false;
     }
-  }, [rescheduleTarget, markRescheduleTerminalCancelled]);
+  },
+    [rescheduleTarget, markRescheduleTerminalCancelled],
+  );
 
   const onRescheduleAvailabilityChanged = useCallback(
     (payload: AvailabilityChangedPayload) => {
-      if (!rescheduleTarget || rescheduleCancelled) return;
+      if (!rescheduleTarget || isRescheduleTerminal) return;
       const apptDate = rescheduleTarget.date;
       const touchesOriginalDay =
         payload.dates.length === 0 || payload.dates.includes(apptDate);
@@ -630,20 +645,20 @@ export default function AdminAppointmentsClient() {
         void verifyRescheduleStillActive();
       }
     },
-    [rescheduleTarget, rescheduleCancelled, verifyRescheduleStillActive],
+    [rescheduleTarget, isRescheduleTerminal, verifyRescheduleStillActive],
   );
 
   const onRescheduleAppointmentsChanged = useCallback(
     (payload: AppointmentsChangedPayload) => {
-      if (!rescheduleTarget || rescheduleCancelled) return;
+      if (!rescheduleTarget || isRescheduleTerminal) return;
       if (
         payload.appointmentId === rescheduleTarget.id &&
         payload.reason === "cancelled"
       ) {
-        void markRescheduleTerminalCancelled();
+        void markRescheduleTerminalCancelled("cancelled");
       }
     },
-    [rescheduleTarget, rescheduleCancelled, markRescheduleTerminalCancelled],
+    [rescheduleTarget, isRescheduleTerminal, markRescheduleTerminalCancelled],
   );
 
   useDoctorSlotsPusher({
@@ -664,7 +679,7 @@ export default function AdminAppointmentsClient() {
 
   useDoctorAppointmentsPusher({
     doctorId: rescheduleTarget?.doctorId ?? "",
-    enabled: !!rescheduleTarget?.doctorId && !rescheduleCancelled,
+    enabled: !!rescheduleTarget?.doctorId && !isRescheduleTerminal,
     onAppointmentsChanged: onRescheduleAppointmentsChanged,
   });
 
@@ -674,7 +689,7 @@ export default function AdminAppointmentsClient() {
   // day don't kick off needless background checks.
   useEffect(() => {
     if (!rescheduleTarget) return;
-    if (rescheduleCancelled) return;
+    if (isRescheduleTerminal) return;
     if (availabilityCalendarFetching) return;
     if (enabledDateSet.size === 0) return;
     const apptDate = rescheduleTarget.date;
@@ -688,7 +703,7 @@ export default function AdminAppointmentsClient() {
     }
   }, [
     rescheduleTarget,
-    rescheduleCancelled,
+    isRescheduleTerminal,
     availabilityCalendarFetching,
     enabledDateSet,
     verifyRescheduleStillActive,
@@ -814,7 +829,7 @@ export default function AdminAppointmentsClient() {
     setHasSelectionInteraction(false);
     setRescheduleError(null);
     setSlotUnavailableAlert(null);
-    setRescheduleCancelled(false);
+    setRescheduleTerminalReason(null);
     apptDatePresentRef.current = false;
     initialDateAppliedRef.current = false;
     cancellationCheckRef.current = false;
@@ -827,7 +842,7 @@ export default function AdminAppointmentsClient() {
     setSelectedSlot(null);
     setRescheduleError(null);
     setSlotUnavailableAlert(null);
-    setRescheduleCancelled(false);
+    setRescheduleTerminalReason(null);
     apptDatePresentRef.current = false;
     initialDateAppliedRef.current = false;
     cancellationCheckRef.current = false;
@@ -844,7 +859,7 @@ export default function AdminAppointmentsClient() {
         rescheduleTarget.id,
       );
       if (eligibility !== "eligible") {
-        await markRescheduleTerminalCancelled();
+        await markRescheduleTerminalCancelled("cancelled");
         return;
       }
 
@@ -860,7 +875,7 @@ export default function AdminAppointmentsClient() {
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
         if (data.error === "Appointment is cancelled") {
-          await markRescheduleTerminalCancelled();
+          await markRescheduleTerminalCancelled("cancelled");
           return;
         }
         setRescheduleError(
@@ -872,7 +887,7 @@ export default function AdminAppointmentsClient() {
         rescheduleTarget.id,
       );
       if (postEligibility !== "eligible") {
-        await markRescheduleTerminalCancelled();
+        await markRescheduleTerminalCancelled("cancelled");
         return;
       }
       closeReschedule();
@@ -1323,17 +1338,18 @@ export default function AdminAppointmentsClient() {
                 id="admin-reschedule-title"
                 className="font-montaga text-xl font-semibold text-[#333333]"
               >
-                {rescheduleCancelled
+                {isRescheduleTerminal
                   ? "Appointment cancelled"
                   : rescheduleStep === "pick"
                     ? "Reschedule appointment"
                     : "Confirm reschedule"}
               </h2>
-              {rescheduleCancelled ? (
+              {isRescheduleTerminal ? (
                 <div className="mt-4 flex flex-col gap-4">
                   <p className="font-montserrat text-sm text-[#5E5E5E]">
-                    This appointment has been cancelled because the doctor marked
-                    the day as a holiday. It can no longer be rescheduled.
+                    {rescheduleTerminalReason === "holiday"
+                      ? "This appointment has been cancelled because the doctor marked the day as a holiday. It can no longer be rescheduled."
+                      : "This appointment has been cancelled and can no longer be rescheduled."}
                   </p>
                   <div className="flex flex-wrap gap-2">
                     <Button
