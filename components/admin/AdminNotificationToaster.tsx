@@ -36,20 +36,33 @@ export function AdminNotificationToaster() {
   // count-drift from incrementing per notification.
   const refreshUnread = useCallback(async () => {
     try {
-      const res = await fetch("/api/notifications/unread", { cache: "no-store" });
-      if (!res.ok) return;
-      const data = (await res.json()) as { notifications?: { id: string }[] };
-      const notifications = Array.isArray(data.notifications)
-        ? data.notifications
-        : [];
-      notifications.forEach((notification) =>
-        seenNotificationIdsRef.current.add(notification.id),
-      );
-      window.dispatchEvent(
-        new CustomEvent<number>(ADMIN_UNREAD_COUNT_EVENT, {
-          detail: notifications.length,
-        }),
-      );
+      const [unreadRes, countRes] = await Promise.all([
+        fetch("/api/notifications/unread", { cache: "no-store" }),
+        fetch("/api/notifications/unread-count", { cache: "no-store" }),
+      ]);
+      if (unreadRes.ok) {
+        const data = (await unreadRes.json()) as {
+          notifications?: { id: string }[];
+        };
+        const notifications = Array.isArray(data.notifications)
+          ? data.notifications
+          : [];
+        notifications.forEach((notification) =>
+          seenNotificationIdsRef.current.add(notification.id),
+        );
+      }
+      if (countRes.ok) {
+        const countData = (await countRes.json()) as { count?: unknown };
+        const count =
+          typeof countData.count === "number" && Number.isFinite(countData.count)
+            ? Math.max(0, Math.floor(countData.count))
+            : 0;
+        window.dispatchEvent(
+          new CustomEvent<number>(ADMIN_UNREAD_COUNT_EVENT, {
+            detail: count,
+          }),
+        );
+      }
     } catch {
       // best-effort
     }

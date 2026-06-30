@@ -13,6 +13,7 @@ import useInfiniteScroll from "react-infinite-scroll-hook";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useDoctorAppointmentsPusher } from "@/lib/use-doctor-appointments-pusher";
+import { useDoctorSlotsPusher } from "@/lib/use-doctor-slots-pusher";
 import {
   ScheduleDaySlotSummary,
   SlotSummaryFromDetails,
@@ -354,6 +355,10 @@ export function ViewSchedulePanel({
   >(null);
   const [quickCheckLoading, setQuickCheckLoading] = useState(false);
   const [quickCheckError, setQuickCheckError] = useState<string | null>(null);
+  /** Bumped on live slot/appointment events so Quick Check refetches booked state. */
+  const [quickCheckRefreshVersion, setQuickCheckRefreshVersion] = useState(0);
+  const quickCheckDateRef = useRef(quickCheckDate);
+  quickCheckDateRef.current = quickCheckDate;
 
   useEffect(() => {
     setMounted(true);
@@ -412,7 +417,7 @@ export function ViewSchedulePanel({
     return () => {
       cancelled = true;
     };
-  }, [quickCheckDate, listRefreshVersion]);
+  }, [quickCheckDate, listRefreshVersion, quickCheckRefreshVersion]);
 
   const loadList = useCallback(
     async (
@@ -582,12 +587,37 @@ export function ViewSchedulePanel({
   const onAppointmentsChanged = useCallback(() => {
     if (blockRefreshRef.current) return;
     void refreshLoadedPages();
+    if (quickCheckDateRef.current.trim()) {
+      setQuickCheckRefreshVersion((v) => v + 1);
+    }
   }, [refreshLoadedPages]);
 
   useDoctorAppointmentsPusher({
     doctorId,
     enabled: !!doctorId,
     onAppointmentsChanged,
+  });
+
+  const quickCheckDoctorDates = useMemo(
+    () => (quickCheckDate.trim() ? [quickCheckDate.trim()] : []),
+    [quickCheckDate],
+  );
+
+  useDoctorSlotsPusher({
+    doctorId,
+    enabled: !!doctorId,
+    queryKeys: {
+      slots: ["view-schedule-quick-check-slots-noop"],
+      availableDates: ["view-schedule-quick-check-dates-noop"],
+    },
+    currentDoctorDates: quickCheckDoctorDates,
+    onSlotUpdated: (payload) => {
+      if (blockRefreshRef.current) return;
+      const d = quickCheckDateRef.current.trim();
+      if (d && payload.date === d) {
+        setQuickCheckRefreshVersion((v) => v + 1);
+      }
+    },
   });
 
   /** Single-date view is short; the sentinel stays in view and would page until `hasMore` is false. */
