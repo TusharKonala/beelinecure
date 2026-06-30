@@ -507,14 +507,19 @@ function RescheduleContent() {
       !!appointment &&
       selectedSlot.doctorDate === appointment.date &&
       selectedSlot.startTime === appointment.time;
-    if (hasSelectionInteraction && !wasCurrentAppointment) {
-      setSlotUnavailableAlert(SLOT_NO_LONGER_AVAILABLE_MESSAGE);
-    }
-    // The original appointment slot vanishing from its own day (while viewing
-    // it) is the holiday signal when the date itself isn't tracked in
-    // availability — re-verify eligibility.
     if (wasCurrentAppointment) {
+      // Holiday verification must run even during submit — not a slot-unavailable alert.
       void verifyAppointmentStillActive();
+      setSelectedSlot(null);
+      return;
+    }
+    if (isSubmitting) {
+      // In-flight confirm owns the error for a newly picked slot.
+      setSelectedSlot(null);
+      return;
+    }
+    if (hasSelectionInteraction) {
+      setSlotUnavailableAlert(SLOT_NO_LONGER_AVAILABLE_MESSAGE);
     }
     setSelectedSlot(null);
   }, [
@@ -523,6 +528,7 @@ function RescheduleContent() {
     appointment,
     hasSelectionInteraction,
     slotsLoadingOrFetching,
+    isSubmitting,
     verifyAppointmentStillActive,
   ]);
 
@@ -575,6 +581,7 @@ function RescheduleContent() {
 
     setIsSubmitting(true);
     setSubmitError(null);
+    setSlotUnavailableAlert(null);
     try {
       const res = await fetch("/api/reschedule-appointment", {
         method: "POST",
@@ -611,7 +618,8 @@ function RescheduleContent() {
       }
 
       if (nextState === "slot_unavailable") {
-        setSubmitError("This time slot is no longer available.");
+        setSubmitError(SLOT_NO_LONGER_AVAILABLE_MESSAGE);
+        setSlotUnavailableAlert(null);
         return;
       }
 
@@ -854,17 +862,12 @@ function RescheduleContent() {
                       </section>
 
                       <section>
-                        {slotUnavailableAlert && (
+                        {(submitError ?? slotUnavailableAlert) && (
                           <p
                             className="mb-4 font-montserrat text-sm text-red-600"
                             role="alert"
                           >
-                            {slotUnavailableAlert}
-                          </p>
-                        )}
-                        {submitError && (
-                          <p className="mb-4 font-montserrat text-sm text-red-600">
-                            {submitError}
+                            {submitError ?? slotUnavailableAlert}
                           </p>
                         )}
                         {shouldBlockCurrentAppointmentSlot && (

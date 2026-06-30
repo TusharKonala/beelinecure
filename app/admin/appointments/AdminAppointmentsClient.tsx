@@ -679,7 +679,7 @@ export default function AdminAppointmentsClient() {
       !!rescheduleTarget &&
       selectedDate === rescheduleTarget.date &&
       selectedSlot === rescheduleTarget.time;
-    if (hasSelectionInteraction && !wasCurrentAppointment) {
+    if (hasSelectionInteraction && !wasCurrentAppointment && !rescheduleSubmitting) {
       setRescheduleError(SLOT_NO_LONGER_AVAILABLE_MESSAGE);
     }
     setSelectedSlot(null);
@@ -690,6 +690,7 @@ export default function AdminAppointmentsClient() {
     rescheduleTarget,
     hasSelectionInteraction,
     slotsLoadingOrFetching,
+    rescheduleSubmitting,
   ]);
 
   function openReschedule(a: AdminAppointmentItem) {
