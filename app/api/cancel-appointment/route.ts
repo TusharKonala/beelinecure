@@ -191,19 +191,36 @@ export async function POST(request: NextRequest) {
   if (appointmentStartMs <= Date.now()) {
     return NextResponse.json({ status: "appointment_passed" as const });
   }
-  const calendarEventId = appointment.googleCalendarEventId;
-  if (calendarEventId) {
-    await deleteMeetCalendarEvent(appointment.doctorId, calendarEventId);
-  }
 
-  await prisma.appointment.update({
-    where: { id: appointmentId },
+  const calendarEventId = appointment.googleCalendarEventId;
+
+  const { count } = await prisma.appointment.updateMany({
+    where: {
+      id: appointmentId,
+      status: {
+        in: [AppointmentStatus.CONFIRMED, AppointmentStatus.PENDING],
+      },
+    },
     data: {
       status: AppointmentStatus.CANCELLED,
       googleCalendarEventId: null,
       googleMeetUrl: null,
     },
   });
+  if (count !== 1) {
+    const current = await prisma.appointment.findUnique({
+      where: { id: appointmentId },
+      select: { status: true },
+    });
+    if (current?.status === AppointmentStatus.COMPLETED) {
+      return NextResponse.json({ status: "invalid_link" as const });
+    }
+    return NextResponse.json({ status: "already_cancelled" as const });
+  }
+
+  if (calendarEventId) {
+    await deleteMeetCalendarEvent(appointment.doctorId, calendarEventId);
+  }
 
   const appointmentDateYmd = appointment.date.toISOString().slice(0, 10);
   await triggerSlotUpdated(appointment.doctorId, {
