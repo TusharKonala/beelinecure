@@ -355,10 +355,55 @@ export function ViewSchedulePanel({
   >(null);
   const [quickCheckLoading, setQuickCheckLoading] = useState(false);
   const [quickCheckError, setQuickCheckError] = useState<string | null>(null);
-  /** Bumped on live slot/appointment events so Quick Check refetches booked state. */
-  const [quickCheckRefreshVersion, setQuickCheckRefreshVersion] = useState(0);
   const quickCheckDateRef = useRef(quickCheckDate);
   quickCheckDateRef.current = quickCheckDate;
+  const latestQuickCheckRequestIdRef = useRef(0);
+
+  const fetchQuickCheckSlotDetails = useCallback(async (d: string) => {
+    const res = await fetch(
+      `/api/doctor/availability?date=${encodeURIComponent(d)}`,
+      { cache: "no-store" },
+    );
+    if (!res.ok) {
+      const data = (await res.json()) as { error?: string };
+      throw new Error(data.error ?? "Could not load");
+    }
+    const data = (await res.json()) as {
+      slotDetails?: {
+        startTime: string;
+        consultationType: SlotDetail["consultationType"];
+        booked: boolean;
+        slotDurationMinutes?: number;
+      }[];
+      slotDurationMinutes?: number;
+    };
+    const raw = Array.isArray(data.slotDetails) ? data.slotDetails : [];
+    return raw.map((s) => ({
+      startTime: s.startTime,
+      consultationType: s.consultationType,
+      booked: Boolean(s.booked),
+      slotDurationMinutes:
+        s.slotDurationMinutes ?? data.slotDurationMinutes ?? 30,
+    }));
+  }, []);
+
+  /**
+   * Silent background refresh (Pusher). Keeps current slot details visible while
+   * fetching — no skeleton — matching `refreshLoadedPages` for the list.
+   */
+  const refreshQuickCheckSilently = useCallback(async () => {
+    const d = quickCheckDateRef.current.trim();
+    if (!d) return;
+    const requestId = ++latestQuickCheckRequestIdRef.current;
+    try {
+      const slots = await fetchQuickCheckSlotDetails(d);
+      if (latestQuickCheckRequestIdRef.current !== requestId) return;
+      setQuickCheckSlotDetails(slots);
+      setQuickCheckError(null);
+    } catch {
+      // Silent background refresh — keep stale data visible.
+    }
+  }, [fetchQuickCheckSlotDetails]);
 
   useEffect(() => {
     setMounted(true);
@@ -373,51 +418,35 @@ export function ViewSchedulePanel({
       setQuickCheckLoading(false);
       return;
     }
+    const requestId = ++latestQuickCheckRequestIdRef.current;
     void (async () => {
       setQuickCheckLoading(true);
       setQuickCheckError(null);
       try {
-        const res = await fetch(
-          `/api/doctor/availability?date=${encodeURIComponent(d)}`,
-          { cache: "no-store" },
-        );
-        if (!res.ok) {
-          const data = (await res.json()) as { error?: string };
-          throw new Error(data.error ?? "Could not load");
+        const slots = await fetchQuickCheckSlotDetails(d);
+        if (cancelled || latestQuickCheckRequestIdRef.current !== requestId) {
+          return;
         }
-        const data = (await res.json()) as {
-          slotDetails?: {
-            startTime: string;
-            consultationType: SlotDetail["consultationType"];
-            booked: boolean;
-            slotDurationMinutes?: number;
-          }[];
-          slotDurationMinutes?: number;
-        };
-        if (!cancelled) {
-          const raw = Array.isArray(data.slotDetails) ? data.slotDetails : [];
-          setQuickCheckSlotDetails(
-            raw.map((s) => ({
-              startTime: s.startTime,
-              consultationType: s.consultationType,
-              booked: Boolean(s.booked),
-              slotDurationMinutes: s.slotDurationMinutes ?? data.slotDurationMinutes ?? 30,
-            })),
-          );
-        }
+        setQuickCheckSlotDetails(slots);
       } catch (e) {
-        if (!cancelled) {
-          setQuickCheckError(e instanceof Error ? e.message : "Could not load");
-          setQuickCheckSlotDetails(null);
+        if (cancelled || latestQuickCheckRequestIdRef.current !== requestId) {
+          return;
         }
+        setQuickCheckError(e instanceof Error ? e.message : "Could not load");
+        setQuickCheckSlotDetails(null);
       } finally {
-        if (!cancelled) setQuickCheckLoading(false);
+        if (
+          !cancelled &&
+          latestQuickCheckRequestIdRef.current === requestId
+        ) {
+          setQuickCheckLoading(false);
+        }
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [quickCheckDate, listRefreshVersion, quickCheckRefreshVersion]);
+  }, [quickCheckDate, listRefreshVersion, fetchQuickCheckSlotDetails]);
 
   const loadList = useCallback(
     async (
@@ -587,10 +616,8 @@ export function ViewSchedulePanel({
   const onAppointmentsChanged = useCallback(() => {
     if (blockRefreshRef.current) return;
     void refreshLoadedPages();
-    if (quickCheckDateRef.current.trim()) {
-      setQuickCheckRefreshVersion((v) => v + 1);
-    }
-  }, [refreshLoadedPages]);
+    void refreshQuickCheckSilently();
+  }, [refreshLoadedPages, refreshQuickCheckSilently]);
 
   useDoctorAppointmentsPusher({
     doctorId,
@@ -615,7 +642,7 @@ export function ViewSchedulePanel({
       if (blockRefreshRef.current) return;
       const d = quickCheckDateRef.current.trim();
       if (d && payload.date === d) {
-        setQuickCheckRefreshVersion((v) => v + 1);
+        void refreshQuickCheckSilently();
       }
     },
   });
