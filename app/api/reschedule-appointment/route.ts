@@ -193,6 +193,11 @@ export async function POST(request: NextRequest) {
   });
 
   if (!result.ok) {
+    if (result.code === "appointment_cancelled") {
+      return NextResponse.json({
+        status: "already_cancelled",
+      } satisfies RescheduleResponse);
+    }
     return NextResponse.json({
       status: "slot_unavailable",
     } satisfies RescheduleResponse);

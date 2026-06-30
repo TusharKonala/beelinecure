@@ -192,6 +192,9 @@ function RescheduleContent() {
   const [appointmentPatientDate, setAppointmentPatientDate] = useState<string>("");
   /** Armed once the appointment's date is seen in availability, so we only verify on a true present -> absent drop. */
   const apptDatePresentRef = useRef(false);
+  /** One-time calendar preselect of the original appointment date when it is enabled. */
+  const initialDateAppliedRef = useRef(false);
+  const initialAppointmentSlotRef = useRef<BookableSlotRef | null>(null);
   const [slotUnavailableAlert, setSlotUnavailableAlert] = useState<string | null>(
     null,
   );
@@ -238,13 +241,15 @@ function RescheduleContent() {
             appt.timezone,
             patientTimezone,
           );
-          setSelectedDate(patientDate);
           setAppointmentPatientDate(patientDate);
           apptDatePresentRef.current = false;
-          setSelectedSlot({
+          initialDateAppliedRef.current = false;
+          initialAppointmentSlotRef.current = {
             doctorDate: appt.date,
             startTime: appt.time,
-          });
+          };
+          setSelectedDate("");
+          setSelectedSlot(null);
           setHasSelectionInteraction(false);
           setState("idle");
           return;
@@ -329,26 +334,40 @@ function RescheduleContent() {
   useEffect(() => {
     if (availabilityCalendarFetching) return;
     if (enabledDateSet.size === 0) return;
+    if (initialDateAppliedRef.current) return;
+    if (!appointment || !appointmentPatientDate) return;
+
+    initialDateAppliedRef.current = true;
+    if (enabledDateSet.has(appointmentPatientDate)) {
+      setSelectedDate(appointmentPatientDate);
+      const initialSlot = initialAppointmentSlotRef.current;
+      if (initialSlot) {
+        setSelectedSlot(initialSlot);
+      }
+    }
+  }, [
+    availabilityCalendarFetching,
+    enabledDateSet,
+    appointment,
+    appointmentPatientDate,
+  ]);
+
+  useEffect(() => {
+    if (availabilityCalendarFetching) return;
+    if (enabledDateSet.size === 0) return;
     if (!selectedDate) return;
     if (enabledDateSet.has(selectedDate)) return;
-    if (hasSelectionInteraction) {
-      setSelectedDate("");
-      setSelectedSlot(null);
-      setSlotUnavailableAlert(
-        "The date you selected is no longer available. Please choose another date.",
-      );
-      return;
-    }
-    const sorted = [...enabledDateSet].sort();
-    const next =
-      sorted.find((d) => d >= minDate) ?? sorted[sorted.length - 1] ?? minDate;
-    setSelectedDate(next);
+    if (!hasSelectionInteraction) return;
+
+    setSelectedDate("");
     setSelectedSlot(null);
+    setSlotUnavailableAlert(
+      "The date you selected is no longer available. Please choose another date.",
+    );
   }, [
     availabilityCalendarFetching,
     enabledDateSet,
     selectedDate,
-    minDate,
     hasSelectionInteraction,
   ]);
 

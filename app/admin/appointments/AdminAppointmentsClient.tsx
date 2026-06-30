@@ -232,6 +232,8 @@ export default function AdminAppointmentsClient() {
   const isMountedRef = useRef(true);
   /** Armed once the appointment's date is seen in availability, so we only verify on a true present -> absent drop. */
   const apptDatePresentRef = useRef(false);
+  /** One-time calendar preselect of the original appointment date when it is enabled. */
+  const initialDateAppliedRef = useRef(false);
   const [slotTzView, setSlotTzView] = useState<"doctor" | "patient">("doctor");
   const [availabilityDateChunks, setAvailabilityDateChunks] = useState<
     AvailabilityDateChunk[]
@@ -486,30 +488,38 @@ export default function AdminAppointmentsClient() {
     if (!rescheduleTarget || rescheduleStep !== "pick") return;
     if (availabilityCalendarFetching) return;
     if (enabledDateSet.size === 0) return;
+    if (initialDateAppliedRef.current) return;
+
+    initialDateAppliedRef.current = true;
+    if (enabledDateSet.has(rescheduleTarget.date)) {
+      setSelectedDate(rescheduleTarget.date);
+    }
+  }, [
+    rescheduleTarget,
+    rescheduleStep,
+    availabilityCalendarFetching,
+    enabledDateSet,
+  ]);
+
+  useEffect(() => {
+    if (!rescheduleTarget || rescheduleStep !== "pick") return;
+    if (availabilityCalendarFetching) return;
+    if (enabledDateSet.size === 0) return;
     if (!selectedDate) return;
     if (enabledDateSet.has(selectedDate)) return;
-    if (hasSelectionInteraction) {
-      setSelectedDate("");
-      setSelectedSlot(null);
-      setRescheduleError(
-        "The date you selected is no longer available. Please choose another date.",
-      );
-      return;
-    }
-    const sorted = [...enabledDateSet].sort();
-    const next =
-      sorted.find((d) => d >= rescheduleMinDate) ??
-      sorted[sorted.length - 1] ??
-      rescheduleMinDate;
-    setSelectedDate(next);
+    if (!hasSelectionInteraction) return;
+
+    setSelectedDate("");
     setSelectedSlot(null);
+    setRescheduleError(
+      "The date you selected is no longer available. Please choose another date.",
+    );
   }, [
     rescheduleTarget,
     rescheduleStep,
     availabilityCalendarFetching,
     enabledDateSet,
     selectedDate,
-    rescheduleMinDate,
     hasSelectionInteraction,
   ]);
 
@@ -648,8 +658,9 @@ export default function AdminAppointmentsClient() {
 
   const doctorTz = slotsData?.doctorTimezone ?? rescheduleTarget?.timezone ?? "UTC";
   const slotDetails = slotsData?.slotDetails ?? [];
-  const slotsLoadingOrFetching =
-    slotsLoading || (slotsFetching && isPlaceholderData);
+  const slotsInitialLoading = slotsLoading && !slotsData;
+  const slotsBackgroundFetching =
+    slotsFetching && !!slotsData && isPlaceholderData;
   const filteredSlots =
     rescheduleTarget && selectedDate
       ? filterReschedulableSlots({
@@ -680,7 +691,7 @@ export default function AdminAppointmentsClient() {
 
   useEffect(() => {
     if (!selectedSlot) return;
-    if (slotsLoadingOrFetching) return;
+    if (slotsInitialLoading) return;
     const stillAvailable = filteredSlots.some(
       (ref) => ref.startTime === selectedSlot && ref.doctorDate === selectedDate,
     );
@@ -714,7 +725,7 @@ export default function AdminAppointmentsClient() {
     filteredSlots,
     rescheduleTarget,
     hasSelectionInteraction,
-    slotsLoadingOrFetching,
+    slotsInitialLoading,
     rescheduleSubmitting,
     verifyRescheduleStillActive,
   ]);
@@ -732,12 +743,13 @@ export default function AdminAppointmentsClient() {
     }
     setRescheduleTarget(a);
     setRescheduleStep("pick");
-    setSelectedDate(a.date);
+    setSelectedDate("");
     setSelectedSlot(null);
     setHasSelectionInteraction(false);
     setRescheduleError(null);
     setRescheduleCancelled(false);
     apptDatePresentRef.current = false;
+    initialDateAppliedRef.current = false;
     cancellationCheckRef.current = false;
   }
 
@@ -749,6 +761,7 @@ export default function AdminAppointmentsClient() {
     setRescheduleError(null);
     setRescheduleCancelled(false);
     apptDatePresentRef.current = false;
+    initialDateAppliedRef.current = false;
     cancellationCheckRef.current = false;
   }
 
@@ -1329,7 +1342,7 @@ export default function AdminAppointmentsClient() {
                         </button>
                       </div>
                     </div>
-                    {!slotsLoadingOrFetching && (
+                    {!slotsInitialLoading && (
                       <p className="mt-2 font-montserrat text-sm text-[#5E5E5E]">
                         {rescheduleTarget.durationMinutes}-minute slots only ·{" "}
                         {slotTzView === "patient"
@@ -1337,19 +1350,27 @@ export default function AdminAppointmentsClient() {
                           : doctorTz}
                       </p>
                     )}
-                    {slotsLoadingOrFetching && (
+                    {slotsBackgroundFetching ? (
+                      <p
+                        className="mt-2 font-montserrat text-xs text-[#5E5E5E]"
+                        aria-live="polite"
+                      >
+                        Updating times…
+                      </p>
+                    ) : null}
+                    {slotsInitialLoading && (
                       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
                         {Array.from({ length: 6 }).map((_, i) => (
                           <Skeleton key={i} className="h-11 w-full rounded-xl bg-[#e5e5e5]" />
                         ))}
                       </div>
                     )}
-                    {!slotsLoadingOrFetching && !hasSelectableSlots && (
+                    {!slotsInitialLoading && !hasSelectableSlots && (
                       <p className="mt-4 font-montserrat text-sm text-[#5E5E5E]">
                         No slots available for this date.
                       </p>
                     )}
-                    {!slotsLoadingOrFetching && filteredSlots.length > 0 && (
+                    {!slotsInitialLoading && filteredSlots.length > 0 && (
                       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
                         {filteredSlots.map((ref) => {
                           const isCurrent =

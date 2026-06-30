@@ -39,6 +39,14 @@ import { triggerAppointmentsChanged, triggerSlotUpdated } from "@/lib/pusher-ser
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
+/** Thrown when an appointment is no longer reschedulable at commit time (e.g. cancelled concurrently). */
+export class AppointmentNotReschedulableError extends Error {
+  constructor(public readonly code: "appointment_cancelled") {
+    super("Appointment cannot be rescheduled");
+    this.name = "AppointmentNotReschedulableError";
+  }
+}
+
 export type RescheduleAppointmentRow = {
   id: string;
   doctorId: string;
@@ -76,7 +84,10 @@ export async function reschedulePatientAppointment(input: {
    */
   actorUserId?: string | null;
   initiatedBy?: RescheduleInitiator;
-}): Promise<{ ok: true } | { ok: false; code: "slot_unavailable" }> {
+}): Promise<
+  | { ok: true }
+  | { ok: false; code: "slot_unavailable" | "appointment_cancelled" }
+> {
   const {
     appointment,
     dateParam,
@@ -101,6 +112,18 @@ export async function reschedulePatientAppointment(input: {
     updatedAppointment = await prisma.$transaction(async (tx) => {
       await acquireDoctorDateLock(tx, appointment.doctorId, dateParam);
 
+      const current = await tx.appointment.findUnique({
+        where: { id: appointment.id },
+        select: { status: true },
+      });
+      if (
+        !current ||
+        current.status === AppointmentStatus.CANCELLED ||
+        current.status === AppointmentStatus.COMPLETED
+      ) {
+        throw new AppointmentNotReschedulableError("appointment_cancelled");
+      }
+
       const availabilityRows = await tx.doctorAvailability.findMany({
         where: { doctorId: appointment.doctorId, date },
       });
@@ -124,8 +147,13 @@ export async function reschedulePatientAppointment(input: {
         throw new SlotUnavailableError();
       }
 
-      return tx.appointment.update({
-        where: { id: appointment.id },
+      const { count } = await tx.appointment.updateMany({
+        where: {
+          id: appointment.id,
+          status: {
+            in: [AppointmentStatus.CONFIRMED, AppointmentStatus.PENDING],
+          },
+        },
         data: {
           date,
           time,
@@ -134,10 +162,24 @@ export async function reschedulePatientAppointment(input: {
             : {}),
         },
       });
+      if (count !== 1) {
+        throw new AppointmentNotReschedulableError("appointment_cancelled");
+      }
+
+      const updated = await tx.appointment.findUnique({
+        where: { id: appointment.id },
+      });
+      if (!updated) {
+        throw new AppointmentNotReschedulableError("appointment_cancelled");
+      }
+      return updated;
     });
   } catch (err) {
     if (err instanceof SlotUnavailableError) {
       return { ok: false, code: "slot_unavailable" };
+    }
+    if (err instanceof AppointmentNotReschedulableError) {
+      return { ok: false, code: err.code };
     }
     throw err;
   }

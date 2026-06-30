@@ -120,19 +120,28 @@ export async function cancelAppointmentByStaff(input: {
 
   const isDoctorInitiated = Boolean(input.doctorId);
   const cancellationNote = input.cancellationNote?.trim() || null;
+  const googleCalendarEventId = appointment.googleCalendarEventId;
 
-  if (appointment.googleCalendarEventId) {
-    await deleteMeetCalendarEvent(appointment.doctorId, appointment.googleCalendarEventId);
-  }
-
-  await prisma.appointment.update({
-    where: { id: appointment.id },
+  const { count } = await prisma.appointment.updateMany({
+    where: {
+      id: appointment.id,
+      status: {
+        in: [AppointmentStatus.CONFIRMED, AppointmentStatus.PENDING],
+      },
+    },
     data: {
       status: AppointmentStatus.CANCELLED,
       googleCalendarEventId: null,
       googleMeetUrl: null,
     },
   });
+  if (count !== 1) {
+    return { ok: false as const, code: "ALREADY_CANCELLED" as const };
+  }
+
+  if (googleCalendarEventId) {
+    await deleteMeetCalendarEvent(appointment.doctorId, googleCalendarEventId);
+  }
 
   const appointmentDateYmd = appointment.date.toISOString().slice(0, 10);
   await triggerSlotUpdated(appointment.doctorId, {

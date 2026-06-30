@@ -142,6 +142,10 @@ export async function POST(request: NextRequest) {
   });
 
   if (!result.ok) {
+    if (result.code === "appointment_cancelled") {
+      const { error, status } = adminErrorFromEligibility("cancelled");
+      return NextResponse.json({ error }, { status });
+    }
     return NextResponse.json(
       { error: "This time slot is no longer available" },
       { status: 409 },
