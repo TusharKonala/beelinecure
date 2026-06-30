@@ -19,7 +19,6 @@ import {
 } from "@/lib/timezone-display";
 import { filterReschedulableSlots } from "@/lib/reschedule-slots";
 import { useDoctorSlotsPusher } from "@/lib/use-doctor-slots-pusher";
-import type { AvailabilityChangedPayload } from "@/lib/pusher-server";
 import { SLOT_NO_LONGER_AVAILABLE_MESSAGE } from "@/lib/slot-hold-shared";
 import type { PatientConsultationChoice } from "@/lib/doctor-availability-slots";
 import { formatDoctorDisplayName } from "@/lib/doctor-name";
@@ -228,10 +227,11 @@ export default function AdminAppointmentsClient() {
   const [hasSelectionInteraction, setHasSelectionInteraction] = useState(false);
   const [rescheduleSubmitting, setRescheduleSubmitting] = useState(false);
   const [rescheduleError, setRescheduleError] = useState<string | null>(null);
-  const [isVerifyingCancellation, setIsVerifyingCancellation] = useState(false);
   const [rescheduleCancelled, setRescheduleCancelled] = useState(false);
   const cancellationCheckRef = useRef(false);
   const isMountedRef = useRef(true);
+  /** Armed once the appointment's date is seen in availability, so we only verify on a true present -> absent drop. */
+  const apptDatePresentRef = useRef(false);
   const [slotTzView, setSlotTzView] = useState<"doctor" | "patient">("doctor");
   const [availabilityDateChunks, setAvailabilityDateChunks] = useState<
     AvailabilityDateChunk[]
@@ -558,7 +558,6 @@ export default function AdminAppointmentsClient() {
     const target = rescheduleTarget;
     if (!target || cancellationCheckRef.current) return;
     cancellationCheckRef.current = true;
-    setIsVerifyingCancellation(true);
     try {
       for (let i = 0; i < 6; i++) {
         const res = await fetch(
@@ -580,19 +579,9 @@ export default function AdminAppointmentsClient() {
         if (!isMountedRef.current) return;
       }
     } finally {
-      if (isMountedRef.current) setIsVerifyingCancellation(false);
       cancellationCheckRef.current = false;
     }
   }, [rescheduleTarget, loadAppointments]);
-
-  const handleAvailabilityChanged = useCallback(
-    (payload: AvailabilityChangedPayload) => {
-      if (!rescheduleTarget) return;
-      if (!payload.dates.includes(rescheduleTarget.date)) return;
-      void verifyRescheduleStillActive();
-    },
-    [rescheduleTarget, verifyRescheduleStillActive],
-  );
 
   useDoctorSlotsPusher({
     doctorId: rescheduleTarget?.doctorId ?? "",
@@ -604,11 +593,37 @@ export default function AdminAppointmentsClient() {
         rescheduleTarget?.doctorId ?? "",
       ],
     },
-    onAvailabilityChanged: handleAvailabilityChanged,
     // Admin selectedDate is already doctor-local, so it maps directly to the
     // doctor-local dates carried by slot-updated / availability-changed events.
     currentDoctorDates: selectedDate ? [selectedDate] : [],
   });
+
+  // Holiday detection: when the appointment's own date drops out of
+  // availability (its whole day was cleared), re-verify eligibility. Narrowed
+  // to a true present -> absent transition so benign single-slot edits on the
+  // day don't kick off needless background checks.
+  useEffect(() => {
+    if (!rescheduleTarget || rescheduleStep !== "pick") return;
+    if (rescheduleCancelled) return;
+    if (availabilityCalendarFetching) return;
+    if (enabledDateSet.size === 0) return;
+    const apptDate = rescheduleTarget.date;
+    if (enabledDateSet.has(apptDate)) {
+      apptDatePresentRef.current = true;
+      return;
+    }
+    if (apptDatePresentRef.current) {
+      apptDatePresentRef.current = false;
+      void verifyRescheduleStillActive();
+    }
+  }, [
+    rescheduleTarget,
+    rescheduleStep,
+    rescheduleCancelled,
+    availabilityCalendarFetching,
+    enabledDateSet,
+    verifyRescheduleStillActive,
+  ]);
 
   const slotsEnabled =
     !!rescheduleTarget && rescheduleStep === "pick" && !!selectedDate;
@@ -679,7 +694,17 @@ export default function AdminAppointmentsClient() {
       !!rescheduleTarget &&
       selectedDate === rescheduleTarget.date &&
       selectedSlot === rescheduleTarget.time;
-    if (hasSelectionInteraction && !wasCurrentAppointment && !rescheduleSubmitting) {
+    if (wasCurrentAppointment) {
+      // Holiday verification must run even during submit — not a slot-unavailable alert.
+      void verifyRescheduleStillActive();
+      setSelectedSlot(null);
+      return;
+    }
+    if (rescheduleSubmitting) {
+      setSelectedSlot(null);
+      return;
+    }
+    if (hasSelectionInteraction) {
       setRescheduleError(SLOT_NO_LONGER_AVAILABLE_MESSAGE);
     }
     setSelectedSlot(null);
@@ -691,6 +716,7 @@ export default function AdminAppointmentsClient() {
     hasSelectionInteraction,
     slotsLoadingOrFetching,
     rescheduleSubmitting,
+    verifyRescheduleStillActive,
   ]);
 
   function openReschedule(a: AdminAppointmentItem) {
@@ -710,8 +736,8 @@ export default function AdminAppointmentsClient() {
     setSelectedSlot(null);
     setHasSelectionInteraction(false);
     setRescheduleError(null);
-    setIsVerifyingCancellation(false);
     setRescheduleCancelled(false);
+    apptDatePresentRef.current = false;
     cancellationCheckRef.current = false;
   }
 
@@ -721,8 +747,8 @@ export default function AdminAppointmentsClient() {
     setRescheduleStep("pick");
     setSelectedSlot(null);
     setRescheduleError(null);
-    setIsVerifyingCancellation(false);
     setRescheduleCancelled(false);
+    apptDatePresentRef.current = false;
     cancellationCheckRef.current = false;
   }
 
@@ -1219,10 +1245,6 @@ export default function AdminAppointmentsClient() {
                     </Button>
                   </div>
                 </div>
-              ) : isVerifyingCancellation ? (
-                <p className="mt-4 font-montserrat text-sm text-[#5E5E5E]">
-                  Checking appointment status…
-                </p>
               ) : (
                 <>
               <p className="mt-2 font-montserrat text-sm text-[#5E5E5E]">
