@@ -22,6 +22,9 @@ import {
   type BookableSlotRef,
 } from "@/lib/reschedule-slots";
 import { useDoctorSlotsPusher } from "@/lib/use-doctor-slots-pusher";
+import { useDoctorAppointmentsPusher } from "@/lib/use-doctor-appointments-pusher";
+import type { AvailabilityChangedPayload } from "@/lib/pusher-server";
+import type { AppointmentsChangedPayload } from "@/lib/pusher-server";
 import { SLOT_NO_LONGER_AVAILABLE_MESSAGE } from "@/lib/slot-hold-shared";
 import type { PatientConsultationChoice } from "@/lib/doctor-availability-slots";
 import { formatDoctorDisplayName } from "@/lib/doctor-name";
@@ -607,6 +610,32 @@ export default function AdminAppointmentsClient() {
     }
   }, [rescheduleTarget, markRescheduleTerminalCancelled]);
 
+  const onRescheduleAvailabilityChanged = useCallback(
+    (payload: AvailabilityChangedPayload) => {
+      if (!rescheduleTarget || rescheduleCancelled) return;
+      const apptDate = rescheduleTarget.date;
+      const touchesOriginalDay =
+        payload.dates.length === 0 || payload.dates.includes(apptDate);
+      if (touchesOriginalDay) {
+        void verifyRescheduleStillActive();
+      }
+    },
+    [rescheduleTarget, rescheduleCancelled, verifyRescheduleStillActive],
+  );
+
+  const onRescheduleAppointmentsChanged = useCallback(
+    (payload: AppointmentsChangedPayload) => {
+      if (!rescheduleTarget || rescheduleCancelled) return;
+      if (
+        payload.appointmentId === rescheduleTarget.id &&
+        payload.reason === "cancelled"
+      ) {
+        void markRescheduleTerminalCancelled();
+      }
+    },
+    [rescheduleTarget, rescheduleCancelled, markRescheduleTerminalCancelled],
+  );
+
   useDoctorSlotsPusher({
     doctorId: rescheduleTarget?.doctorId ?? "",
     enabled: !!rescheduleTarget?.doctorId,
@@ -620,6 +649,13 @@ export default function AdminAppointmentsClient() {
     // Admin selectedDate is already doctor-local, so it maps directly to the
     // doctor-local dates carried by slot-updated / availability-changed events.
     currentDoctorDates: selectedDate ? [selectedDate] : [],
+    onAvailabilityChanged: onRescheduleAvailabilityChanged,
+  });
+
+  useDoctorAppointmentsPusher({
+    doctorId: rescheduleTarget?.doctorId ?? "",
+    enabled: !!rescheduleTarget?.doctorId && !rescheduleCancelled,
+    onAppointmentsChanged: onRescheduleAppointmentsChanged,
   });
 
   // Holiday detection: when the appointment's own date drops out of
@@ -629,7 +665,6 @@ export default function AdminAppointmentsClient() {
   useEffect(() => {
     if (!rescheduleTarget) return;
     if (rescheduleCancelled) return;
-    if (rescheduleSubmitting) return;
     if (availabilityCalendarFetching) return;
     if (enabledDateSet.size === 0) return;
     const apptDate = rescheduleTarget.date;
@@ -644,7 +679,6 @@ export default function AdminAppointmentsClient() {
   }, [
     rescheduleTarget,
     rescheduleCancelled,
-    rescheduleSubmitting,
     availabilityCalendarFetching,
     enabledDateSet,
     verifyRescheduleStillActive,
@@ -813,6 +847,13 @@ export default function AdminAppointmentsClient() {
         setRescheduleError(
           data.error ?? "Could not reschedule. The slot may no longer be available.",
         );
+        return;
+      }
+      const postEligibility = await fetchAdminRescheduleEligibility(
+        rescheduleTarget.id,
+      );
+      if (postEligibility !== "eligible") {
+        await markRescheduleTerminalCancelled();
         return;
       }
       closeReschedule();
@@ -1484,7 +1525,8 @@ export default function AdminAppointmentsClient() {
                         !selectedDate ||
                         !selectedSlot ||
                         isCurrentAppointmentSlot ||
-                        shouldBlockCurrentAppointmentSlot
+                        shouldBlockCurrentAppointmentSlot ||
+                        rescheduleSubmitting
                       }
                       className="cursor-pointer disabled:cursor-not-allowed"
                       onClick={() => setRescheduleStep("confirm")}

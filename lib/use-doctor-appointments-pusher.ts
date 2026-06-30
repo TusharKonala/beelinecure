@@ -7,7 +7,7 @@ import Pusher from "pusher-js";
 export function useDoctorAppointmentsPusher(input: {
   doctorId: string;
   enabled: boolean;
-  onAppointmentsChanged: () => void;
+  onAppointmentsChanged: (payload: AppointmentsChangedPayload) => void;
 }) {
   const onAppointmentsChanged = input.onAppointmentsChanged;
 
@@ -22,8 +22,8 @@ export function useDoctorAppointmentsPusher(input: {
     const channelName = `doctor-appointments-${input.doctorId}`;
     const channel = pusher.subscribe(channelName);
 
-    const handler = (_payload: AppointmentsChangedPayload) => {
-      onAppointmentsChanged();
+    const handler = (payload: AppointmentsChangedPayload) => {
+      onAppointmentsChanged(payload);
     };
 
     channel.bind("appointments-changed", handler);

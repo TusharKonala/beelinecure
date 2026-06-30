@@ -31,6 +31,11 @@ import {
 } from "@/lib/reschedule-slots";
 import { useSlotExpiryTick } from "@/lib/use-slot-expiry-tick";
 import { useDoctorSlotsPusher } from "@/lib/use-doctor-slots-pusher";
+import { useDoctorAppointmentsPusher } from "@/lib/use-doctor-appointments-pusher";
+import type {
+  AppointmentsChangedPayload,
+  AvailabilityChangedPayload,
+} from "@/lib/pusher-server";
 import { SLOT_NO_LONGER_AVAILABLE_MESSAGE } from "@/lib/slot-hold-shared";
 import type { PatientConsultationChoice } from "@/lib/doctor-availability-slots";
 
@@ -407,6 +412,32 @@ function RescheduleContent() {
     }
   }, [appointmentId, token, canLoad]);
 
+  const onRescheduleAvailabilityChanged = useCallback(
+    (payload: AvailabilityChangedPayload) => {
+      if (state !== "idle" || !appointment) return;
+      const apptDate = appointment.date;
+      const touchesOriginalDay =
+        payload.dates.length === 0 || payload.dates.includes(apptDate);
+      if (touchesOriginalDay) {
+        void verifyAppointmentStillActive();
+      }
+    },
+    [state, appointment, verifyAppointmentStillActive],
+  );
+
+  const onRescheduleAppointmentsChanged = useCallback(
+    (payload: AppointmentsChangedPayload) => {
+      if (state !== "idle" || !appointment) return;
+      if (
+        payload.appointmentId === appointment.id &&
+        payload.reason === "cancelled"
+      ) {
+        setState("already_cancelled");
+      }
+    },
+    [state, appointment],
+  );
+
   const {
     data: slotsData,
     isLoading: slotsLoading,
@@ -451,6 +482,13 @@ function RescheduleContent() {
       availableDates: ["reschedule-available-dates", appointment?.doctorId ?? ""],
     },
     currentDoctorDates,
+    onAvailabilityChanged: onRescheduleAvailabilityChanged,
+  });
+
+  useDoctorAppointmentsPusher({
+    doctorId: appointment?.doctorId ?? "",
+    enabled: state === "idle" && !!appointment?.doctorId,
+    onAppointmentsChanged: onRescheduleAppointmentsChanged,
   });
 
   // Holiday detection: when the appointment's own date drops out of
