@@ -15,6 +15,7 @@ import { currencyForTimezone, type SupportedCurrency } from "@/lib/currency";
 import { DOCTOR_SPECIALIZATIONS } from "@/lib/doctor-specializations";
 import { formatDoctorDisplayName } from "@/lib/doctor-name";
 import { specializationForSymptom, searchSymptoms } from "@/lib/symptomMap";
+import { SELECT_CHEVRON } from "@/lib/select-styles";
 
 type DoctorCard = {
   id: string;
@@ -32,8 +33,7 @@ type ListResponse = {
   hasMore: boolean;
 };
 
-const CHEVRON_CLASSES =
-  'cursor-pointer appearance-none bg-[url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000/svg%22%20width%3D%2220%22%20height%3D%2220%22%20fill%3D%22none%22%20viewBox%3D%220%200%2024%2024%22%20stroke%3D%22%23333333%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E")] bg-[length:1rem_1rem] bg-[position:right_0.75rem_center] bg-no-repeat';
+const selectChevronClassName = `cursor-pointer ${SELECT_CHEVRON}`;
 
 function doctorListUrl(params: {
   nameSearch: string;
@@ -405,7 +405,7 @@ export function DoctorSelectionSection() {
                   setSpecialty(e.target.value);
                   setSymptomInput("");
                 }}
-                className={`w-full rounded-xl border border-[#e5e5e5] bg-white px-3 py-2 pr-10 font-montserrat text-sm text-[#333333] ${CHEVRON_CLASSES}`}
+                className={`w-full rounded-xl border border-[#e5e5e5] bg-white px-3 py-2 pr-10 font-montserrat text-sm text-[#333333] ${selectChevronClassName}`}
               >
                 <option value="">All specialties</option>
                 {DOCTOR_SPECIALIZATIONS.map((s) => (
@@ -427,7 +427,7 @@ export function DoctorSelectionSection() {
                 id="filter-mode"
                 value={consultationMode}
                 onChange={(e) => setConsultationMode(e.target.value)}
-                className={`w-full rounded-xl border border-[#e5e5e5] bg-white px-3 py-2 pr-10 font-montserrat text-sm text-[#333333] ${CHEVRON_CLASSES}`}
+                className={`w-full rounded-xl border border-[#e5e5e5] bg-white px-3 py-2 pr-10 font-montserrat text-sm text-[#333333] ${selectChevronClassName}`}
               >
                 <option value="">Any</option>
                 <option value="online">Online</option>
@@ -450,7 +450,7 @@ export function DoctorSelectionSection() {
                     Number(e.target.value) as AllowedSlotDurationMinutes,
                   )
                 }
-                className={`w-full rounded-xl border border-[#e5e5e5] bg-white px-3 py-2 pr-10 font-montserrat text-sm text-[#333333] ${CHEVRON_CLASSES}`}
+                className={`w-full rounded-xl border border-[#e5e5e5] bg-white px-3 py-2 pr-10 font-montserrat text-sm text-[#333333] ${selectChevronClassName}`}
               >
                 {ALLOWED_SLOT_DURATION_MINUTES.map((duration) => (
                   <option key={duration} value={duration}>

@@ -9,6 +9,8 @@ export interface EmailTemplateProps {
   appointmentDate: string;
   appointmentTime: string;
   patientName: string;
+  /** Overrides the greeting name; defaults to patientName when omitted. */
+  greetingName?: string;
   consultationType: "CLINIC" | "ONLINE";
   cancelUrl: string;
   rescheduleUrl: string;
@@ -168,6 +170,7 @@ export function EmailTemplate({
   appointmentDate,
   appointmentTime,
   patientName,
+  greetingName,
   consultationType,
   cancelUrl,
   rescheduleUrl,
@@ -203,7 +206,9 @@ export function EmailTemplate({
     >
       <style>{emailActionResponsiveStyles}</style>
       <h1 style={{ color: "#111111", marginBottom: "1rem" }}>{heading}</h1>
-      <p style={{ color: "#333333", lineHeight: 1.6 }}>Hello {patientName},</p>
+      <p style={{ color: "#333333", lineHeight: 1.6 }}>
+        Hello {greetingName ?? patientName},
+      </p>
       <p style={{ color: "#333333", lineHeight: 1.6 }}>
         {" "}
         {message ?? getConfirmationMessage(consultationType)}

@@ -5,11 +5,13 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import useInfiniteScroll from "react-infinite-scroll-hook";
+import { QuickCheckStyleDateField } from "@/components/QuickCheckStyleDateField";
 import { Button } from "@/components/ui/button";
 import { StaffCancelRefundPreview } from "@/components/appointments/StaffCancelRefundPreview";
 import { CharCountFooter } from "@/components/form/CharCountFooter";
 import { MontagaCapitalN } from "@/components/ui/MontagaCapitalN";
 import { formatDateInDoctorTz, formatTimeInDoctorTz } from "@/lib/timezone-display";
+import { SELECT_CHEVRON } from "@/lib/select-styles";
 import { useAppointmentsListPoll } from "@/lib/use-appointments-list-poll";
 import { useDoctorAppointmentsPusher } from "@/lib/use-doctor-appointments-pusher";
 import { APPOINTMENT_CANCELLATION_NOTE_MAX_CHARS } from "@/lib/appointment-schemas";
@@ -57,10 +59,6 @@ type DoctorAppointmentItem = {
   notes: string | null;
   googleMeetUrl: string | null;
 };
-
-/** Hide native select arrow; custom chevron at `right: 0.75rem` with `pr-10` text inset. */
-const SELECT_CHEVRON =
-  'appearance-none bg-[url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2220%22%20height%3D%2220%22%20fill%3D%22none%22%20viewBox%3D%220%200%2024%2024%22%20stroke%3D%22%23333333%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E")] bg-[length:1rem_1rem] bg-[position:right_0.75rem_center] bg-no-repeat';
 
 function consultationLabel(type: ConsultationType) {
   return type === "ONLINE" ? "Online" : "Clinic";
@@ -462,32 +460,15 @@ export default function DoctorAppointmentsClient({
           />
         </div>
         <div className="flex min-w-0 flex-1 flex-col gap-2 sm:max-w-xs">
-          <label
-            htmlFor="doctor-appointments-filter-on-date"
-            className="shrink-0 font-montserrat text-sm font-medium text-[#333333]"
-          >
-            Filter by date
-          </label>
-          <div className="flex min-w-0 items-center gap-2">
-            <input
-              id="doctor-appointments-filter-on-date"
-              type="date"
-              value={filterOnDate}
-              onChange={(e) => setFilterOnDate(e.target.value)}
-              className="min-w-0 flex-1 cursor-pointer rounded-xl border border-[#e5e5e5] bg-white px-3 py-2 font-montserrat text-sm text-[#333333] shadow-sm [color-scheme:light] outline-none focus:border-[#2555F3] focus:ring-2 focus:ring-[#2555F3]/20"
-            />
-            {filterOnDate ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="shrink-0 cursor-pointer rounded-xl font-montserrat text-xs font-medium"
-                onClick={() => setFilterOnDate("")}
-              >
-                Clear
-              </Button>
-            ) : null}
-          </div>
+          <QuickCheckStyleDateField
+            id="doctor-appointments-filter-on-date"
+            label="Filter by date"
+            value={filterOnDate}
+            onChange={setFilterOnDate}
+            labelClassName="font-montserrat text-sm font-medium text-[#333333]"
+            className="max-w-none"
+            ariaLabel="Filter appointments by date"
+          />
         </div>
         <div className="flex min-w-0 flex-1 flex-col gap-2 sm:max-w-xs">
           <label

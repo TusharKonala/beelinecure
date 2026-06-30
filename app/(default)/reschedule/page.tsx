@@ -199,6 +199,7 @@ function RescheduleContent() {
   const apptDatePresentRef = useRef(false);
   /** One-time calendar preselect of the original appointment date when it is enabled. */
   const initialDateAppliedRef = useRef(false);
+  const slotsSectionRef = useRef<HTMLElement>(null);
   const initialAppointmentSlotRef = useRef<BookableSlotRef | null>(null);
   const [slotUnavailableAlert, setSlotUnavailableAlert] = useState<string | null>(
     null,
@@ -595,6 +596,12 @@ function RescheduleContent() {
     setSelectedSlot(null);
     setSubmitError(null);
     setSlotUnavailableAlert(null);
+    requestAnimationFrame(() => {
+      slotsSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
   }, []);
 
   const onCalendarViewingMonthChange = useCallback(
@@ -843,7 +850,7 @@ function RescheduleContent() {
                         )}
                       </section>
 
-                      <section>
+                      <section ref={slotsSectionRef}>
                         <h2 className="font-montaga text-xl font-semibold leading-tight text-[#333333]">
                           Available times
                         </h2>

@@ -6,11 +6,12 @@ import {
   useMemo,
   useRef,
   useState,
-  type RefObject,
 } from "react";
 import { createPortal } from "react-dom";
 import useInfiniteScroll from "react-infinite-scroll-hook";
+import { QuickCheckStyleDateField } from "@/components/QuickCheckStyleDateField";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SELECT_CHEVRON } from "@/lib/select-styles";
 import { cn } from "@/lib/utils";
 import { useDoctorAppointmentsPusher } from "@/lib/use-doctor-appointments-pusher";
 import { useDoctorSlotsPusher } from "@/lib/use-doctor-slots-pusher";
@@ -59,10 +60,6 @@ function formatMonthOptionLabel(ym: string): string {
   }).format(dt);
 }
 
-/** Hide native select arrow; custom chevron at `right: 0.75rem` with `pr-10` inset — same as patient appointments. */
-const SELECT_CHEVRON =
-  'appearance-none bg-[url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2220%22%20height%3D%2220%22%20fill%3D%22none%22%20viewBox%3D%220%200%2024%2024%22%20stroke%3D%22%23333333%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E")] bg-[length:1rem_1rem] bg-[position:right_0.75rem_center] bg-no-repeat';
-
 function scheduleFilterSelectClassName(className?: string) {
   return cn(
     "w-full min-w-0 cursor-pointer rounded-xl border border-[#e5e5e5] bg-white py-2 pl-3 pr-10 font-montserrat text-sm text-[#111111] shadow-sm [color-scheme:light] outline-none focus:border-[#2555F3] focus:ring-2 focus:ring-[#2555F3]/20",
@@ -70,10 +67,6 @@ function scheduleFilterSelectClassName(className?: string) {
     className,
   );
 }
-
-/** Same as Set Availability date inputs (MyScheduleClient). */
-const quickCheckDateInputClassName =
-  "block w-full min-w-0 cursor-pointer rounded-xl border border-[#e5e5e5] bg-white px-4 py-3 font-montserrat text-sm text-[#111111] shadow-sm [color-scheme:light] focus:border-[#2555F3] focus:outline-none focus:ring-2 focus:ring-[#2555F3]/30 md:py-2.5";
 
 const SCHEDULE_READONLY_NOTE =
   "Schedule changes are disabled while your account is deactivated.";
@@ -130,56 +123,6 @@ function ScheduleDayActionButtons({
           {clearingDate === isoDate ? "Removing…" : "Mark Holiday"}
         </button>
       </span>
-    </div>
-  );
-}
-
-function ViewScheduleQuickCheckField({
-  minDate,
-  inputRef,
-  quickCheckDate,
-  setQuickCheckDate,
-}: {
-  minDate: string;
-  inputRef: RefObject<HTMLInputElement | null>;
-  quickCheckDate: string;
-  setQuickCheckDate: (v: string) => void;
-}) {
-  const d = quickCheckDate.trim();
-  return (
-    <div className="w-full max-w-[min(100%,14rem)]">
-      <div className="flex items-center justify-between gap-2">
-        <label
-          htmlFor="view-schedule-quick-check"
-          className="block font-montserrat text-xs font-medium text-[#5E5E5E]"
-        >
-          Quick check
-        </label>
-        {d ? (
-          <button
-            type="button"
-            className="cursor-pointer shrink-0 font-montserrat text-xs font-medium text-[#2555F3] underline-offset-2 hover:underline"
-            onClick={() => setQuickCheckDate("")}
-            aria-label="Clear quick check only"
-          >
-            Clear quick check
-          </button>
-        ) : null}
-      </div>
-      <div className="mt-1.5 w-full cursor-pointer select-none">
-        <input
-          ref={inputRef}
-          id="view-schedule-quick-check"
-          type="date"
-          min={minDate}
-          value={quickCheckDate}
-          onChange={(e) => setQuickCheckDate(e.target.value)}
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={(e) => e.currentTarget.showPicker?.()}
-          className={cn(quickCheckDateInputClassName, "mt-0 select-none")}
-          aria-label="Pick a date to view saved slots"
-        />
-      </div>
     </div>
   );
 }
@@ -995,11 +938,16 @@ export function ViewSchedulePanel({
               onClearAllFilters={clearAllFilters}
             />
             <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
-              <ViewScheduleQuickCheckField
+              <QuickCheckStyleDateField
+                id="view-schedule-quick-check"
+                label="Quick check"
                 minDate={todayFromApi}
                 inputRef={quickCheckInputRef}
-                quickCheckDate={quickCheckDate}
-                setQuickCheckDate={setQuickCheckDate}
+                value={quickCheckDate}
+                onChange={setQuickCheckDate}
+                clearLabel="Clear quick check"
+                clearAriaLabel="Clear quick check only"
+                ariaLabel="Pick a date to view saved slots"
               />
             </div>
             <ViewScheduleQuickCheckResults
@@ -1089,11 +1037,16 @@ export function ViewSchedulePanel({
                 </div>
               </>
             ) : null}
-            <ViewScheduleQuickCheckField
+            <QuickCheckStyleDateField
+              id="view-schedule-quick-check"
+              label="Quick check"
               minDate={todayFromApi}
               inputRef={quickCheckInputRef}
-              quickCheckDate={quickCheckDate}
-              setQuickCheckDate={setQuickCheckDate}
+              value={quickCheckDate}
+              onChange={setQuickCheckDate}
+              clearLabel="Clear quick check"
+              clearAriaLabel="Clear quick check only"
+              ariaLabel="Pick a date to view saved slots"
             />
             <div className="flex items-end">
               <button

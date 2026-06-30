@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import useInfiniteScroll from "react-infinite-scroll-hook";
 import { useQueries, useQuery, keepPreviousData } from "@tanstack/react-query";
 import { SetAvailabilityCalendar } from "@/app/doctor/my-schedule/SetAvailabilityCalendar";
+import { QuickCheckStyleDateField } from "@/components/QuickCheckStyleDateField";
 import { Button } from "@/components/ui/button";
 import { StaffCancelRefundPreview } from "@/components/appointments/StaffCancelRefundPreview";
 import { CharCountFooter } from "@/components/form/CharCountFooter";
@@ -28,6 +29,7 @@ import type { AppointmentsChangedPayload } from "@/lib/pusher-server";
 import { SLOT_NO_LONGER_AVAILABLE_MESSAGE } from "@/lib/slot-hold-shared";
 import type { PatientConsultationChoice } from "@/lib/doctor-availability-slots";
 import { formatDoctorDisplayName } from "@/lib/doctor-name";
+import { SELECT_CHEVRON } from "@/lib/select-styles";
 import { currencyForTimezone } from "@/lib/currency";
 import { useAppointmentsListPoll } from "@/lib/use-appointments-list-poll";
 import { APPOINTMENT_CANCELLATION_NOTE_MAX_CHARS } from "@/lib/appointment-schemas";
@@ -122,9 +124,6 @@ type AdminAppointmentItem = {
     specialization: string;
   };
 };
-
-const SELECT_CHEVRON =
-  'appearance-none bg-[url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2220%22%20height%3D%2220%22%20fill%3D%22none%22%20viewBox%3D%220%200%2024%2024%22%20stroke%3D%22%23333333%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E")] bg-[length:1rem_1rem] bg-[position:right_0.75rem_center] bg-no-repeat';
 
 function consultationLabel(type: ConsultationType) {
   return type === "ONLINE" ? "Online" : "Clinic";
@@ -226,6 +225,7 @@ export default function AdminAppointmentsClient() {
   const [patientSearch, setPatientSearch] = useState("");
   const [doctorSearch, setDoctorSearch] = useState("");
   const [dateFilter, setDateFilter] = useState<DateFilterValue>(DEFAULT_DATE_FILTER);
+  const [filterOnDate, setFilterOnDate] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isCanceling, setIsCanceling] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<AdminAppointmentItem | null>(null);
@@ -267,6 +267,7 @@ export default function AdminAppointmentsClient() {
   const apptDatePresentRef = useRef(false);
   /** One-time calendar preselect of the original appointment date when it is enabled. */
   const initialDateAppliedRef = useRef(false);
+  const rescheduleSlotsSectionRef = useRef<HTMLDivElement>(null);
   const [slotTzView, setSlotTzView] = useState<"doctor" | "patient">("doctor");
   const [availabilityDateChunks, setAvailabilityDateChunks] = useState<
     AvailabilityDateChunk[]
@@ -341,10 +342,14 @@ export default function AdminAppointmentsClient() {
       try {
         const params = new URLSearchParams({
           tab,
-          dateFilter,
           page: String(nextPage),
           limit: "5",
         });
+        if (filterOnDate) {
+          params.set("onDate", filterOnDate);
+        } else {
+          params.set("dateFilter", dateFilter);
+        }
         if (patientSearch.trim()) params.set("patientSearch", patientSearch.trim());
         if (doctorSearch.trim()) params.set("doctorSearch", doctorSearch.trim());
         const res = await fetch(`/api/admin/appointments?${params.toString()}`, {
@@ -373,7 +378,7 @@ export default function AdminAppointmentsClient() {
         if (!silent) setIsLoading(false);
       }
     },
-    [dateFilter, patientSearch, doctorSearch, tab],
+    [dateFilter, filterOnDate, patientSearch, doctorSearch, tab],
   );
 
   useEffect(() => {
@@ -397,12 +402,14 @@ export default function AdminAppointmentsClient() {
   const hasActiveFilters =
     patientSearch.trim() !== "" ||
     doctorSearch.trim() !== "" ||
-    dateFilter !== DEFAULT_DATE_FILTER;
+    dateFilter !== DEFAULT_DATE_FILTER ||
+    filterOnDate !== "";
 
   const clearAllFilters = useCallback(() => {
     setPatientSearch("");
     setDoctorSearch("");
     setDateFilter(DEFAULT_DATE_FILTER);
+    setFilterOnDate("");
   }, []);
 
   const [sentryRef] = useInfiniteScroll({
@@ -562,6 +569,12 @@ export default function AdminAppointmentsClient() {
     setSelectedSlot(null);
     setRescheduleError(null);
     setSlotUnavailableAlert(null);
+    requestAnimationFrame(() => {
+      rescheduleSlotsSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
   }, []);
 
   const onRescheduleCalendarViewingMonthChange = useCallback(
@@ -1007,22 +1020,39 @@ export default function AdminAppointmentsClient() {
           />
         </div>
         <div className="flex min-w-0 flex-1 flex-col gap-2 sm:max-w-xs">
+          <QuickCheckStyleDateField
+            id="admin-appointments-filter-on-date"
+            label="Filter by date"
+            value={filterOnDate}
+            onChange={setFilterOnDate}
+            labelClassName="font-montserrat text-sm font-medium text-[#333333]"
+            className="max-w-none"
+            ariaLabel="Filter appointments by date"
+          />
+        </div>
+        <div className="flex min-w-0 flex-1 flex-col gap-2 sm:max-w-xs">
           <label
             htmlFor="admin-appointments-date-filter"
             className="shrink-0 font-montserrat text-sm font-medium text-[#333333]"
           >
-            Date
+            Sort
           </label>
           <select
             id="admin-appointments-date-filter"
             value={dateFilter}
+            disabled={Boolean(filterOnDate)}
+            title={
+              filterOnDate
+                ? "Clear the date filter to change sort"
+                : undefined
+            }
             onChange={(e) => {
               const v = e.target.value;
               if (v === "asc" || v === "desc" || v === "today" || v === "week" || v === "month") {
                 setDateFilter(v);
               }
             }}
-            className={`w-full min-w-0 cursor-pointer rounded-xl border border-[#e5e5e5] bg-white py-2 pl-3 pr-10 font-montserrat text-sm text-[#333333] shadow-sm outline-none focus:border-[#2555F3] focus:ring-2 focus:ring-[#2555F3]/20 ${SELECT_CHEVRON}`}
+            className={`w-full min-w-0 cursor-pointer rounded-xl border border-[#e5e5e5] bg-white py-2 pl-3 pr-10 font-montserrat text-sm text-[#333333] shadow-sm outline-none focus:border-[#2555F3] focus:ring-2 focus:ring-[#2555F3]/20 disabled:cursor-not-allowed disabled:opacity-50 ${SELECT_CHEVRON}`}
           >
             <option value="desc">Latest first</option>
             <option value="asc">Earliest first</option>
@@ -1040,7 +1070,9 @@ export default function AdminAppointmentsClient() {
       ) : !isLoading && appointments.length === 0 ? (
         <div className="mt-6 rounded-xl border border-dashed border-[#e5e5e5] bg-[#fafafa] p-6 text-center">
           <p className="font-montserrat text-sm font-medium text-[#333333]">
-            {tab === "upcoming"
+            {filterOnDate
+              ? "No appointments on this date."
+              : tab === "upcoming"
               ? "No upcoming appointments."
               : tab === "pending-review"
                 ? "No appointments pending review."
@@ -1414,7 +1446,7 @@ export default function AdminAppointmentsClient() {
                       )}
                     </div>
                   </div>
-                  <div>
+                  <div ref={rescheduleSlotsSectionRef}>
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <h3 className="font-montaga text-base font-semibold text-[#333333]">
                         Available times
