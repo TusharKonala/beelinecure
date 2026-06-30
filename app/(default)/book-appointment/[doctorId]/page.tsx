@@ -16,7 +16,7 @@ import { useQueries, useQuery, useQueryClient, keepPreviousData } from "@tanstac
 import { Controller, useForm } from "react-hook-form";
 import PhoneInput, { isValidPhoneNumber } from "react-phone-number-input";
 import { z } from "zod";
-import { UserRole } from "@/generated/prisma/client";
+import { UserRole } from "@/generated/prisma/enums";
 import { SetAvailabilityCalendar } from "@/app/doctor/my-schedule/SetAvailabilityCalendar";
 import { Container } from "@/components/layout/Container";
 import { useRedirectOverlay } from "@/components/nav/RedirectOverlayProvider";
