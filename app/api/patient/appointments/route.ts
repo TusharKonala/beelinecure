@@ -101,6 +101,7 @@ export async function GET(request: NextRequest) {
         date: true,
         time: true,
         timezone: true,
+        durationMinutes: true,
         consultationType: true,
         googleMeetUrl: true,
         prescription: {
@@ -176,6 +177,7 @@ export async function GET(request: NextRequest) {
     date: a.date.toISOString().slice(0, 10),
     time: a.time,
     timezone: a.timezone,
+    durationMinutes: a.durationMinutes,
     consultationType: a.consultationType,
     googleMeetUrl: a.googleMeetUrl,
     prescription: a.prescription

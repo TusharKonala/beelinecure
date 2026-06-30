@@ -745,9 +745,8 @@ export default function AdminAppointmentsClient() {
 
   const doctorTz = slotsData?.doctorTimezone ?? rescheduleTarget?.timezone ?? "UTC";
   const slotDetails = slotsData?.slotDetails ?? [];
-  const slotsInitialLoading = slotsLoading && !slotsData;
-  const slotsBackgroundFetching =
-    slotsFetching && !!slotsData && isPlaceholderData;
+  const slotsLoadingOrFetching =
+    slotsLoading || (slotsFetching && isPlaceholderData);
   const filteredSlots =
     rescheduleTarget && selectedDate
       ? filterReschedulableSlots({
@@ -782,7 +781,7 @@ export default function AdminAppointmentsClient() {
     // handler. During confirm/submit the POST response is authoritative.
     if (rescheduleStep !== "pick") return;
     if (!selectedSlot) return;
-    if (slotsInitialLoading) return;
+    if (slotsLoadingOrFetching) return;
     const stillAvailable = filteredSlots.some(
       (ref) =>
         ref.startTime === selectedSlot.startTime &&
@@ -819,7 +818,7 @@ export default function AdminAppointmentsClient() {
     filteredSlots,
     rescheduleTarget,
     hasSelectionInteraction,
-    slotsInitialLoading,
+    slotsLoadingOrFetching,
     rescheduleSubmitting,
     verifyRescheduleStillActive,
   ]);
@@ -1123,6 +1122,16 @@ export default function AdminAppointmentsClient() {
                       <span>
                         <span className="font-medium">Time:</span>{" "}
                         {formatTimeInDoctorTz(a.date, a.time, a.timezone)}
+                      </span>
+                      <span
+                        className="hidden text-[#e5e5e5] min-[400px]:mx-2 min-[400px]:inline"
+                        aria-hidden
+                      >
+                        |
+                      </span>
+                      <span>
+                        <span className="font-medium">Duration:</span>{" "}
+                        {a.durationMinutes} min
                       </span>
                     </div>
                     {shouldShowGoogleMeetLink && (
@@ -1480,7 +1489,7 @@ export default function AdminAppointmentsClient() {
                         </button>
                       </div>
                     </div>
-                    {!slotsInitialLoading && (
+                    {!slotsLoadingOrFetching && (
                       <p className="mt-2 font-montserrat text-sm text-[#5E5E5E]">
                         {rescheduleTarget.durationMinutes}-minute slots only ·{" "}
                         {slotTzView === "patient"
@@ -1488,27 +1497,22 @@ export default function AdminAppointmentsClient() {
                           : doctorTz}
                       </p>
                     )}
-                    {slotsBackgroundFetching ? (
-                      <p
-                        className="mt-2 font-montserrat text-xs text-[#5E5E5E]"
-                        aria-live="polite"
-                      >
-                        Updating times…
-                      </p>
-                    ) : null}
-                    {slotsInitialLoading && (
+                    {slotsLoadingOrFetching && (
                       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                        {Array.from({ length: 6 }).map((_, i) => (
-                          <Skeleton key={i} className="h-11 w-full rounded-xl bg-[#e5e5e5]" />
+                        {Array.from({ length: 8 }).map((_, i) => (
+                          <Skeleton
+                            key={i}
+                            className="h-11 w-full rounded-xl bg-[#e5e5e5] sm:h-12"
+                          />
                         ))}
                       </div>
                     )}
-                    {!slotsInitialLoading && !hasSelectableSlots && (
+                    {!slotsLoadingOrFetching && !hasSelectableSlots && (
                       <p className="mt-4 font-montserrat text-sm text-[#5E5E5E]">
                         No slots available for this date.
                       </p>
                     )}
-                    {!slotsInitialLoading && filteredSlots.length > 0 && (
+                    {!slotsLoadingOrFetching && filteredSlots.length > 0 && (
                       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
                         {filteredSlots.map((ref) => {
                           const isCurrent =

@@ -61,6 +61,7 @@ export function QuickCheckStyleDateField({
       </div>
       <div className="mt-1.5 w-full cursor-pointer select-none">
         <input
+          key={value || "empty"}
           ref={inputRef}
           id={id}
           type="date"
@@ -69,7 +70,11 @@ export function QuickCheckStyleDateField({
           onChange={(e) => onChange(e.target.value)}
           onMouseDown={(e) => e.preventDefault()}
           onClick={(e) => e.currentTarget.showPicker?.()}
-          className={cn(quickCheckDateInputClassName, "mt-0 select-none")}
+          className={cn(
+            quickCheckDateInputClassName,
+            "mt-0 select-none",
+            !d && "text-[#5E5E5E]",
+          )}
           aria-label={ariaLabel ?? label}
         />
       </div>

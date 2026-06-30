@@ -27,6 +27,7 @@ export type PatientAppointmentItem = {
   date: string; // ISO date-only (YYYY-MM-DD) in doctor's timezone
   time: string; // HH:mm in doctor's timezone
   timezone: string; // Doctor's IANA timezone
+  durationMinutes: number;
   consultationType: ConsultationType;
   googleMeetUrl: string | null;
   prescription: { medicines: unknown; generalNotes: string | null } | null;
@@ -393,6 +394,16 @@ export default function PatientAppointmentsClient() {
                       <span>
                         <span className="font-medium">Time:</span>{" "}
                         {formatTimeInPatientTz(a.date, a.time, a.timezone)}
+                      </span>
+                      <span
+                        className="hidden text-[#e5e5e5] min-[400px]:mx-2 min-[400px]:inline"
+                        aria-hidden
+                      >
+                        |
+                      </span>
+                      <span>
+                        <span className="font-medium">Duration:</span>{" "}
+                        {a.durationMinutes} min
                       </span>
                     </div>
                     {a.consultationType === "ONLINE" && a.googleMeetUrl && (

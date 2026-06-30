@@ -476,7 +476,7 @@ export function ViewSchedulePanel({
     return () => {
       cancelled = true;
     };
-  }, [loadList, listRefreshVersion, selectedMonth, bookedOnly, selectedDateFilter]);
+  }, [loadList, selectedMonth, bookedOnly, selectedDateFilter]);
 
   listFiltersRef.current = { selectedMonth, bookedOnly, selectedDateFilter };
   blockRefreshRef.current = holidayConfirmDate !== null || clearingDate !== null;
@@ -555,6 +555,14 @@ export function ViewSchedulePanel({
       // Silent background refresh — no error banner.
     }
   }, [fetchListPageRaw]);
+
+  const listRefreshVersionRef = useRef(listRefreshVersion);
+  useEffect(() => {
+    if (listRefreshVersion === listRefreshVersionRef.current) return;
+    listRefreshVersionRef.current = listRefreshVersion;
+    if (days === null) return;
+    void refreshLoadedPages();
+  }, [listRefreshVersion, refreshLoadedPages, days]);
 
   const onAppointmentsChanged = useCallback(() => {
     if (blockRefreshRef.current) return;
@@ -754,7 +762,7 @@ export function ViewSchedulePanel({
       if (!res.ok) {
         throw new Error(data.error ?? "Could not update");
       }
-      await loadList(1, false, selectedMonth, bookedOnly, selectedDateFilter);
+      await refreshLoadedPages();
       onAvailabilityChanged?.(isoDate);
       if (isoDate === quickCheckDate.trim()) {
         setQuickCheckDate("");

@@ -54,6 +54,7 @@ type DoctorAppointmentItem = {
   date: string;
   time: string;
   timezone: string;
+  durationMinutes: number;
   consultationType: ConsultationType;
   status: AppointmentStatus;
   notes: string | null;
@@ -555,6 +556,16 @@ export default function DoctorAppointmentsClient({
                       <span>
                         <span className="font-medium">Time:</span>{" "}
                         {formatTimeInDoctorTz(a.date, a.time, a.timezone)}
+                      </span>
+                      <span
+                        className="hidden text-[#e5e5e5] min-[400px]:mx-2 min-[400px]:inline"
+                        aria-hidden
+                      >
+                        |
+                      </span>
+                      <span>
+                        <span className="font-medium">Duration:</span>{" "}
+                        {a.durationMinutes} min
                       </span>
                     </div>
                     {shouldShowGoogleMeetLink && (
