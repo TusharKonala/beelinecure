@@ -145,3 +145,16 @@
     }
   }
 }
+
+@keyframes nav-progress-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}
+
+.animate-nav-progress {
+  animation: nav-progress-slide 1.1s ease-in-out infinite;
+}

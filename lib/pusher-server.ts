@@ -133,6 +133,10 @@ export function doctorAppointmentsChannel(doctorId: string) {
   return `doctor-appointments-${doctorId}`;
 }
 
+export function adminAppointmentsChannel() {
+  return "admin-appointments";
+}
+
 export type AppointmentsChangedPayload = {
   appointmentId?: string;
   reason: "started" | "booked" | "cancelled" | "rescheduled" | "updated";
@@ -144,11 +148,18 @@ export async function triggerAppointmentsChanged(
 ) {
   try {
     const pusher = getPusherServer();
-    await pusher.trigger(
-      doctorAppointmentsChannel(doctorId),
-      "appointments-changed",
-      payload,
-    );
+    await Promise.all([
+      pusher.trigger(
+        doctorAppointmentsChannel(doctorId),
+        "appointments-changed",
+        payload,
+      ),
+      pusher.trigger(
+        adminAppointmentsChannel(),
+        "appointments-changed",
+        payload,
+      ),
+    ]);
   } catch (err) {
     console.error("[pusher] appointments-changed trigger failed:", err);
   }

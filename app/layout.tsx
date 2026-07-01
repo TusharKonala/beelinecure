@@ -5,6 +5,7 @@ import { DoctorNotificationToaster } from "@/components/doctor/DoctorNotificatio
 import { QueryProvider } from "@/components/QueryProvider";
 import { PatientNotificationToaster } from "@/components/patient/PatientNotificationToaster";
 import { RedirectOverlayProvider } from "@/components/nav/RedirectOverlayProvider";
+import { NavProgressProvider } from "@/components/nav/NavigationIndicator";
 import { SessionProvider } from "@/components/SessionProvider";
 import "@/app/globals.css";
 
@@ -46,12 +47,14 @@ export default function RootLayout({
       >
         <SessionProvider>
           <RedirectOverlayProvider>
-            <QueryProvider>
-              {children}
-              <PatientNotificationToaster />
-              <DoctorNotificationToaster />
-              <AdminNotificationToaster />
-            </QueryProvider>
+            <NavProgressProvider>
+              <QueryProvider>
+                {children}
+                <PatientNotificationToaster />
+                <DoctorNotificationToaster />
+                <AdminNotificationToaster />
+              </QueryProvider>
+            </NavProgressProvider>
           </RedirectOverlayProvider>
         </SessionProvider>
       </body>

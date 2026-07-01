@@ -243,6 +243,16 @@ export function EmailTemplate({
           />
         </div>
       )}
+      {!showActionLinks && primaryActionUrl && primaryActionLabel ? (
+        <div style={{ marginTop: "1rem" }}>
+          <EmailActionButton
+            href={primaryActionUrl}
+            label={primaryActionLabel}
+            variant="primary"
+            isFirst
+          />
+        </div>
+      ) : null}
       {showActionLinks && (
         <div style={{ marginTop: showMeetButton ? "0.5rem" : "1rem" }}>
           {usesDefaultPatientActions ? (

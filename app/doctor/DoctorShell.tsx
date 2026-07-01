@@ -3,6 +3,7 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { NavLink } from "@/components/nav/NavigationIndicator";
 import { useSession } from "next-auth/react";
 import {
   Bell,
@@ -259,9 +260,10 @@ export function DoctorShell({
               const Icon = item.icon;
               const active = isActivePath(pathname, item.href);
               return (
-                <Link
+                <NavLink
                   key={item.href}
                   href={item.href}
+                  showProgress
                   className={`flex items-center justify-between rounded-xl px-3 py-2 font-montserrat text-sm transition-colors ${
                     active
                       ? "bg-[#2555F3] text-white"
@@ -285,7 +287,7 @@ export function DoctorShell({
                       {unreadChatCount > 99 ? "99+" : unreadChatCount}
                     </span>
                   )}
-                </Link>
+                </NavLink>
               );
             })}
           </nav>
@@ -332,9 +334,10 @@ export function DoctorShell({
                 const Icon = item.icon;
                 const active = isActivePath(pathname, item.href);
                 return (
-                  <Link
+                  <NavLink
                     key={item.href}
                     href={item.href}
+                    showProgress
                     onClick={() => setIsMobileMenuOpen(false)}
                     className={`flex items-center justify-between rounded-xl px-3 py-2 font-montserrat text-sm transition-colors ${
                       active
@@ -358,8 +361,8 @@ export function DoctorShell({
                       <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[#2555F3] px-1.5 py-0.5 text-[11px] font-semibold text-white">
                         {unreadChatCount > 99 ? "99+" : unreadChatCount}
                       </span>
-                    )}
-                  </Link>
+                      )}
+                  </NavLink>
                 );
               })}
             </div>

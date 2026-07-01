@@ -39,6 +39,11 @@ import type {
 } from "@/lib/pusher-server";
 import { SLOT_NO_LONGER_AVAILABLE_MESSAGE } from "@/lib/slot-hold-shared";
 import type { PatientConsultationChoice } from "@/lib/doctor-availability-slots";
+import {
+  getAppointmentStartMsFromParts,
+  RESCHEDULE_MIN_LEAD_TIME_MS,
+} from "@/lib/appointment-reschedule-eligibility";
+import { RESCHEDULE_DESTINATION_WITHIN_24H_WARNING } from "@/lib/reschedule-policy-copy";
 
 type RescheduleUiState =
   | "idle"
@@ -561,6 +566,16 @@ function RescheduleContent() {
       ),
   );
 
+  const isDestinationWithin24h = useMemo(() => {
+    if (!selectedSlot || !doctorTz || isCurrentAppointmentSlot) return false;
+    const destinationStartMs = getAppointmentStartMsFromParts(
+      selectedSlot.doctorDate,
+      selectedSlot.startTime,
+      doctorTz,
+    );
+    return destinationStartMs - Date.now() < RESCHEDULE_MIN_LEAD_TIME_MS;
+  }, [selectedSlot, doctorTz, isCurrentAppointmentSlot]);
+
   useEffect(() => {
     if (!selectedSlot) return;
     if (slotsLoadingOrFetching) return;
@@ -947,6 +962,16 @@ function RescheduleContent() {
                           <p className="mb-4 font-montserrat text-sm text-[#5E5E5E]">
                             This is your current appointment slot.
                           </p>
+                        )}
+                        {isDestinationWithin24h && (
+                          <div
+                            className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3"
+                            role="status"
+                          >
+                            <p className="font-montserrat text-sm text-amber-900">
+                              {RESCHEDULE_DESTINATION_WITHIN_24H_WARNING}
+                            </p>
+                          </div>
                         )}
                         <Button
                           disabled={

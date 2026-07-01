@@ -3,6 +3,7 @@
 import { type ReactNode, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { NavLink } from "@/components/nav/NavigationIndicator";
 import { useSession } from "next-auth/react";
 import {
   Bell,
@@ -122,9 +123,10 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               const Icon = item.icon;
               const active = isActivePath(pathname, item.href);
               return (
-                <Link
+                <NavLink
                   key={item.href}
                   href={item.href}
+                  showProgress
                   className={`flex items-center justify-between rounded-xl px-3 py-2 font-montserrat text-sm transition-colors ${
                     active
                       ? "bg-[#2555F3] text-white"
@@ -138,7 +140,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                   {item.href === "/admin/notifications"
                     ? notificationBadge(unreadNotificationCount)
                     : null}
-                </Link>
+                </NavLink>
               );
             })}
           </nav>
@@ -185,9 +187,10 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                 const Icon = item.icon;
                 const active = isActivePath(pathname, item.href);
                 return (
-                  <Link
+                  <NavLink
                     key={item.href}
                     href={item.href}
+                    showProgress
                     onClick={() => setIsMobileMenuOpen(false)}
                     className={`flex items-center justify-between rounded-xl px-3 py-2 font-montserrat text-sm transition-colors ${
                       active
@@ -202,7 +205,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                     {item.href === "/admin/notifications"
                       ? notificationBadge(unreadNotificationCount)
                       : null}
-                  </Link>
+                  </NavLink>
                 );
               })}
             </div>

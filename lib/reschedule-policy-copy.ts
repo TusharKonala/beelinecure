@@ -11,6 +11,10 @@ export type { RescheduleInitiator };
 export const RESCHEDULE_ONLY_MORE_THAN_24H =
   "Rescheduling is only available more than 24 hours before your appointment.";
 
+/** Shown when the patient picks a destination slot within 24 hours of now. */
+export const RESCHEDULE_DESTINATION_WITHIN_24H_WARNING =
+  "Heads up: this new slot is within 24 hours. You can confirm once, but you won't be able to reschedule again afterward.";
+
 /** Confirmation surfaces: payment success (online), clinic booking confirmed. */
 export const RESCHEDULE_POLICY_CONFIRMATION_LINE = `${RESCHEDULE_ONLY_MORE_THAN_24H} If it is less than 24 hours before your visit, cancel and book again to choose a new time.`;
 

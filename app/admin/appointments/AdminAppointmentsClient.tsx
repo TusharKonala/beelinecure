@@ -25,6 +25,7 @@ import {
 import { useDoctorSlotsPusher } from "@/lib/use-doctor-slots-pusher";
 import { useSlotExpiryTick } from "@/lib/use-slot-expiry-tick";
 import { useDoctorAppointmentsPusher } from "@/lib/use-doctor-appointments-pusher";
+import { useAdminAppointmentsPusher } from "@/lib/use-admin-appointments-pusher";
 import type { AvailabilityChangedPayload } from "@/lib/pusher-server";
 import type { AppointmentsChangedPayload } from "@/lib/pusher-server";
 import { SLOT_NO_LONGER_AVAILABLE_MESSAGE } from "@/lib/slot-hold-shared";
@@ -247,6 +248,11 @@ export default function AdminAppointmentsClient() {
   );
   const [browserCurrency] = useState<string>(() => browserCurrencyGuess());
   const latestRequestIdRef = useRef(0);
+  const loadedPageRef = useRef(1);
+
+  useEffect(() => {
+    loadedPageRef.current = page;
+  }, [page]);
 
   const [rescheduleTarget, setRescheduleTarget] = useState<AdminAppointmentItem | null>(
     null,
@@ -335,6 +341,40 @@ export default function AdminAppointmentsClient() {
     };
   }, [cancelTarget, cancelReason, browserCurrency]);
 
+  const fetchAppointmentsPage = useCallback(
+    async (
+      pageNum: number,
+    ): Promise<{ items: AdminAppointmentItem[]; hasMore: boolean }> => {
+      const params = new URLSearchParams({
+        tab,
+        page: String(pageNum),
+        limit: "5",
+      });
+      if (filterOnDate) {
+        params.set("onDate", filterOnDate);
+      } else {
+        params.set("dateFilter", dateFilter);
+      }
+      if (patientSearch.trim()) params.set("patientSearch", patientSearch.trim());
+      if (doctorSearch.trim()) params.set("doctorSearch", doctorSearch.trim());
+      const res = await fetch(`/api/admin/appointments?${params.toString()}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) {
+        throw new Error("Failed to load appointments.");
+      }
+      const data = (await res.json()) as {
+        items?: AdminAppointmentItem[];
+        hasMore?: boolean;
+      };
+      return {
+        items: Array.isArray(data.items) ? data.items : [],
+        hasMore: Boolean(data.hasMore),
+      };
+    },
+    [dateFilter, filterOnDate, patientSearch, doctorSearch, tab],
+  );
+
   const loadAppointments = useCallback(
     async (
       nextPage: number,
@@ -348,36 +388,12 @@ export default function AdminAppointmentsClient() {
         setError(null);
       }
       try {
-        const params = new URLSearchParams({
-          tab,
-          page: String(nextPage),
-          limit: "5",
-        });
-        if (filterOnDate) {
-          params.set("onDate", filterOnDate);
-        } else {
-          params.set("dateFilter", dateFilter);
-        }
-        if (patientSearch.trim()) params.set("patientSearch", patientSearch.trim());
-        if (doctorSearch.trim()) params.set("doctorSearch", doctorSearch.trim());
-        const res = await fetch(`/api/admin/appointments?${params.toString()}`, {
-          cache: "no-store",
-        });
-        if (!res.ok) {
-          if (latestRequestIdRef.current !== requestId) return;
-          if (!silent) setError("Failed to load appointments.");
-          return;
-        }
-        const data = (await res.json()) as {
-          items?: AdminAppointmentItem[];
-          hasMore?: boolean;
-          page?: number;
-        };
+        const { items: nextItems, hasMore: nextHasMore } =
+          await fetchAppointmentsPage(nextPage);
         if (latestRequestIdRef.current !== requestId) return;
-        const nextItems = Array.isArray(data.items) ? data.items : [];
         setAppointments((current) => (append ? [...current, ...nextItems] : nextItems));
-        setHasMore(Boolean(data.hasMore));
-        setPage(typeof data.page === "number" ? data.page : nextPage);
+        setHasMore(nextHasMore);
+        setPage(nextPage);
       } catch {
         if (latestRequestIdRef.current !== requestId) return;
         if (!silent) setError("Failed to load appointments.");
@@ -386,25 +402,51 @@ export default function AdminAppointmentsClient() {
         if (!silent) setIsLoading(false);
       }
     },
-    [dateFilter, filterOnDate, patientSearch, doctorSearch, tab],
+    [fetchAppointmentsPage],
   );
+
+  const refreshLoadedPages = useCallback(async () => {
+    const requestId = ++latestRequestIdRef.current;
+    const pagesToLoad = loadedPageRef.current;
+    try {
+      const results = await Promise.all(
+        Array.from({ length: pagesToLoad }, (_, i) =>
+          fetchAppointmentsPage(i + 1),
+        ),
+      );
+      if (latestRequestIdRef.current !== requestId) return;
+      const merged = results.flatMap((r) => r.items);
+      const last = results[results.length - 1];
+      const savedScrollY = window.scrollY;
+      setAppointments(merged);
+      setHasMore(last?.hasMore ?? false);
+      requestAnimationFrame(() => {
+        if (latestRequestIdRef.current !== requestId) return;
+        window.scrollTo({ top: savedScrollY, behavior: "instant" });
+      });
+    } catch {
+      // Silent background refresh — no error banner.
+    }
+  }, [fetchAppointmentsPage]);
 
   useEffect(() => {
     void loadAppointments(1, false);
   }, [loadAppointments]);
 
   const silentRefresh = useCallback(
-    () => loadAppointments(1, false, { silent: true }),
-    [loadAppointments],
+    () => void refreshLoadedPages(),
+    [refreshLoadedPages],
   );
 
-  // TODO: Admin poll still refetches page 1 only. On page 2+, background refresh
-  // resets the list to 5 items. Apply refreshLoadedPages pattern from
-  // DoctorAppointmentsClient when admin realtime is prioritized.
   useAppointmentsListPoll({
     tab,
     pollBlocked: Boolean(cancelTarget || rescheduleTarget),
     refresh: silentRefresh,
+  });
+
+  useAdminAppointmentsPusher({
+    enabled: !cancelTarget && !rescheduleTarget,
+    onAppointmentsChanged: silentRefresh,
   });
 
   const hasActiveFilters =

@@ -28,6 +28,7 @@ import {
   createDoctorNotificationForDoctorId,
 } from "@/lib/notifications";
 import { formatDoctorDisplayName } from "@/lib/doctor-name";
+import { buildDoctorAppointmentsUrl } from "@/lib/doctor-appointments-link";
 import { triggerAppointmentsChanged } from "@/lib/pusher-server";
 import { cancelAppointmentByDoctor } from "@/lib/doctor-cancellations";
 import { sendDoctorHolidaySummaryEmail } from "@/lib/doctor-holiday-summary-email";
@@ -683,6 +684,7 @@ export const processDoctorOverdueAppointments = inngest.createFunction(
         time: true,
         timezone: true,
         patientName: true,
+        email: true,
         consultationType: true,
         overdueInAppNotifiedAt: true,
         overdueEmailNotifiedAt: true,
@@ -777,6 +779,15 @@ export const processDoctorOverdueAppointments = inngest.createFunction(
       });
       if (claimed.count === 0) continue;
 
+      const origin =
+        process.env.NEXT_PUBLIC_APP_URL ??
+        (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ??
+        "http://localhost:3000";
+      const reviewUrl = buildDoctorAppointmentsUrl(origin, {
+        tab: "pending-review",
+        search: appointment.email,
+      });
+
       const { error } = await resend.emails.send({
         from: getEmailFrom(),
         to: doctorEmail,
@@ -785,6 +796,8 @@ export const processDoctorOverdueAppointments = inngest.createFunction(
           heading: "Appointment pending review",
           message: `Appointment with ${appointment.patientName} is overdue by more than 48 hours and is still marked as confirmed. Please mark it as Completed or Cancelled.`,
           showActionLinks: false,
+          primaryActionLabel: "Review appointment",
+          primaryActionUrl: reviewUrl,
           doctorName: appointment.doctor.name,
           appointmentDate: formatDateInDoctorTz(
             dateStr,
