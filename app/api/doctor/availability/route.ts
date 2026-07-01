@@ -1078,6 +1078,7 @@ export async function DELETE(request: Request) {
       return NextResponse.json(
         {
           error: `Cannot delete booked slots (${err.bookedTimes.join(", ")}). Cancel the appointments first.`,
+          bookedTimes: err.bookedTimes,
         },
         { status: 409 },
       );

@@ -441,12 +441,12 @@ export function MyScheduleClient({
    * without resetting in-progress edit-builder state (windows/selected/etc).
    */
   const refreshCurrentDaySlotDetailsOnly = useCallback(
-    async (date: string): Promise<boolean> => {
+    async (date: string): Promise<SlotDetail[] | null> => {
       try {
         const res = await fetch(
           `/api/doctor/availability?date=${encodeURIComponent(date)}`,
         );
-        if (!res.ok) return false;
+        if (!res.ok) return null;
         const data = (await res.json()) as {
           slotDetails?: SlotDetail[];
           bookedSlotStarts?: string[];
@@ -473,13 +473,24 @@ export function MyScheduleClient({
           );
         }
         setBookedSlots(new Set(normalizedBooked));
-        return true;
+        return rawSlotDetails;
       } catch {
-        return false;
+        return null;
       }
     },
     [],
   );
+
+  const pruneSlotsToDelete = useCallback((details: SlotDetail[]) => {
+    setSlotsToDelete((prev) => {
+      const next = new Set(
+        [...prev].filter((t) =>
+          details.some((s) => s.startTime === t && !s.booked),
+        ),
+      );
+      return next.size === prev.size ? prev : next;
+    });
+  }, []);
 
   // Live-update the Set Availability day: when a patient books/cancels the
   // currently edited day, refresh booked guards in place (no manual reload,
@@ -497,7 +508,10 @@ export function MyScheduleClient({
     },
     onSlotUpdated: (payload) => {
       if (payload.date === singleDate) {
-        void refreshCurrentDaySlotDetailsOnly(singleDate);
+        void (async () => {
+          const details = await refreshCurrentDaySlotDetailsOnly(singleDate);
+          if (details) pruneSlotsToDelete(details);
+        })();
       }
     },
   });
@@ -902,7 +916,19 @@ export function MyScheduleClient({
         }),
       });
       if (!res.ok) {
-        const data = (await res.json()) as { error?: string };
+        const data = (await res.json()) as {
+          error?: string;
+          bookedTimes?: string[];
+        };
+        if (res.status === 409 && Array.isArray(data.bookedTimes)) {
+          const bookedSet = new Set(data.bookedTimes);
+          setSlotsToDelete((prev) => {
+            const next = new Set([...prev].filter((t) => !bookedSet.has(t)));
+            return next.size === prev.size ? prev : next;
+          });
+          const details = await refreshCurrentDaySlotDetailsOnly(singleDate);
+          if (details) pruneSlotsToDelete(details);
+        }
         throw new Error(data.error ?? "Delete failed");
       }
       const data = (await res.json()) as { deletedCount: number };
@@ -911,8 +937,8 @@ export function MyScheduleClient({
       );
       setSlotsToDelete(new Set());
       setDeleteMode(false);
-      const refreshed = await refreshCurrentDaySlotDetailsOnly(singleDate);
-      if (!refreshed) {
+      const refreshedDetails = await refreshCurrentDaySlotDetailsOnly(singleDate);
+      if (!refreshedDetails) {
         setDeleteError("Deleted slots, but failed to refresh current schedule.");
       }
       setViewScheduleListVersion((v) => v + 1);
