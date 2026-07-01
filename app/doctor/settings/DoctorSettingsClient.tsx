@@ -154,18 +154,18 @@ function TimezoneChangeConfirmDialog({
           id="timezone-change-title"
           className="font-montserrat text-base font-semibold text-[#333333]"
         >
-          Change clinic timezone?
+          Change practice timezone?
         </h2>
         <ul className="mt-3 list-disc space-y-2 pl-5 font-montserrat text-sm text-[#5E5E5E]">
           <li>
-            Your existing booked appointments keep their original times — they
-            won&apos;t move.
+            Existing appointments will not use your new timezone. Each one keeps
+            the timezone from when the patient booked. You can see each
+            appointment&apos;s timezone on your Appointments tab.
           </li>
           <li>
-            Your availability hours will now be treated as{" "}
-            <span className="font-medium text-[#333333]">{newTimezone}</span>,
-            so their real-world time shifts. Please review your schedule after
-            saving.
+            Your new timezone (
+            <span className="font-medium text-[#333333]">{newTimezone}</span>)
+            will apply to your open hours and bookable slots from now on.
           </li>
         </ul>
         <div className="mt-5 flex justify-end gap-2">
@@ -184,7 +184,7 @@ function TimezoneChangeConfirmDialog({
             className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-[#2555F3] px-4 py-2 font-montserrat text-sm font-medium text-white hover:bg-[#1e44c7] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {confirming && <Loader2 className="size-4 animate-spin" />}
-            Save timezone
+            {confirming ? "Saving..." : "Save settings"}
           </button>
         </div>
       </div>
@@ -372,7 +372,7 @@ export function DoctorSettingsClient({
               : !doctor.licenseNumber.trim()
                 ? "License number is required."
                 : !doctor.timezone.trim()
-                  ? "Clinic timezone is required."
+                  ? "Practice timezone is required."
                   : !doctor.currency.trim()
                     ? "Currency is required."
                     : !resolvedProfilePhotoUrl.trim()
@@ -753,7 +753,7 @@ export function DoctorSettingsClient({
             </div>
             <div className="flex flex-col gap-2">
               <label className="font-montserrat text-sm font-medium text-[#333333]">
-                Clinic timezone <span className="text-red-600">*</span>
+                Practice timezone <span className="text-red-600">*</span>
               </label>
               <select
                 value={doctor.timezone}
@@ -771,6 +771,10 @@ export function DoctorSettingsClient({
                 <option value="Asia/Singapore">Asia/Singapore</option>
                 <option value="Australia/Sydney">Australia/Sydney</option>
               </select>
+              <p className="font-montserrat text-xs text-[#5E5E5E]">
+                Used for your schedule, availability, and how appointment times
+                are shown.
+              </p>
             </div>
             <div className="flex flex-col gap-2">
               <label className="font-montserrat text-sm font-medium text-[#333333]">
