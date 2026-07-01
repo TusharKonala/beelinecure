@@ -368,6 +368,11 @@ export default function BookAppointmentDoctorPage() {
     consultationType: "CLINIC" | "ONLINE";
     doctorTimezone: string;
   } | null>(null);
+
+  useLayoutEffect(() => {
+    if (bookedConfirmation) stopRedirect();
+  }, [bookedConfirmation, stopRedirect]);
+
   const [approxEquivalentLabel, setApproxEquivalentLabel] = useState<
     string | null
   >(null);
@@ -809,9 +814,13 @@ export default function BookAppointmentDoctorPage() {
       setSubmitError(null);
       setIsSubmitting(true);
       let didRedirect = false;
-      let overlayStarted = false;
       try {
-        if (consultationType === null || !selectedSlot) return;
+        if (consultationType === null || !selectedSlot) {
+          setIsSubmitting(false);
+          return;
+        }
+
+        startRedirect();
 
         const doctorTimezone = slotsData?.doctorTimezone ?? "UTC";
         const doctorDate = selectedSlot.doctorDate;
@@ -823,8 +832,6 @@ export default function BookAppointmentDoctorPage() {
           (consultationType === "CLINIC" && clinicPaymentMode === "payNow");
 
         if (consultationType === "CLINIC" && !useBookingSessionCheckout) {
-          startRedirect();
-          overlayStarted = true;
           const res = await fetch("/api/appointments", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -873,12 +880,9 @@ export default function BookAppointmentDoctorPage() {
               link: enriched.link,
             });
             stopRedirect();
-            overlayStarted = false;
             return;
           }
 
-          stopRedirect();
-          overlayStarted = false;
           setBookedConfirmation({
             doctorName: doctor?.name
               ? formatDoctorDisplayName(doctor.name)
@@ -947,6 +951,7 @@ export default function BookAppointmentDoctorPage() {
               bookingEmail: data.email.trim(),
               link: enriched.link,
             });
+            stopRedirect();
             return;
           }
 
@@ -966,9 +971,7 @@ export default function BookAppointmentDoctorPage() {
         writeStoredHoldId(null);
         setSelectedSlot(null);
       } catch {
-        if (overlayStarted) {
-          stopRedirect();
-        }
+        stopRedirect();
         setSubmitError({ message: "Network error. Please try again." });
       } finally {
         if (!didRedirect) setIsSubmitting(false);

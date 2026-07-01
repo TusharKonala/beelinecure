@@ -14,7 +14,8 @@ export function ConfirmAndPayButton({
   bookingSessionId,
   doctorId,
 }: ConfirmAndPayButtonProps) {
-  const { redirectToLocation } = useRedirectOverlay();
+  const { redirectToLocation, startRedirect, stopRedirect } =
+    useRedirectOverlay();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showExpired, setShowExpired] = useState(false);
@@ -25,6 +26,7 @@ export function ConfirmAndPayButton({
     setShowExpired(false);
     setShowCalendarUnavailable(false);
     setIsLoading(true);
+    startRedirect();
 
     try {
       const res = await fetch("/api/create-checkout-session", {
@@ -46,11 +48,13 @@ export function ConfirmAndPayButton({
         if (json?.code === "BOOKING_SESSION_EXPIRED") {
           setShowExpired(true);
           setIsLoading(false);
+          stopRedirect();
           return;
         }
         if (json?.code === "DOCTOR_CALENDAR_NOT_CONNECTED") {
           setShowCalendarUnavailable(true);
           setIsLoading(false);
+          stopRedirect();
           return;
         }
         setError(
@@ -59,6 +63,7 @@ export function ConfirmAndPayButton({
             : "Unable to start payment. Please try again.",
         );
         setIsLoading(false);
+        stopRedirect();
         return;
       }
 
@@ -66,6 +71,7 @@ export function ConfirmAndPayButton({
     } catch {
       setError("Network error. Please try again.");
       setIsLoading(false);
+      stopRedirect();
     }
   };
 
