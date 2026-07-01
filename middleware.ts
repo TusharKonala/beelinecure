@@ -7,12 +7,15 @@ export default withAuth(
     const token = req.nextauth.token;
     const pathname = req.nextUrl.pathname;
 
-    // Doctors aren't allowed to book consultations through the patient flow.
-    // Anonymous (unauthenticated) and patient users still pass through; only
-    // logged-in DOCTOR users are bounced back to their own dashboard.
+    // Staff aren't allowed to book through the patient flow.
+    // Anonymous and patient users pass through; logged-in DOCTOR/ADMIN users
+    // are redirected to their own dashboards.
     if (pathname.startsWith("/book-appointment")) {
       if (token?.role === "DOCTOR") {
         return NextResponse.redirect(new URL("/doctor/overview", req.url));
+      }
+      if (token?.role === "ADMIN") {
+        return NextResponse.redirect(new URL("/admin/appointments", req.url));
       }
       return NextResponse.next();
     }
@@ -60,8 +63,8 @@ export default withAuth(
       signIn: "/auth/signin",
     },
     callbacks: {
-      // /book-appointment is a public flow — only the doctor-blocking branch
-      // above needs a token. withAuth's default would reject anonymous users
+      // /book-appointment is a public flow — only the staff-blocking branches
+      // above need a token. withAuth's default would reject anonymous users
       // here, breaking unauthenticated booking, so we authorize all requests
       // through to the handler above.
       authorized: ({ req, token }) => {

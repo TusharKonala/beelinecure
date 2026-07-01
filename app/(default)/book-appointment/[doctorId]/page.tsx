@@ -310,7 +310,6 @@ export default function BookAppointmentDoctorPage() {
 
   useEffect(() => {
     if (sessionStatus !== "authenticated" || !session?.user) return;
-    if (session.user.role === UserRole.ADMIN) return;
     const name = (session.user.name ?? "").trim();
     const email = (session.user.email ?? "").trim();
     if (!name && !email) return;

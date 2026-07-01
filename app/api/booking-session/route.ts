@@ -73,6 +73,12 @@ export async function POST(request: NextRequest) {
       { status: 403 },
     );
   }
+  if (session?.user?.role === UserRole.ADMIN) {
+    return NextResponse.json(
+      { error: "Admins cannot book through the patient booking flow." },
+      { status: 403 },
+    );
+  }
 
   const body = await request.json().catch(() => null);
 
