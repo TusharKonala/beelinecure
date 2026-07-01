@@ -82,6 +82,7 @@ export function BeelineCureMarketingNav() {
           : "/patient/overview";
 
   const showDashboardProgress = roleKey !== "admin";
+  const showBookAppointmentProgress = roleKey === "doctor";
 
   const closeMobileMenu = () => setMobileMenuOpen(false);
 
@@ -111,7 +112,11 @@ export function BeelineCureMarketingNav() {
               showDashboardProgress={showDashboardProgress}
               linkClass={navLinkMutedClass}
             />
-            <NavLink href="/book-appointment" className={navCtaClass}>
+            <NavLink
+              href="/book-appointment"
+              className={navCtaClass}
+              showProgress={showBookAppointmentProgress}
+            >
               Book Appointment
             </NavLink>
           </div>
@@ -165,6 +170,7 @@ export function BeelineCureMarketingNav() {
               <NavLink
                 href="/book-appointment"
                 className={`${mobileNavCtaClass} mt-3`}
+                showProgress={showBookAppointmentProgress}
                 onClick={closeMobileMenu}
               >
                 Book Appointment
