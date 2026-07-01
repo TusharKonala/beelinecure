@@ -14,7 +14,7 @@ import { Loader2 } from "lucide-react";
 import type { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 
 type RedirectOverlayContextValue = {
-  startRedirect: () => void;
+  startRedirect: (options?: { manualDismiss?: boolean }) => void;
   stopRedirect: () => void;
   /** Client-side App Router navigation (in-app routes). */
   redirectWithOverlay: (
@@ -38,13 +38,16 @@ export function RedirectOverlayProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const pathnameRef = useRef(pathname);
   const redirectingRef = useRef(false);
+  const manualDismissOnlyRef = useRef(false);
 
-  const startRedirect = useCallback(() => {
+  const startRedirect = useCallback((options?: { manualDismiss?: boolean }) => {
+    manualDismissOnlyRef.current = options?.manualDismiss ?? false;
     redirectingRef.current = true;
     setRedirecting(true);
   }, []);
 
   const stopRedirect = useCallback(() => {
+    manualDismissOnlyRef.current = false;
     redirectingRef.current = false;
     setRedirecting(false);
   }, []);
@@ -74,7 +77,11 @@ export function RedirectOverlayProvider({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
-    if (redirectingRef.current && pathname !== pathnameRef.current) {
+    if (
+      redirectingRef.current &&
+      pathname !== pathnameRef.current &&
+      !manualDismissOnlyRef.current
+    ) {
       redirectingRef.current = false;
       setRedirecting(false);
     }
@@ -82,10 +89,10 @@ export function RedirectOverlayProvider({ children }: { children: ReactNode }) {
   }, [pathname]);
 
   useEffect(() => {
-    if (!redirecting) return;
+    if (!redirecting || manualDismissOnlyRef.current) return;
 
     const timeoutId = window.setTimeout(() => {
-      if (redirectingRef.current) {
+      if (redirectingRef.current && !manualDismissOnlyRef.current) {
         redirectingRef.current = false;
         setRedirecting(false);
       }

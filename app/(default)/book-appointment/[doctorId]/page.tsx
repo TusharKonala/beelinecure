@@ -264,7 +264,7 @@ export default function BookAppointmentDoctorPage() {
   const params = useParams();
   const doctorId = String(params?.doctorId ?? "");
   const router = useRouter();
-  const { redirectWithOverlay, startRedirect, stopRedirect } = useRedirectOverlay();
+  const { startRedirect, stopRedirect } = useRedirectOverlay();
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedSlot, setSelectedSlot] = useState<BookableSlotRef | null>(null);
   const [consultationType, setConsultationType] =
@@ -820,7 +820,7 @@ export default function BookAppointmentDoctorPage() {
           return;
         }
 
-        startRedirect();
+        startRedirect({ manualDismiss: true });
 
         const doctorTimezone = slotsData?.doctorTimezone ?? "UTC";
         const doctorDate = selectedSlot.doctorDate;
@@ -957,10 +957,7 @@ export default function BookAppointmentDoctorPage() {
 
           const bookingSessionId = String(bookingSessionJson.bookingSessionId);
 
-          redirectWithOverlay(
-            router,
-            `/book-appointment/review/${bookingSessionId}`,
-          );
+          router.push(`/book-appointment/review/${bookingSessionId}`);
           didRedirect = true;
         }
 
@@ -988,7 +985,6 @@ export default function BookAppointmentDoctorPage() {
       slotsData?.doctorTimezone,
       patientTimezone,
       queryClient,
-      redirectWithOverlay,
       startRedirect,
       stopRedirect,
       router,
