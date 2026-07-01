@@ -1775,8 +1775,8 @@ export default function BookAppointmentDoctorPage() {
                     {isSubmitting
                       ? consultationType === "CLINIC" &&
                         clinicPaymentMode === "payAtClinic"
-                        ? "Redirecting…"
-                        : "Booking…"
+                        ? "Booking…"
+                        : "Redirecting…"
                       : consultationType === "ONLINE" ||
                           (consultationType === "CLINIC" &&
                             clinicPaymentMode === "payNow")
