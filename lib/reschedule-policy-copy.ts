@@ -13,13 +13,14 @@ export const RESCHEDULE_ONLY_MORE_THAN_24H =
 
 /** Shown when the patient picks a destination slot within 24 hours of now. */
 export const RESCHEDULE_DESTINATION_WITHIN_24H_WARNING =
-  "Heads up: this new slot is within 24 hours. You can confirm once, but you won't be able to reschedule again afterward.";
+  "Heads up: This new slot is within 24 hours. You can confirm once, but you won't be able to reschedule again afterward.";
 
 /** Confirmation surfaces: payment success (online), clinic booking confirmed. */
 export const RESCHEDULE_POLICY_CONFIRMATION_LINE = `${RESCHEDULE_ONLY_MORE_THAN_24H} If it is less than 24 hours before your visit, cancel and book again to choose a new time.`;
 
 /** When patients can reschedule (timing) — used on pre-booking UI. */
-export const RESCHEDULE_POLICY_TIMING_LINE = RESCHEDULE_POLICY_CONFIRMATION_LINE;
+export const RESCHEDULE_POLICY_TIMING_LINE =
+  RESCHEDULE_POLICY_CONFIRMATION_LINE;
 
 /** Where to reschedule after booking — used in emails. */
 export const RESCHEDULE_POLICY_HOW_TO_LINE =
