@@ -194,7 +194,10 @@ export async function PATCH(request: NextRequest) {
     }
     if (result.code === "ALREADY_CANCELLED") {
       return NextResponse.json(
-        { error: "Appointment already cancelled" },
+        {
+          error: "Appointment already cancelled",
+          code: "ALREADY_CANCELLED",
+        },
         { status: 409 },
       );
     }

@@ -15,6 +15,10 @@ import { SELECT_CHEVRON } from "@/lib/select-styles";
 import { useAppointmentsListPoll } from "@/lib/use-appointments-list-poll";
 import { useDoctorAppointmentsPusher } from "@/lib/use-doctor-appointments-pusher";
 import { APPOINTMENT_CANCELLATION_NOTE_MAX_CHARS } from "@/lib/appointment-schemas";
+import {
+  alreadyCancelledCancelMessage,
+  isAlreadyCancelledCancelResponse,
+} from "@/lib/staff-cancel-response";
 import { countChars } from "@/lib/text-char-limit";
 
 type ConsultationType = "CLINIC" | "ONLINE";
@@ -124,6 +128,9 @@ export default function DoctorAppointmentsClient({
   const [refundPreviewLoading, setRefundPreviewLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cancelConflictNotice, setCancelConflictNotice] = useState<string | null>(
+    null,
+  );
   const latestRequestIdRef = useRef(0);
   const loadedPageRef = useRef(1);
 
@@ -331,13 +338,26 @@ export default function DoctorAppointmentsClient({
           cancellationNote: cancelNote.trim() || undefined,
         }),
       });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        code?: string;
+      };
       if (!res.ok) {
+        if (isAlreadyCancelledCancelResponse(res.status, data)) {
+          setCancelTarget(null);
+          setCancelReason(null);
+          setCancelNote("");
+          setCancelConflictNotice(alreadyCancelledCancelMessage(data));
+          await refreshLoadedPages();
+          return;
+        }
         setError("Failed to cancel appointment.");
         return;
       }
       setCancelTarget(null);
       setCancelReason(null);
       setCancelNote("");
+      setCancelConflictNotice(null);
       await loadAppointments(1, false);
     } catch {
       setError("Failed to cancel appointment.");
@@ -503,6 +523,24 @@ export default function DoctorAppointmentsClient({
           </select>
         </div>
       </div>
+
+      {cancelConflictNotice ? (
+        <div
+          className="mt-6 flex items-start justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3"
+          role="status"
+        >
+          <p className="font-montserrat text-sm text-amber-900">
+            {cancelConflictNotice}
+          </p>
+          <button
+            type="button"
+            className="shrink-0 cursor-pointer font-montserrat text-xs font-medium text-amber-800 underline-offset-2 hover:underline"
+            onClick={() => setCancelConflictNotice(null)}
+          >
+            Dismiss
+          </button>
+        </div>
+      ) : null}
 
       {error ? (
         <div className="mt-6 rounded-xl border border-dashed border-[#e5e5e5] bg-[#fafafa] p-6 text-center">
