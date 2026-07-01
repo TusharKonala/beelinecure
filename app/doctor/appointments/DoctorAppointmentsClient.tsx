@@ -111,6 +111,7 @@ export default function DoctorAppointmentsClient({
   const initialTab = tabFromParam(searchParams.get("tab"));
   const initialSearch = searchFromParam(searchParams.get("search"));
   const [appointments, setAppointments] = useState<DoctorAppointmentItem[]>([]);
+  const [doctorTimezone, setDoctorTimezone] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [tab, setTab] = useState<TabKey>(initialTab);
@@ -215,7 +216,11 @@ export default function DoctorAppointmentsClient({
       const data = (await res.json()) as {
         items?: DoctorAppointmentItem[];
         hasMore?: boolean;
+        doctorTimezone?: string;
       };
+      if (typeof data.doctorTimezone === "string") {
+        setDoctorTimezone(data.doctorTimezone);
+      }
       return {
         items: Array.isArray(data.items) ? data.items : [],
         hasMore: Boolean(data.hasMore),
@@ -594,6 +599,11 @@ export default function DoctorAppointmentsClient({
                       <span>
                         <span className="font-medium">Time:</span>{" "}
                         {formatTimeInDoctorTz(a.date, a.time, a.timezone)}
+                        {doctorTimezone && a.timezone !== doctorTimezone ? (
+                          <span className="ml-1.5 text-xs font-normal text-[#5E5E5E]">
+                            ({a.timezone})
+                          </span>
+                        ) : null}
                       </span>
                       <span
                         className="hidden text-[#e5e5e5] min-[400px]:mx-2 min-[400px]:inline"

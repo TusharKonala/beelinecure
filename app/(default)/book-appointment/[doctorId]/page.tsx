@@ -866,6 +866,15 @@ export default function BookAppointmentDoctorPage() {
               typeof json?.error === "string"
                 ? json.error
                 : "Failed to book appointment";
+            if (code === "DOCTOR_TIMEZONE_CHANGED") {
+              stopRedirect();
+              void releaseCurrentHold();
+              setSelectedSlot(null);
+              setSelectedDurationMinutes(null);
+              invalidateSlotsRef.current();
+              setSubmitError({ message: apiMessage });
+              return;
+            }
             const enriched = enrichGuestBookingError({
               code,
               sessionStatus,
@@ -938,6 +947,15 @@ export default function BookAppointmentDoctorPage() {
               typeof bookingSessionJson?.error === "string"
                 ? bookingSessionJson.error
                 : "Failed to create booking session";
+            if (code === "DOCTOR_TIMEZONE_CHANGED") {
+              stopRedirect();
+              void releaseCurrentHold();
+              setSelectedSlot(null);
+              setSelectedDurationMinutes(null);
+              invalidateSlotsRef.current();
+              setSubmitError({ message: apiMessage });
+              return;
+            }
             const enriched = enrichGuestBookingError({
               code,
               sessionStatus,
@@ -990,6 +1008,7 @@ export default function BookAppointmentDoctorPage() {
       router,
       readStoredHoldId,
       writeStoredHoldId,
+      releaseCurrentHold,
       sessionStatus,
     ],
   );

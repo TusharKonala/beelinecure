@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
-import { AlertTriangle, Calendar, CheckCircle2 } from "lucide-react";
+import { AlertTriangle, Calendar, CheckCircle2, Loader2 } from "lucide-react";
 import PhoneInput, { isValidPhoneNumber } from "react-phone-number-input";
 import { Container } from "@/components/layout/Container";
 import { Button } from "@/components/ui/button";
@@ -98,6 +99,101 @@ function normaliseDoctorSnapshot(
   };
 }
 
+function TimezoneChangeConfirmDialog({
+  open,
+  newTimezone,
+  onClose,
+  onConfirm,
+  confirming,
+}: {
+  open: boolean;
+  newTimezone: string;
+  onClose: () => void;
+  onConfirm: () => void | Promise<void>;
+  confirming: boolean;
+}) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape" && !confirming) onClose();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = prev;
+    };
+  }, [open, onClose, confirming]);
+
+  if (!open || !mounted) return null;
+
+  const dialog = (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <button
+        type="button"
+        className="absolute inset-0 cursor-pointer bg-black/40"
+        aria-label="Close"
+        onClick={() => {
+          if (!confirming) onClose();
+        }}
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="timezone-change-title"
+        className="relative z-10 w-full max-w-md rounded-xl border border-[#e5e5e5] bg-white p-5 shadow-lg"
+      >
+        <h2
+          id="timezone-change-title"
+          className="font-montserrat text-base font-semibold text-[#333333]"
+        >
+          Change clinic timezone?
+        </h2>
+        <ul className="mt-3 list-disc space-y-2 pl-5 font-montserrat text-sm text-[#5E5E5E]">
+          <li>
+            Your existing booked appointments keep their original times — they
+            won&apos;t move.
+          </li>
+          <li>
+            Your availability hours will now be treated as{" "}
+            <span className="font-medium text-[#333333]">{newTimezone}</span>,
+            so their real-world time shifts. Please review your schedule after
+            saving.
+          </li>
+        </ul>
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            disabled={confirming}
+            onClick={onClose}
+            className="cursor-pointer rounded-lg border border-[#e5e5e5] px-4 py-2 font-montserrat text-sm font-medium text-[#333333] hover:bg-[#f5f5f5] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={confirming}
+            onClick={() => void onConfirm()}
+            className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-[#2555F3] px-4 py-2 font-montserrat text-sm font-medium text-white hover:bg-[#1e44c7] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {confirming && <Loader2 className="size-4 animate-spin" />}
+            Save timezone
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  return createPortal(dialog, document.body);
+}
+
 export function DoctorSettingsClient({
   initialDoctor,
   connected,
@@ -136,6 +232,7 @@ export function DoctorSettingsClient({
       priceMapToInputs(initialDoctor.consultationPriceCentsByDuration),
     ),
   );
+  const [showTimezoneConfirm, setShowTimezoneConfirm] = useState(false);
   const profilePhotoInputRef = useRef<HTMLInputElement | null>(null);
   // Sticky flag — once the doctor edits the currency manually, we never
   // overwrite it from a timezone change.
@@ -349,6 +446,14 @@ export function DoctorSettingsClient({
     } finally {
       setSavePending(false);
     }
+  }
+
+  function handleSaveClick() {
+    if (doctor.timezone.trim() !== initialSnapshot.timezone) {
+      setShowTimezoneConfirm(true);
+      return;
+    }
+    void onSave();
   }
 
   async function onDisconnect() {
@@ -822,7 +927,7 @@ export function DoctorSettingsClient({
             <div className="flex flex-wrap gap-2">
               <Button
                 type="button"
-                onClick={() => void onSave()}
+                onClick={() => handleSaveClick()}
                 disabled={
                   savePending ||
                   photoUploadPending ||
@@ -851,6 +956,18 @@ export function DoctorSettingsClient({
           </div>
         </section>
       </Container>
+      <TimezoneChangeConfirmDialog
+        open={showTimezoneConfirm}
+        newTimezone={doctor.timezone.trim()}
+        confirming={savePending}
+        onClose={() => {
+          if (!savePending) setShowTimezoneConfirm(false);
+        }}
+        onConfirm={async () => {
+          await onSave();
+          setShowTimezoneConfirm(false);
+        }}
+      />
       {pendingCropImageUrl ? (
         <DoctorPhotoCropper
           imageUrl={pendingCropImageUrl}

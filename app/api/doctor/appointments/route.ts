@@ -154,6 +154,7 @@ export async function GET(request: NextRequest) {
     hasMore: start + limit < filteredAppointments.length,
     total: filteredAppointments.length,
     page,
+    doctorTimezone: doctor.timezone,
   });
 }
 

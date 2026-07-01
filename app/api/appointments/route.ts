@@ -120,6 +120,7 @@ export async function POST(request: NextRequest) {
     consultationType,
     availabilityId,
     holdId: excludeSlotHoldId,
+    timezone: clientDoctorTimezone,
     patientTimezone,
   } = parsed.data;
 
@@ -148,6 +149,16 @@ export async function POST(request: NextRequest) {
   }
 
   const doctorTimezone = doctor.timezone;
+  if (clientDoctorTimezone !== doctorTimezone) {
+    return NextResponse.json(
+      {
+        error:
+          "The doctor updated their timezone. Times have been refreshed - please pick your slot again.",
+        code: "DOCTOR_TIMEZONE_CHANGED",
+      },
+      { status: 409 },
+    );
+  }
   const availabilityRows = await prisma.doctorAvailability.findMany({
     where: { doctorId, date },
   });
