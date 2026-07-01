@@ -20,11 +20,13 @@ function handleSignOut() {
 function AuthNavLinks({
   isAuthenticated,
   dashboardHref,
+  showDashboardProgress,
   linkClass,
   onCloseMenu,
 }: {
   isAuthenticated: boolean;
   dashboardHref: string;
+  showDashboardProgress: boolean;
   linkClass: string;
   onCloseMenu?: () => void;
 }) {
@@ -55,7 +57,7 @@ function AuthNavLinks({
       <NavLink
         href={dashboardHref}
         className={linkClass}
-        showProgress
+        showProgress={showDashboardProgress}
         onClick={onCloseMenu}
       >
         Dashboard
@@ -78,6 +80,8 @@ export function BeelineCureMarketingNav() {
         : roleKey === "admin"
           ? "/admin/dashboard"
           : "/patient/overview";
+
+  const showDashboardProgress = roleKey !== "admin";
 
   const closeMobileMenu = () => setMobileMenuOpen(false);
 
@@ -104,6 +108,7 @@ export function BeelineCureMarketingNav() {
             <AuthNavLinks
               isAuthenticated={isAuthenticated}
               dashboardHref={dashboardHref}
+              showDashboardProgress={showDashboardProgress}
               linkClass={navLinkMutedClass}
             />
             <NavLink href="/book-appointment" className={navCtaClass}>
@@ -153,6 +158,7 @@ export function BeelineCureMarketingNav() {
               <AuthNavLinks
                 isAuthenticated={isAuthenticated}
                 dashboardHref={dashboardHref}
+                showDashboardProgress={showDashboardProgress}
                 linkClass={mobileNavItemClass}
                 onCloseMenu={closeMobileMenu}
               />
