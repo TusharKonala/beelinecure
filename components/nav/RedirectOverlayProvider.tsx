@@ -15,6 +15,7 @@ import type { AppRouterInstance } from "next/dist/shared/lib/app-router-context.
 
 type RedirectOverlayContextValue = {
   startRedirect: () => void;
+  stopRedirect: () => void;
   /** Client-side App Router navigation (in-app routes). */
   redirectWithOverlay: (
     router: AppRouterInstance,
@@ -41,6 +42,11 @@ export function RedirectOverlayProvider({ children }: { children: ReactNode }) {
   const startRedirect = useCallback(() => {
     redirectingRef.current = true;
     setRedirecting(true);
+  }, []);
+
+  const stopRedirect = useCallback(() => {
+    redirectingRef.current = false;
+    setRedirecting(false);
   }, []);
 
   const redirectWithOverlay = useCallback(
@@ -90,7 +96,7 @@ export function RedirectOverlayProvider({ children }: { children: ReactNode }) {
 
   return (
     <RedirectOverlayContext.Provider
-      value={{ startRedirect, redirectWithOverlay, redirectToLocation }}
+      value={{ startRedirect, stopRedirect, redirectWithOverlay, redirectToLocation }}
     >
       {children}
       {redirecting && (

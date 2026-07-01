@@ -264,7 +264,7 @@ export default function BookAppointmentDoctorPage() {
   const params = useParams();
   const doctorId = String(params?.doctorId ?? "");
   const router = useRouter();
-  const { redirectWithOverlay } = useRedirectOverlay();
+  const { redirectWithOverlay, startRedirect, stopRedirect } = useRedirectOverlay();
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedSlot, setSelectedSlot] = useState<BookableSlotRef | null>(null);
   const [consultationType, setConsultationType] =
@@ -809,6 +809,7 @@ export default function BookAppointmentDoctorPage() {
       setSubmitError(null);
       setIsSubmitting(true);
       let didRedirect = false;
+      let overlayStarted = false;
       try {
         if (consultationType === null || !selectedSlot) return;
 
@@ -822,6 +823,8 @@ export default function BookAppointmentDoctorPage() {
           (consultationType === "CLINIC" && clinicPaymentMode === "payNow");
 
         if (consultationType === "CLINIC" && !useBookingSessionCheckout) {
+          startRedirect();
+          overlayStarted = true;
           const res = await fetch("/api/appointments", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -869,9 +872,13 @@ export default function BookAppointmentDoctorPage() {
               bookingEmail: data.email.trim(),
               link: enriched.link,
             });
+            stopRedirect();
+            overlayStarted = false;
             return;
           }
 
+          stopRedirect();
+          overlayStarted = false;
           setBookedConfirmation({
             doctorName: doctor?.name
               ? formatDoctorDisplayName(doctor.name)
@@ -959,6 +966,9 @@ export default function BookAppointmentDoctorPage() {
         writeStoredHoldId(null);
         setSelectedSlot(null);
       } catch {
+        if (overlayStarted) {
+          stopRedirect();
+        }
         setSubmitError({ message: "Network error. Please try again." });
       } finally {
         if (!didRedirect) setIsSubmitting(false);
@@ -976,6 +986,8 @@ export default function BookAppointmentDoctorPage() {
       patientTimezone,
       queryClient,
       redirectWithOverlay,
+      startRedirect,
+      stopRedirect,
       router,
       readStoredHoldId,
       writeStoredHoldId,
@@ -1761,7 +1773,10 @@ export default function BookAppointmentDoctorPage() {
                     className="mt-2 w-full cursor-pointer rounded-xl font-montserrat text-sm font-medium sm:px-8"
                   >
                     {isSubmitting
-                      ? "Booking…"
+                      ? consultationType === "CLINIC" &&
+                        clinicPaymentMode === "payAtClinic"
+                        ? "Redirecting…"
+                        : "Booking…"
                       : consultationType === "ONLINE" ||
                           (consultationType === "CLINIC" &&
                             clinicPaymentMode === "payNow")
