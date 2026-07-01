@@ -50,9 +50,11 @@ export function NavProgressProvider({ children }: { children: ReactNode }) {
       {children}
       {showBar && (
         <div
-          className="pointer-events-none fixed left-0 top-0 z-[99] h-[4.5px] w-full bg-[#2555F3] md:h-1"
+          className="pointer-events-none fixed left-0 top-0 z-[99] h-[4.5px] w-full bg-[#2555F3]/15 md:h-1"
           aria-hidden
-        />
+        >
+          <div className="h-full w-[45%] bg-[#2555F3]" />
+        </div>
       )}
     </NavProgressContext.Provider>
   );
