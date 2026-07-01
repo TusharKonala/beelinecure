@@ -19,6 +19,7 @@ const rescheduleSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   time: z.string().regex(/^\d{2}:\d{2}$/),
   patientTimezone: z.string().min(1).max(128).optional(),
+  expectedDoctorTimezone: z.string().min(1).max(128).optional(),
 });
 
 function parseDateOnly(value: string): Date | null {
@@ -35,7 +36,8 @@ type RescheduleResponse =
   | { status: "already_cancelled" }
   | { status: "appointment_passed" }
   | { status: "too_close_to_reschedule" }
-  | { status: "slot_unavailable" };
+  | { status: "slot_unavailable" }
+  | { status: "timezone_changed" };
 
 function formatDateOnly(date: Date): string {
   return date.toISOString().slice(0, 10);
@@ -127,7 +129,14 @@ export async function POST(request: NextRequest) {
     } satisfies RescheduleResponse);
   }
 
-  const { appointmentId, token, date: dateParam, time, patientTimezone } = parsed.data;
+  const {
+    appointmentId,
+    token,
+    date: dateParam,
+    time,
+    patientTimezone,
+    expectedDoctorTimezone,
+  } = parsed.data;
   const date = parseDateOnly(dateParam);
   if (!date) {
     return NextResponse.json({
@@ -187,6 +196,7 @@ export async function POST(request: NextRequest) {
     date,
     time,
     patientTimezoneOverride: patientTimezone,
+    expectedDoctorTimezone,
     requestOrigin,
     actorUserId: patientUser?.id ?? null,
     initiatedBy: "patient",
@@ -196,6 +206,11 @@ export async function POST(request: NextRequest) {
     if (result.code === "appointment_cancelled") {
       return NextResponse.json({
         status: "already_cancelled",
+      } satisfies RescheduleResponse);
+    }
+    if (result.code === "doctor_timezone_changed") {
+      return NextResponse.json({
+        status: "timezone_changed",
       } satisfies RescheduleResponse);
     }
     return NextResponse.json({

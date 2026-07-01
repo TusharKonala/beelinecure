@@ -76,6 +76,8 @@ export async function reschedulePatientAppointment(input: {
   date: Date;
   time: string;
   patientTimezoneOverride?: string;
+  /** Doctor timezone the client displayed when the slot was picked. */
+  expectedDoctorTimezone?: string;
   requestOrigin: string;
   /**
    * User id who initiated the reschedule. Stored on the resulting
@@ -86,7 +88,13 @@ export async function reschedulePatientAppointment(input: {
   initiatedBy?: RescheduleInitiator;
 }): Promise<
   | { ok: true }
-  | { ok: false; code: "slot_unavailable" | "appointment_cancelled" }
+  | {
+      ok: false;
+      code:
+        | "slot_unavailable"
+        | "appointment_cancelled"
+        | "doctor_timezone_changed";
+    }
 > {
   const {
     appointment,
@@ -94,15 +102,28 @@ export async function reschedulePatientAppointment(input: {
     date,
     time,
     patientTimezoneOverride,
+    expectedDoctorTimezone,
     requestOrigin,
     actorUserId,
     initiatedBy = "patient",
   } = input;
 
+  // Single read of the doctor, reused for slot duration and the timezone guard.
   const doctorForSlots = await prisma.doctor.findUnique({
     where: { id: appointment.doctorId },
-    select: { slotDurationMinutes: true },
+    select: { slotDurationMinutes: true, timezone: true },
   });
+
+  // Race guard: if the doctor changed timezone after the client rendered slots,
+  // reject so the client can refetch. Whichever change lands first wins.
+  if (
+    expectedDoctorTimezone &&
+    doctorForSlots &&
+    doctorForSlots.timezone !== expectedDoctorTimezone
+  ) {
+    return { ok: false, code: "doctor_timezone_changed" };
+  }
+
   const fallbackDuration = coerceAllowedSlotDurationMinutes(
     doctorForSlots?.slotDurationMinutes ?? 30,
   );

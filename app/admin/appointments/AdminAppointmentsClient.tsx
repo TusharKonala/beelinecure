@@ -3,7 +3,12 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import useInfiniteScroll from "react-infinite-scroll-hook";
-import { useQueries, useQuery, keepPreviousData } from "@tanstack/react-query";
+import {
+  useQueries,
+  useQuery,
+  useQueryClient,
+  keepPreviousData,
+} from "@tanstack/react-query";
 import { SetAvailabilityCalendar } from "@/app/doctor/my-schedule/SetAvailabilityCalendar";
 import { QuickCheckStyleDateField } from "@/components/QuickCheckStyleDateField";
 import { Button } from "@/components/ui/button";
@@ -28,7 +33,12 @@ import { useDoctorAppointmentsPusher } from "@/lib/use-doctor-appointments-pushe
 import { useAdminAppointmentsPusher } from "@/lib/use-admin-appointments-pusher";
 import type { AvailabilityChangedPayload } from "@/lib/pusher-server";
 import type { AppointmentsChangedPayload } from "@/lib/pusher-server";
-import { SLOT_NO_LONGER_AVAILABLE_MESSAGE } from "@/lib/slot-hold-shared";
+import {
+  DOCTOR_TIMEZONE_CHANGED_CODE,
+  DOCTOR_TIMEZONE_CHANGED_MESSAGE,
+  SLOT_NO_LONGER_AVAILABLE_MESSAGE,
+} from "@/lib/slot-hold-shared";
+import { useAutoDismissMessage } from "@/lib/use-auto-dismiss-message";
 import type { PatientConsultationChoice } from "@/lib/doctor-availability-slots";
 import { formatDoctorDisplayName } from "@/lib/doctor-name";
 import { SELECT_CHEVRON } from "@/lib/select-styles";
@@ -254,6 +264,12 @@ export default function AdminAppointmentsClient() {
     loadedPageRef.current = page;
   }, [page]);
 
+  const queryClient = useQueryClient();
+  const {
+    message: timezoneChangedNotice,
+    show: showTimezoneChangedNotice,
+    clear: clearTimezoneChangedNotice,
+  } = useAutoDismissMessage(5000);
   const [rescheduleTarget, setRescheduleTarget] = useState<AdminAppointmentItem | null>(
     null,
   );
@@ -940,6 +956,7 @@ export default function AdminAppointmentsClient() {
     setRescheduleError(null);
     setSlotUnavailableAlert(null);
     setRescheduleTerminalReason(null);
+    clearTimezoneChangedNotice();
     apptDatePresentRef.current = false;
     initialDateAppliedRef.current = false;
     cancellationCheckRef.current = false;
@@ -967,12 +984,27 @@ export default function AdminAppointmentsClient() {
           appointmentId: rescheduleTarget.id,
           date: selectedSlot.doctorDate,
           time: selectedSlot.startTime,
+          expectedDoctorTimezone: doctorTz,
         }),
       });
       if (!res.ok) {
-        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          code?: string;
+        };
         if (data.error === "Appointment is cancelled") {
           await markRescheduleTerminalCancelled("cancelled");
+          return;
+        }
+        if (data.code === DOCTOR_TIMEZONE_CHANGED_CODE) {
+          setSelectedSlot(null);
+          setRescheduleError(null);
+          setSlotUnavailableAlert(null);
+          setRescheduleStep("pick");
+          showTimezoneChangedNotice(DOCTOR_TIMEZONE_CHANGED_MESSAGE);
+          void queryClient.invalidateQueries({
+            queryKey: ["admin-reschedule-slots"],
+          });
           return;
         }
         setRescheduleError(
@@ -1678,6 +1710,14 @@ export default function AdminAppointmentsClient() {
                       This is the current slot — pick a different time to reschedule.
                     </p>
                   )}
+                  {timezoneChangedNotice && (
+                    <div
+                      className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 font-montserrat text-sm text-amber-800"
+                      role="status"
+                    >
+                      {timezoneChangedNotice}
+                    </div>
+                  )}
                   {(rescheduleError ?? slotUnavailableAlert) && (
                     <p className="font-montserrat text-sm text-red-600">
                       {rescheduleError ?? slotUnavailableAlert}
@@ -1712,6 +1752,14 @@ export default function AdminAppointmentsClient() {
 
               {rescheduleStep === "confirm" && (
                 <div className="mt-6 flex flex-col gap-4">
+                  {timezoneChangedNotice && (
+                    <div
+                      className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 font-montserrat text-sm text-amber-800"
+                      role="status"
+                    >
+                      {timezoneChangedNotice}
+                    </div>
+                  )}
                   {(rescheduleError ?? slotUnavailableAlert) && (
                     <p className="font-montserrat text-sm text-red-600">
                       {rescheduleError ?? slotUnavailableAlert}

@@ -51,11 +51,14 @@ import { formatDoctorDisplayName } from "@/lib/doctor-name";
 import { ReschedulePolicyNotice } from "@/app/(default)/book-appointment/components/ReschedulePolicyNotice";
 import type { PatientConsultationChoice } from "@/lib/doctor-availability-slots";
 import {
+  DOCTOR_TIMEZONE_CHANGED_CODE,
+  DOCTOR_TIMEZONE_CHANGED_MESSAGE,
   SLOT_HOLD_STORAGE_KEY,
   SLOT_NO_LONGER_AVAILABLE_MESSAGE,
   type SlotUpdatedPayload,
 } from "@/lib/slot-hold-shared";
 import { useDoctorSlotsPusher } from "@/lib/use-doctor-slots-pusher";
+import { useAutoDismissMessage } from "@/lib/use-auto-dismiss-message";
 
 const patientFormSchema = z.object({
   patientName: z.string().min(1, "Full name is required"),
@@ -265,6 +268,10 @@ export default function BookAppointmentDoctorPage() {
   const doctorId = String(params?.doctorId ?? "");
   const router = useRouter();
   const { startRedirect, stopRedirect } = useRedirectOverlay();
+  const {
+    message: timezoneChangedNotice,
+    show: showTimezoneChangedNotice,
+  } = useAutoDismissMessage(5000);
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedSlot, setSelectedSlot] = useState<BookableSlotRef | null>(null);
   const [consultationType, setConsultationType] =
@@ -866,13 +873,13 @@ export default function BookAppointmentDoctorPage() {
               typeof json?.error === "string"
                 ? json.error
                 : "Failed to book appointment";
-            if (code === "DOCTOR_TIMEZONE_CHANGED") {
+            if (code === DOCTOR_TIMEZONE_CHANGED_CODE) {
               stopRedirect();
               void releaseCurrentHold();
               setSelectedSlot(null);
               setSelectedDurationMinutes(null);
               invalidateSlotsRef.current();
-              setSubmitError({ message: apiMessage });
+              showTimezoneChangedNotice(DOCTOR_TIMEZONE_CHANGED_MESSAGE);
               return;
             }
             const enriched = enrichGuestBookingError({
@@ -947,13 +954,13 @@ export default function BookAppointmentDoctorPage() {
               typeof bookingSessionJson?.error === "string"
                 ? bookingSessionJson.error
                 : "Failed to create booking session";
-            if (code === "DOCTOR_TIMEZONE_CHANGED") {
+            if (code === DOCTOR_TIMEZONE_CHANGED_CODE) {
               stopRedirect();
               void releaseCurrentHold();
               setSelectedSlot(null);
               setSelectedDurationMinutes(null);
               invalidateSlotsRef.current();
-              setSubmitError({ message: apiMessage });
+              showTimezoneChangedNotice(DOCTOR_TIMEZONE_CHANGED_MESSAGE);
               return;
             }
             const enriched = enrichGuestBookingError({
@@ -1774,6 +1781,14 @@ export default function BookAppointmentDoctorPage() {
                       className="font-montserrat text-sm text-red-600 outline-none"
                     >
                       <p>{renderSubmitErrorMessage(submitError)}</p>
+                    </div>
+                  )}
+                  {timezoneChangedNotice && (
+                    <div
+                      role="status"
+                      className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 font-montserrat text-sm text-amber-800"
+                    >
+                      {timezoneChangedNotice}
                     </div>
                   )}
                   {consultationType !== null ? (

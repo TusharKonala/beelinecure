@@ -49,6 +49,10 @@ import {
   assertSlotBookable,
   SLOT_NO_LONGER_AVAILABLE_MESSAGE,
 } from "@/lib/slot-availability";
+import {
+  DOCTOR_TIMEZONE_CHANGED_CODE,
+  DOCTOR_TIMEZONE_CHANGED_MESSAGE,
+} from "@/lib/slot-hold-shared";
 import { consumeSlotHold } from "@/lib/slot-hold-server";
 import {
   acquireDoctorDateLock,
@@ -152,9 +156,8 @@ export async function POST(request: NextRequest) {
   if (clientDoctorTimezone !== doctorTimezone) {
     return NextResponse.json(
       {
-        error:
-          "The doctor updated their timezone. Times have been refreshed - please pick your slot again.",
-        code: "DOCTOR_TIMEZONE_CHANGED",
+        error: DOCTOR_TIMEZONE_CHANGED_MESSAGE,
+        code: DOCTOR_TIMEZONE_CHANGED_CODE,
       },
       { status: 409 },
     );

@@ -10,7 +10,12 @@ import {
   useRef,
   useState,
 } from "react";
-import { useQueries, useQuery, keepPreviousData } from "@tanstack/react-query";
+import {
+  useQueries,
+  useQuery,
+  useQueryClient,
+  keepPreviousData,
+} from "@tanstack/react-query";
 import { SetAvailabilityCalendar } from "@/app/doctor/my-schedule/SetAvailabilityCalendar";
 import { Button } from "@/components/ui/button";
 import { Container } from "@/components/layout/Container";
@@ -37,7 +42,11 @@ import type {
   AppointmentsChangedPayload,
   AvailabilityChangedPayload,
 } from "@/lib/pusher-server";
-import { SLOT_NO_LONGER_AVAILABLE_MESSAGE } from "@/lib/slot-hold-shared";
+import {
+  DOCTOR_TIMEZONE_CHANGED_MESSAGE,
+  SLOT_NO_LONGER_AVAILABLE_MESSAGE,
+} from "@/lib/slot-hold-shared";
+import { useAutoDismissMessage } from "@/lib/use-auto-dismiss-message";
 import type { PatientConsultationChoice } from "@/lib/doctor-availability-slots";
 import {
   getAppointmentStartMsFromParts,
@@ -193,6 +202,11 @@ function RescheduleContent() {
     [patientTimezone],
   );
 
+  const queryClient = useQueryClient();
+  const {
+    message: timezoneChangedNotice,
+    show: showTimezoneChangedNotice,
+  } = useAutoDismissMessage(5000);
   const [state, setState] = useState<RescheduleUiState>("idle");
   const [isLoadingAppointment, setIsLoadingAppointment] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -684,6 +698,7 @@ function RescheduleContent() {
           date: selectedSlot.doctorDate,
           time: selectedSlot.startTime,
           patientTimezone,
+          expectedDoctorTimezone: doctorTz,
         }),
       });
 
@@ -695,6 +710,17 @@ function RescheduleContent() {
       if (nextState === "success") {
         setConfirmedSlot(selectedSlot);
         setState("success");
+        return;
+      }
+
+      if (nextState === "timezone_changed") {
+        setSelectedSlot(null);
+        setSubmitError(null);
+        setSlotUnavailableAlert(null);
+        showTimezoneChangedNotice(DOCTOR_TIMEZONE_CHANGED_MESSAGE);
+        void queryClient.invalidateQueries({
+          queryKey: ["reschedule-slots"],
+        });
         return;
       }
 
@@ -950,6 +976,14 @@ function RescheduleContent() {
                       </section>
 
                       <section>
+                        {timezoneChangedNotice && (
+                          <div
+                            className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 font-montserrat text-sm text-amber-800"
+                            role="status"
+                          >
+                            {timezoneChangedNotice}
+                          </div>
+                        )}
                         {(submitError ?? slotUnavailableAlert) && (
                           <p
                             className="mb-4 font-montserrat text-sm text-red-600"

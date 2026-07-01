@@ -7,11 +7,16 @@ import { reschedulePatientAppointment } from "@/lib/appointment-reschedule";
 import { evaluateRescheduleEligibility } from "@/lib/appointment-reschedule-eligibility";
 import { z } from "zod";
 import { headers } from "next/headers";
+import {
+  DOCTOR_TIMEZONE_CHANGED_CODE,
+  DOCTOR_TIMEZONE_CHANGED_MESSAGE,
+} from "@/lib/slot-hold-shared";
 
 const bodySchema = z.object({
   appointmentId: z.string().min(1),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   time: z.string().regex(/^\d{2}:\d{2}$/),
+  expectedDoctorTimezone: z.string().min(1).max(128).optional(),
 });
 
 function parseDateOnly(value: string): Date | null {
@@ -90,7 +95,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid body" }, { status: 400 });
   }
 
-  const { appointmentId, date: dateParam, time } = parsed.data;
+  const { appointmentId, date: dateParam, time, expectedDoctorTimezone } =
+    parsed.data;
   const date = parseDateOnly(dateParam);
   if (!date) {
     return NextResponse.json({ error: "Invalid date" }, { status: 400 });
@@ -136,6 +142,7 @@ export async function POST(request: NextRequest) {
     dateParam,
     date,
     time,
+    expectedDoctorTimezone,
     requestOrigin,
     actorUserId: session.user.id,
     initiatedBy: "admin",
@@ -145,6 +152,15 @@ export async function POST(request: NextRequest) {
     if (result.code === "appointment_cancelled") {
       const { error, status } = adminErrorFromEligibility("cancelled");
       return NextResponse.json({ error }, { status });
+    }
+    if (result.code === "doctor_timezone_changed") {
+      return NextResponse.json(
+        {
+          error: DOCTOR_TIMEZONE_CHANGED_MESSAGE,
+          code: DOCTOR_TIMEZONE_CHANGED_CODE,
+        },
+        { status: 409 },
+      );
     }
     return NextResponse.json(
       { error: "This time slot is no longer available" },
