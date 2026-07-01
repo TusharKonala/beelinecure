@@ -14,7 +14,10 @@ import { Loader2 } from "lucide-react";
 import type { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 
 type RedirectOverlayContextValue = {
-  startRedirect: (options?: { manualDismiss?: boolean }) => void;
+  startRedirect: (options?: {
+    manualDismiss?: boolean;
+    showDelayMs?: number;
+  }) => void;
   stopRedirect: () => void;
   /** Client-side App Router navigation (in-app routes). */
   redirectWithOverlay: (
@@ -39,18 +42,46 @@ export function RedirectOverlayProvider({ children }: { children: ReactNode }) {
   const pathnameRef = useRef(pathname);
   const redirectingRef = useRef(false);
   const manualDismissOnlyRef = useRef(false);
+  const showDelayTimeoutRef = useRef<number | null>(null);
+  const startRedirectGenerationRef = useRef(0);
 
-  const startRedirect = useCallback((options?: { manualDismiss?: boolean }) => {
-    manualDismissOnlyRef.current = options?.manualDismiss ?? false;
-    redirectingRef.current = true;
-    setRedirecting(true);
+  const clearShowDelayTimeout = useCallback(() => {
+    if (showDelayTimeoutRef.current != null) {
+      window.clearTimeout(showDelayTimeoutRef.current);
+      showDelayTimeoutRef.current = null;
+    }
   }, []);
 
+  const startRedirect = useCallback(
+    (options?: { manualDismiss?: boolean; showDelayMs?: number }) => {
+      const generation = ++startRedirectGenerationRef.current;
+      clearShowDelayTimeout();
+
+      manualDismissOnlyRef.current = options?.manualDismiss ?? false;
+
+      const activate = () => {
+        if (startRedirectGenerationRef.current !== generation) return;
+        redirectingRef.current = true;
+        setRedirecting(true);
+      };
+
+      const showDelayMs = options?.showDelayMs ?? 0;
+      if (showDelayMs > 0) {
+        showDelayTimeoutRef.current = window.setTimeout(activate, showDelayMs);
+      } else {
+        activate();
+      }
+    },
+    [clearShowDelayTimeout],
+  );
+
   const stopRedirect = useCallback(() => {
+    startRedirectGenerationRef.current += 1;
+    clearShowDelayTimeout();
     manualDismissOnlyRef.current = false;
     redirectingRef.current = false;
     setRedirecting(false);
-  }, []);
+  }, [clearShowDelayTimeout]);
 
   const redirectWithOverlay = useCallback(
     (
