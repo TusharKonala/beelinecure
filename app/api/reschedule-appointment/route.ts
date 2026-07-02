@@ -78,6 +78,11 @@ export async function GET(request: NextRequest) {
 
   const appointment = await prisma.appointment.findUnique({
     where: { id: validatedAppointmentId },
+    include: {
+      doctor: {
+        select: { timezone: true },
+      },
+    },
   });
 
   if (
@@ -107,6 +112,7 @@ export async function GET(request: NextRequest) {
       date: formatDateOnly(appointment.date),
       time: appointment.time,
       timezone: appointment.timezone,
+      doctorCurrentTimezone: appointment.doctor.timezone,
       consultationType: appointment.consultationType,
       status: appointment.status,
       durationMinutes: appointment.durationMinutes,

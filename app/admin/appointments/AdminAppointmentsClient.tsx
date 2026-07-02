@@ -39,6 +39,7 @@ import {
   SLOT_NO_LONGER_AVAILABLE_MESSAGE,
 } from "@/lib/slot-hold-shared";
 import { TimezoneChangedNoticeBanner } from "@/components/booking/TimezoneChangedNoticeBanner";
+import { DoctorTimezoneMismatchNotice } from "@/components/booking/DoctorTimezoneMismatchNotice";
 import { useDismissibleMessage } from "@/lib/use-dismissible-message";
 import { refetchSlotsAfterTimezoneChange } from "@/lib/refetch-slots-after-timezone-change";
 import type { PatientConsultationChoice } from "@/lib/doctor-availability-slots";
@@ -140,6 +141,7 @@ type AdminAppointmentItem = {
   doctor: {
     name: string;
     specialization: string;
+    timezone: string;
   };
 };
 
@@ -826,6 +828,13 @@ export default function AdminAppointmentsClient() {
   });
 
   const doctorTz = slotsData?.doctorTimezone ?? rescheduleTarget?.timezone ?? "UTC";
+  const currentDoctorTimezone =
+    slotsData?.doctorTimezone ??
+    rescheduleTarget?.doctor.timezone ??
+    rescheduleTarget?.timezone ??
+    "UTC";
+  const showDoctorTimezoneMismatch =
+    !!rescheduleTarget && rescheduleTarget.timezone !== currentDoctorTimezone;
   const slotDetails = slotsData?.slotDetails ?? [];
   const slotsLoadingOrFetching =
     slotsLoading || (slotsFetching && isPlaceholderData);
@@ -1255,31 +1264,65 @@ export default function AdminAppointmentsClient() {
                     </p>
                     <p className="mt-1 font-montserrat text-sm text-[#5E5E5E]">{a.email}</p>
                     <p className="mt-1 font-montserrat text-sm text-[#5E5E5E]">{a.phone}</p>
-                    <div className="mt-3 flex flex-col gap-1 font-montserrat text-sm text-[#333333] min-[400px]:flex-row min-[400px]:flex-wrap min-[400px]:items-center">
-                      <span>
-                        <span className="font-medium">Date:</span>{" "}
-                        {formatDateInDoctorTz(a.date, a.time, a.timezone)}
-                      </span>
-                      <span
-                        className="hidden text-[#e5e5e5] min-[400px]:mx-2 min-[400px]:inline"
-                        aria-hidden
-                      >
-                        |
-                      </span>
-                      <span>
-                        <span className="font-medium">Time:</span>{" "}
-                        {formatTimeInDoctorTz(a.date, a.time, a.timezone)}
-                      </span>
-                      <span
-                        className="hidden text-[#e5e5e5] min-[400px]:mx-2 min-[400px]:inline"
-                        aria-hidden
-                      >
-                        |
-                      </span>
-                      <span>
-                        <span className="font-medium">Duration:</span>{" "}
-                        {a.durationMinutes} min
-                      </span>
+                    <div className="mt-3 flex flex-col gap-1 font-montserrat text-sm text-[#333333]">
+                      {a.timezone !== a.patientTimezone ? (
+                        <>
+                          <span>
+                            <span className="font-medium">Doctor:</span>{" "}
+                            {formatDateInDoctorTz(a.date, a.time, a.timezone)} ·{" "}
+                            {formatTimeInDoctorTz(a.date, a.time, a.timezone)} (
+                            {a.timezone})
+                          </span>
+                          <span>
+                            <span className="font-medium">Patient:</span>{" "}
+                            {formatDateInPatientTz(
+                              a.date,
+                              a.time,
+                              a.timezone,
+                              a.patientTimezone,
+                            )}{" "}
+                            ·{" "}
+                            {formatTimeInPatientTz(
+                              a.date,
+                              a.time,
+                              a.timezone,
+                              a.patientTimezone,
+                            )}{" "}
+                            ({a.patientTimezone})
+                          </span>
+                          <span>
+                            <span className="font-medium">Duration:</span>{" "}
+                            {a.durationMinutes} min
+                          </span>
+                        </>
+                      ) : (
+                        <span className="flex flex-col gap-1 min-[400px]:flex-row min-[400px]:flex-wrap min-[400px]:items-center">
+                          <span>
+                            <span className="font-medium">Date:</span>{" "}
+                            {formatDateInDoctorTz(a.date, a.time, a.timezone)}
+                          </span>
+                          <span
+                            className="hidden text-[#e5e5e5] min-[400px]:mx-2 min-[400px]:inline"
+                            aria-hidden
+                          >
+                            |
+                          </span>
+                          <span>
+                            <span className="font-medium">Time:</span>{" "}
+                            {formatTimeInDoctorTz(a.date, a.time, a.timezone)}
+                          </span>
+                          <span
+                            className="hidden text-[#e5e5e5] min-[400px]:mx-2 min-[400px]:inline"
+                            aria-hidden
+                          >
+                            |
+                          </span>
+                          <span>
+                            <span className="font-medium">Duration:</span>{" "}
+                            {a.durationMinutes} min
+                          </span>
+                        </span>
+                      )}
                     </div>
                     {shouldShowGoogleMeetLink && (
                       <p className="mt-2 font-montserrat text-sm">
@@ -1567,6 +1610,14 @@ export default function AdminAppointmentsClient() {
                 {consultationTypeLabel(rescheduleTarget.consultationType)} consultation.
                 Only slots matching this duration and consultation type are shown.
               </p>
+
+              {showDoctorTimezoneMismatch && (
+                <DoctorTimezoneMismatchNotice
+                  className="mt-4"
+                  currentDoctorTimezone={currentDoctorTimezone}
+                  appointmentTimezone={rescheduleTarget.timezone}
+                />
+              )}
 
               {rescheduleStep === "pick" && (
                 <div className="mt-6 flex flex-col gap-6">

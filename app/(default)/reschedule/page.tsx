@@ -47,6 +47,7 @@ import {
   SLOT_NO_LONGER_AVAILABLE_MESSAGE,
 } from "@/lib/slot-hold-shared";
 import { TimezoneChangedNoticeBanner } from "@/components/booking/TimezoneChangedNoticeBanner";
+import { DoctorTimezoneMismatchNotice } from "@/components/booking/DoctorTimezoneMismatchNotice";
 import { useDismissibleMessage } from "@/lib/use-dismissible-message";
 import { refetchSlotsAfterTimezoneChange } from "@/lib/refetch-slots-after-timezone-change";
 import type { PatientConsultationChoice } from "@/lib/doctor-availability-slots";
@@ -72,6 +73,7 @@ type AppointmentDetails = {
   date: string;
   time: string;
   timezone: string;
+  doctorCurrentTimezone: string;
   consultationType: ConsultationType;
   status: AppointmentStatus;
   durationMinutes: number;
@@ -490,6 +492,13 @@ function RescheduleContent() {
   });
 
   const doctorTz = slotsData?.doctorTimezone ?? appointment?.timezone ?? "UTC";
+  const currentDoctorTimezone =
+    slotsData?.doctorTimezone ??
+    appointment?.doctorCurrentTimezone ??
+    appointment?.timezone ??
+    "UTC";
+  const showDoctorTimezoneMismatch =
+    !!appointment && appointment.timezone !== currentDoctorTimezone;
   const slotDetails = slotsData?.slotDetails ?? [];
   const slotsLoadingOrFetching =
     slotsLoading || (slotsFetching && isPlaceholderData);
@@ -878,6 +887,13 @@ function RescheduleContent() {
                       Only slots matching this duration and consultation type are
                       shown.
                     </p>
+                    {showDoctorTimezoneMismatch && (
+                      <DoctorTimezoneMismatchNotice
+                        className="mt-4"
+                        currentDoctorTimezone={currentDoctorTimezone}
+                        appointmentTimezone={appointment.timezone}
+                      />
+                    )}
                     <div className="mt-8 flex flex-col gap-6">
                       <section>
                         <h2 className="font-montaga text-xl font-semibold leading-tight text-[#333333]">

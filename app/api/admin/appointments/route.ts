@@ -103,6 +103,7 @@ export async function GET(request: NextRequest) {
         select: {
           name: true,
           specialization: true,
+          timezone: true,
         },
       },
     },
@@ -152,6 +153,7 @@ export async function GET(request: NextRequest) {
       doctor: {
         name: formatDoctorDisplayName(a.doctor.name),
         specialization: a.doctor.specialization,
+        timezone: a.doctor.timezone,
       },
     })),
     hasMore: start + limit < filteredAppointments.length,

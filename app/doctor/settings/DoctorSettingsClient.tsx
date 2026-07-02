@@ -158,9 +158,9 @@ function TimezoneChangeConfirmDialog({
         </h2>
         <ul className="mt-3 list-disc space-y-2 pl-5 font-montserrat text-sm text-[#5E5E5E]">
           <li>
-            Existing appointments will not use your new timezone. Each one keeps
-            the timezone from when the patient booked. You can see each
-            appointment&apos;s timezone on your Appointments tab.
+            Existing appointments keep the timezone from when they were booked. On
+            your Appointments tab, only appointments whose timezone differs from
+            your current timezone show a timezone label next to the time.
           </li>
           <li>
             Your new timezone (
