@@ -253,6 +253,8 @@ function RescheduleContent() {
   const [activeHoldId, setActiveHoldId] = useState<string | null>(null);
   const [holdingSlotKey, setHoldingSlotKey] = useState<string | null>(null);
   const invalidateSlotsRef = useRef<() => void>(() => {});
+  /** BookableSlotRef key the active slot-taken alert refers to (hold fail / Pusher / confirm). */
+  const slotTakenAlertForKeyRef = useRef<string | null>(null);
 
   type AvailabilityDateChunk = { from: string; to: string };
   const [availabilityDateChunks, setAvailabilityDateChunks] = useState<
@@ -389,10 +391,6 @@ function RescheduleContent() {
     initialDateAppliedRef.current = true;
     if (enabledDateSet.has(appointmentPatientDate)) {
       setSelectedDate(appointmentPatientDate);
-      const initialSlot = initialAppointmentSlotRef.current;
-      if (initialSlot) {
-        setSelectedSlot(initialSlot);
-      }
     }
   }, [
     availabilityCalendarFetching,
@@ -511,6 +509,7 @@ function RescheduleContent() {
       setHasSelectionInteraction(true);
       setSubmitError(null);
       setSlotUnavailableAlert(null);
+      slotTakenAlertForKeyRef.current = null;
       setHoldingSlotKey(refKey);
       try {
         const previousHoldId = holdIdRef.current;
@@ -540,10 +539,13 @@ function RescheduleContent() {
           holdIdRef.current = null;
           setActiveHoldId(null);
           invalidateSlotsRef.current();
+          slotTakenAlertForKeyRef.current = refKey;
+          setSelectedSlot(null);
           setSlotUnavailableAlert(RESCHEDULE_SLOT_TAKEN_MESSAGE);
           return;
         }
 
+        slotTakenAlertForKeyRef.current = null;
         setSelectedSlot(ref);
         setSlotUnavailableAlert(null);
       } catch {
@@ -750,10 +752,20 @@ function RescheduleContent() {
     const stillAvailable = filteredSlots.some(
       (ref) => bookableSlotRefKey(ref) === key,
     );
-    if (stillAvailable) {
-      setSlotUnavailableAlert((prev) =>
-        prev === RESCHEDULE_SLOT_TAKEN_MESSAGE ? null : prev,
+    const alertKey = slotTakenAlertForKeyRef.current;
+    if (alertKey) {
+      const alertSlotBack = filteredSlots.some(
+        (ref) => bookableSlotRefKey(ref) === alertKey,
       );
+      if (alertSlotBack) {
+        slotTakenAlertForKeyRef.current = null;
+        setSlotUnavailableAlert((prev) =>
+          prev === RESCHEDULE_SLOT_TAKEN_MESSAGE ? null : prev,
+        );
+      }
+      return;
+    }
+    if (stillAvailable) {
       return;
     }
     const wasCurrentAppointment =
@@ -775,6 +787,7 @@ function RescheduleContent() {
     // now-defunct hold so it doesn't linger until TTL.
     void releaseCurrentHold();
     if (hasSelectionInteraction) {
+      slotTakenAlertForKeyRef.current = key;
       setSlotUnavailableAlert(RESCHEDULE_SLOT_TAKEN_MESSAGE);
     }
     setSelectedSlot(null);
@@ -850,6 +863,7 @@ function RescheduleContent() {
     setIsSubmitting(true);
     setSubmitError(null);
     setSlotUnavailableAlert(null);
+    slotTakenAlertForKeyRef.current = null;
     const holdId = holdIdRef.current;
     try {
       const res = await fetch("/api/reschedule-appointment", {
@@ -910,6 +924,9 @@ function RescheduleContent() {
 
       if (nextState === "slot_unavailable") {
         void releaseCurrentHold();
+        if (selectedSlot) {
+          slotTakenAlertForKeyRef.current = bookableSlotRefKey(selectedSlot);
+        }
         setSelectedSlot(null);
         setSubmitError(null);
         setSlotUnavailableAlert(RESCHEDULE_SLOT_TAKEN_MESSAGE);

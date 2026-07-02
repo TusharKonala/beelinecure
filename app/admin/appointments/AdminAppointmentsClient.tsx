@@ -294,6 +294,8 @@ export default function AdminAppointmentsClient() {
   const [activeHoldId, setActiveHoldId] = useState<string | null>(null);
   const [holdingSlotKey, setHoldingSlotKey] = useState<string | null>(null);
   const invalidateSlotsRef = useRef<() => void>(() => {});
+  /** BookableSlotRef key the active slot-taken alert refers to (hold fail / Pusher / confirm). */
+  const slotTakenAlertForKeyRef = useRef<string | null>(null);
   /** Submit/POST-originated error (owned by submitAdminReschedule). */
   const [rescheduleError, setRescheduleError] = useState<string | null>(null);
   const releaseCurrentHold = useCallback(
@@ -326,6 +328,7 @@ export default function AdminAppointmentsClient() {
       setHasSelectionInteraction(true);
       setRescheduleError(null);
       setSlotUnavailableAlert(null);
+      slotTakenAlertForKeyRef.current = null;
       setHoldingSlotKey(refKey);
       try {
         const previousHoldId = holdIdRef.current;
@@ -355,10 +358,13 @@ export default function AdminAppointmentsClient() {
           holdIdRef.current = null;
           setActiveHoldId(null);
           invalidateSlotsRef.current();
+          slotTakenAlertForKeyRef.current = refKey;
+          setSelectedSlot(null);
           setSlotUnavailableAlert(RESCHEDULE_SLOT_TAKEN_MESSAGE);
           return;
         }
 
+        slotTakenAlertForKeyRef.current = null;
         setSelectedSlot(ref);
         setSlotUnavailableAlert(null);
       } catch {
@@ -1037,15 +1043,24 @@ export default function AdminAppointmentsClient() {
     if (rescheduleStep !== "pick") return;
     if (!selectedSlot) return;
     if (holdingSlotKey !== null || slotsLoadingOrFetching) return;
+    const key = bookableSlotRefKey(selectedSlot);
     const stillAvailable = filteredSlots.some(
-      (ref) =>
-        ref.startTime === selectedSlot.startTime &&
-        ref.doctorDate === selectedSlot.doctorDate,
+      (ref) => bookableSlotRefKey(ref) === key,
     );
-    if (stillAvailable) {
-      setSlotUnavailableAlert((prev) =>
-        prev === RESCHEDULE_SLOT_TAKEN_MESSAGE ? null : prev,
+    const alertKey = slotTakenAlertForKeyRef.current;
+    if (alertKey) {
+      const alertSlotBack = filteredSlots.some(
+        (ref) => bookableSlotRefKey(ref) === alertKey,
       );
+      if (alertSlotBack) {
+        slotTakenAlertForKeyRef.current = null;
+        setSlotUnavailableAlert((prev) =>
+          prev === RESCHEDULE_SLOT_TAKEN_MESSAGE ? null : prev,
+        );
+      }
+      return;
+    }
+    if (stillAvailable) {
       return;
     }
     const wasCurrentAppointment =
@@ -1065,6 +1080,7 @@ export default function AdminAppointmentsClient() {
     // The held slot vanished from availability — drop the now-defunct hold.
     void releaseCurrentHold();
     if (hasSelectionInteraction) {
+      slotTakenAlertForKeyRef.current = key;
       setSlotUnavailableAlert(RESCHEDULE_SLOT_TAKEN_MESSAGE);
     }
     setSelectedSlot(null);
@@ -1101,6 +1117,7 @@ export default function AdminAppointmentsClient() {
     setRescheduleError(null);
     setSlotUnavailableAlert(null);
     setRescheduleTerminalReason(null);
+    slotTakenAlertForKeyRef.current = null;
     holdIdRef.current = null;
     setActiveHoldId(null);
     setHoldingSlotKey(null);
@@ -1118,6 +1135,7 @@ export default function AdminAppointmentsClient() {
     setRescheduleError(null);
     setSlotUnavailableAlert(null);
     setRescheduleTerminalReason(null);
+    slotTakenAlertForKeyRef.current = null;
     clearTimezoneChangedNotice();
     apptDatePresentRef.current = false;
     initialDateAppliedRef.current = false;
@@ -1130,6 +1148,7 @@ export default function AdminAppointmentsClient() {
     setRescheduleSubmitting(true);
     setRescheduleError(null);
     setSlotUnavailableAlert(null);
+    slotTakenAlertForKeyRef.current = null;
     const holdId = holdIdRef.current;
     try {
       const eligibility = await fetchAdminRescheduleEligibility(
@@ -1188,6 +1207,9 @@ export default function AdminAppointmentsClient() {
           data.error === SLOT_NO_LONGER_AVAILABLE_MESSAGE
         ) {
           void releaseCurrentHold();
+          if (selectedSlot) {
+            slotTakenAlertForKeyRef.current = bookableSlotRefKey(selectedSlot);
+          }
           flushSync(() => {
             setSelectedSlot(null);
             setRescheduleStep("pick");
