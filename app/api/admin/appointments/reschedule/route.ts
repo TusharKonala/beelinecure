@@ -17,6 +17,7 @@ const bodySchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   time: z.string().regex(/^\d{2}:\d{2}$/),
   expectedDoctorTimezone: z.string().min(1).max(128).optional(),
+  holdId: z.string().uuid().optional(),
 });
 
 function parseDateOnly(value: string): Date | null {
@@ -95,7 +96,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid body" }, { status: 400 });
   }
 
-  const { appointmentId, date: dateParam, time, expectedDoctorTimezone } =
+  const { appointmentId, date: dateParam, time, expectedDoctorTimezone, holdId } =
     parsed.data;
   const date = parseDateOnly(dateParam);
   if (!date) {
@@ -146,6 +147,7 @@ export async function POST(request: NextRequest) {
     requestOrigin,
     actorUserId: session.user.id,
     initiatedBy: "admin",
+    holdId,
   });
 
   if (!result.ok) {

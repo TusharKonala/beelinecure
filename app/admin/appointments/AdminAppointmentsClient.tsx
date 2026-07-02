@@ -24,6 +24,7 @@ import {
   todayYmdInTimeZone,
 } from "@/lib/timezone-display";
 import {
+  bookableSlotRefKey,
   filterReschedulableSlots,
   type BookableSlotRef,
 } from "@/lib/reschedule-slots";
@@ -37,6 +38,7 @@ import {
   DOCTOR_TIMEZONE_CHANGED_CODE,
   DOCTOR_TIMEZONE_CHANGED_MESSAGE,
   SLOT_NO_LONGER_AVAILABLE_MESSAGE,
+  type SlotUpdatedPayload,
 } from "@/lib/slot-hold-shared";
 import { TimezoneChangedNoticeBanner } from "@/components/booking/TimezoneChangedNoticeBanner";
 import { DoctorTimezoneMismatchNotice } from "@/components/booking/DoctorTimezoneMismatchNotice";
@@ -203,6 +205,7 @@ async function getSlots(
   doctorId: string,
   date: string,
   excludeAppointmentId: string,
+  excludeSlotHoldId?: string,
 ): Promise<{
   slots: string[];
   slotDetails: {
@@ -213,10 +216,13 @@ async function getSlots(
   doctorTimezone: string;
   slotDurationMinutes: number;
 }> {
+  const holdParam = excludeSlotHoldId
+    ? `&excludeSlotHoldId=${encodeURIComponent(excludeSlotHoldId)}`
+    : "";
   const res = await fetch(
     `/api/doctors/${doctorId}/slots?date=${encodeURIComponent(
       date,
-    )}&excludeAppointmentId=${encodeURIComponent(excludeAppointmentId)}`,
+    )}&excludeAppointmentId=${encodeURIComponent(excludeAppointmentId)}${holdParam}`,
     { cache: "no-store" },
   );
   if (!res.ok) throw new Error("Failed to fetch slots");
@@ -283,8 +289,92 @@ export default function AdminAppointmentsClient() {
   const [selectedSlot, setSelectedSlot] = useState<BookableSlotRef | null>(null);
   const [hasSelectionInteraction, setHasSelectionInteraction] = useState(false);
   const [rescheduleSubmitting, setRescheduleSubmitting] = useState(false);
+  /** Active SlotHold reserving the picked slot (mirrors the booking flow). */
+  const holdIdRef = useRef<string | null>(null);
+  const [activeHoldId, setActiveHoldId] = useState<string | null>(null);
+  const [holdingSlotKey, setHoldingSlotKey] = useState<string | null>(null);
+  const invalidateSlotsRef = useRef<() => void>(() => {});
   /** Submit/POST-originated error (owned by submitAdminReschedule). */
   const [rescheduleError, setRescheduleError] = useState<string | null>(null);
+  const releaseCurrentHold = useCallback(
+    async (holdId?: string | null, options?: { keepalive?: boolean }) => {
+      const id = holdId ?? holdIdRef.current;
+      if (!id) return;
+      holdIdRef.current = null;
+      setActiveHoldId(null);
+      try {
+        await fetch("/api/slot-hold", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ holdId: id }),
+          keepalive: options?.keepalive ?? false,
+        });
+      } catch {
+        // best-effort; the hold self-expires at its TTL
+      } finally {
+        invalidateSlotsRef.current();
+      }
+    },
+    [],
+  );
+
+  const acquireSlotHold = useCallback(
+    async (ref: BookableSlotRef): Promise<boolean> => {
+      const target = rescheduleTarget;
+      if (!target?.doctorId) return false;
+      const refKey = bookableSlotRefKey(ref);
+      setRescheduleError(null);
+      setSlotUnavailableAlert(null);
+      setHoldingSlotKey(refKey);
+      try {
+        const previousHoldId = holdIdRef.current;
+        if (previousHoldId) {
+          await releaseCurrentHold(previousHoldId);
+        }
+        const holdId = crypto.randomUUID();
+        holdIdRef.current = holdId;
+        setActiveHoldId(holdId);
+
+        const res = await fetch("/api/slot-hold", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            doctorId: target.doctorId,
+            date: ref.doctorDate,
+            time: ref.startTime,
+            consultationType: target.consultationType,
+            holdId,
+          }),
+        });
+        const json = (await res.json().catch(() => ({}))) as {
+          holdId?: string;
+          error?: string;
+        };
+        if (!res.ok) {
+          holdIdRef.current = null;
+          setActiveHoldId(null);
+          invalidateSlotsRef.current();
+          setSlotUnavailableAlert(
+            typeof json.error === "string"
+              ? json.error
+              : SLOT_NO_LONGER_AVAILABLE_MESSAGE,
+          );
+          return false;
+        }
+        invalidateSlotsRef.current();
+        return true;
+      } catch {
+        holdIdRef.current = null;
+        setActiveHoldId(null);
+        invalidateSlotsRef.current();
+        setSlotUnavailableAlert("Network error. Please try again.");
+        return false;
+      } finally {
+        setHoldingSlotKey(null);
+      }
+    },
+    [rescheduleTarget, releaseCurrentHold],
+  );
   /**
    * Live "slot no longer available" alert owned by the slot-gone effect. Kept
    * separate from rescheduleError so the effect (which can run against stale,
@@ -647,19 +737,23 @@ export default function AdminAppointmentsClient() {
     hasSelectionInteraction,
   ]);
 
-  const onRescheduleCalendarSelect = useCallback((ymd: string) => {
-    setHasSelectionInteraction(true);
-    setSelectedDate(ymd);
-    setSelectedSlot(null);
-    setRescheduleError(null);
-    setSlotUnavailableAlert(null);
-    requestAnimationFrame(() => {
-      rescheduleSlotsSectionRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
+  const onRescheduleCalendarSelect = useCallback(
+    (ymd: string) => {
+      setHasSelectionInteraction(true);
+      void releaseCurrentHold();
+      setSelectedDate(ymd);
+      setSelectedSlot(null);
+      setRescheduleError(null);
+      setSlotUnavailableAlert(null);
+      requestAnimationFrame(() => {
+        rescheduleSlotsSectionRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
       });
-    });
-  }, []);
+    },
+    [releaseCurrentHold],
+  );
 
   const onRescheduleCalendarViewingMonthChange = useCallback(
     (year: number, month0: number) => {
@@ -758,9 +852,45 @@ export default function AdminAppointmentsClient() {
     [rescheduleTarget, isRescheduleTerminal, markRescheduleTerminalCancelled],
   );
 
+  const shouldIgnoreOwnSlotUpdate = useCallback(
+    (payload: SlotUpdatedPayload) => {
+      if (
+        holdingSlotKey !== null &&
+        bookableSlotRefKey({
+          doctorDate: payload.date,
+          startTime: payload.time,
+        }) === holdingSlotKey
+      ) {
+        return true;
+      }
+      return (
+        activeHoldId !== null &&
+        selectedSlot !== null &&
+        payload.date === selectedSlot.doctorDate &&
+        payload.time === selectedSlot.startTime
+      );
+    },
+    [activeHoldId, selectedSlot, holdingSlotKey],
+  );
+
+  // Release any active hold if the admin navigates away or the page unloads.
+  useEffect(() => {
+    const onBeforeUnload = () => {
+      const id = holdIdRef.current;
+      if (id) void releaseCurrentHold(id, { keepalive: true });
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      const id = holdIdRef.current;
+      if (id) void releaseCurrentHold(id, { keepalive: true });
+    };
+  }, [releaseCurrentHold]);
+
   useDoctorSlotsPusher({
     doctorId: rescheduleTarget?.doctorId ?? "",
     enabled: !!rescheduleTarget?.doctorId,
+    shouldIgnoreSlotUpdate: shouldIgnoreOwnSlotUpdate,
     queryKeys: {
       slots: ["admin-reschedule-slots", rescheduleTarget?.id ?? ""],
       availableDates: [
@@ -814,18 +944,36 @@ export default function AdminAppointmentsClient() {
     isFetching: slotsFetching,
     isPlaceholderData,
   } = useQuery({
-    queryKey: ["admin-reschedule-slots", rescheduleTarget?.id, rescheduleTarget?.doctorId, selectedDate],
+    queryKey: [
+      "admin-reschedule-slots",
+      rescheduleTarget?.id,
+      rescheduleTarget?.doctorId,
+      selectedDate,
+      activeHoldId,
+    ],
     enabled: slotsEnabled && !!rescheduleTarget?.doctorId,
     queryFn: () =>
       getSlots(
         rescheduleTarget!.doctorId,
         selectedDate,
         rescheduleTarget!.id,
+        holdIdRef.current ?? undefined,
       ),
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
     placeholderData: keepPreviousData,
   });
+
+  invalidateSlotsRef.current = () => {
+    void queryClient.invalidateQueries({
+      queryKey: [
+        "admin-reschedule-slots",
+        rescheduleTarget?.id,
+        rescheduleTarget?.doctorId,
+        selectedDate,
+      ],
+    });
+  };
 
   const doctorTz = slotsData?.doctorTimezone ?? rescheduleTarget?.timezone ?? "UTC";
   const currentDoctorTimezone =
@@ -920,6 +1068,8 @@ export default function AdminAppointmentsClient() {
       setSelectedSlot(null);
       return;
     }
+    // The held slot vanished from availability — drop the now-defunct hold.
+    void releaseCurrentHold();
     if (hasSelectionInteraction) {
       setSlotUnavailableAlert(SLOT_NO_LONGER_AVAILABLE_MESSAGE);
     }
@@ -934,6 +1084,7 @@ export default function AdminAppointmentsClient() {
     slotsLoadingOrFetching,
     rescheduleSubmitting,
     verifyRescheduleStillActive,
+    releaseCurrentHold,
   ]);
 
   function openReschedule(a: AdminAppointmentItem) {
@@ -955,6 +1106,9 @@ export default function AdminAppointmentsClient() {
     setRescheduleError(null);
     setSlotUnavailableAlert(null);
     setRescheduleTerminalReason(null);
+    holdIdRef.current = null;
+    setActiveHoldId(null);
+    setHoldingSlotKey(null);
     apptDatePresentRef.current = false;
     initialDateAppliedRef.current = false;
     cancellationCheckRef.current = false;
@@ -962,6 +1116,7 @@ export default function AdminAppointmentsClient() {
 
   function closeReschedule() {
     if (rescheduleSubmitting) return;
+    void releaseCurrentHold();
     setRescheduleTarget(null);
     setRescheduleStep("pick");
     setSelectedSlot(null);
@@ -980,11 +1135,13 @@ export default function AdminAppointmentsClient() {
     setRescheduleSubmitting(true);
     setRescheduleError(null);
     setSlotUnavailableAlert(null);
+    const holdId = holdIdRef.current;
     try {
       const eligibility = await fetchAdminRescheduleEligibility(
         rescheduleTarget.id,
       );
       if (eligibility !== "eligible") {
+        void releaseCurrentHold();
         await markRescheduleTerminalCancelled("cancelled");
         return;
       }
@@ -997,6 +1154,7 @@ export default function AdminAppointmentsClient() {
           date: selectedSlot.doctorDate,
           time: selectedSlot.startTime,
           expectedDoctorTimezone: doctorTz,
+          ...(holdId ? { holdId } : {}),
         }),
       });
       if (!res.ok) {
@@ -1005,12 +1163,14 @@ export default function AdminAppointmentsClient() {
           code?: string;
         };
         if (data.error === "Appointment is cancelled") {
+          void releaseCurrentHold();
           await markRescheduleTerminalCancelled("cancelled");
           return;
         }
         if (data.code === DOCTOR_TIMEZONE_CHANGED_CODE) {
           const target = rescheduleTarget;
           const date = selectedDate;
+          void releaseCurrentHold();
           flushSync(() => {
             setSelectedSlot(null);
             setRescheduleStep("pick");
@@ -1028,11 +1188,17 @@ export default function AdminAppointmentsClient() {
           }
           return;
         }
+        void releaseCurrentHold();
+        setSelectedSlot(null);
         setRescheduleError(
           data.error ?? "Could not reschedule. The slot may no longer be available.",
         );
         return;
       }
+      // Server consumed the hold on success; drop the local ref so the
+      // closeReschedule() release below is a harmless no-op.
+      holdIdRef.current = null;
+      setActiveHoldId(null);
       const postEligibility = await fetchAdminRescheduleEligibility(
         rescheduleTarget.id,
       );
@@ -1712,9 +1878,11 @@ export default function AdminAppointmentsClient() {
                           const isCurrent =
                             ref.startTime === rescheduleTarget.time &&
                             ref.doctorDate === rescheduleTarget.date;
+                          const refKey = `${ref.doctorDate}:${ref.startTime}`;
+                          const isHolding = holdingSlotKey === refKey;
                           return (
                             <Button
-                              key={`${ref.doctorDate}:${ref.startTime}`}
+                              key={refKey}
                               type="button"
                               variant={
                                 selectedSlot?.startTime === ref.startTime &&
@@ -1722,7 +1890,10 @@ export default function AdminAppointmentsClient() {
                                   ? "default"
                                   : "outline"
                               }
-                              disabled={isCurrent}
+                              disabled={
+                                isCurrent ||
+                                (holdingSlotKey !== null && !isHolding)
+                              }
                               aria-disabled={isCurrent}
                               title={isCurrent ? "Current Slot" : undefined}
                               className={`h-11 rounded-xl font-montserrat text-sm ${
@@ -1733,12 +1904,15 @@ export default function AdminAppointmentsClient() {
                               onClick={() => {
                                 if (isCurrent) return;
                                 setHasSelectionInteraction(true);
-                                setSelectedSlot({
-                                  doctorDate: ref.doctorDate,
-                                  startTime: ref.startTime,
-                                });
                                 setRescheduleError(null);
                                 setSlotUnavailableAlert(null);
+                                const slotRef = {
+                                  doctorDate: ref.doctorDate,
+                                  startTime: ref.startTime,
+                                };
+                                void acquireSlotHold(slotRef).then((ok) => {
+                                  if (ok) setSelectedSlot(slotRef);
+                                });
                               }}
                             >
                               <span className="inline-flex flex-col items-center leading-tight">

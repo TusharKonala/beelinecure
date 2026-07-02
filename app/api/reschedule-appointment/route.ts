@@ -20,6 +20,7 @@ const rescheduleSchema = z.object({
   time: z.string().regex(/^\d{2}:\d{2}$/),
   patientTimezone: z.string().min(1).max(128).optional(),
   expectedDoctorTimezone: z.string().min(1).max(128).optional(),
+  holdId: z.string().uuid().optional(),
 });
 
 function parseDateOnly(value: string): Date | null {
@@ -142,6 +143,7 @@ export async function POST(request: NextRequest) {
     time,
     patientTimezone,
     expectedDoctorTimezone,
+    holdId,
   } = parsed.data;
   const date = parseDateOnly(dateParam);
   if (!date) {
@@ -206,6 +208,7 @@ export async function POST(request: NextRequest) {
     requestOrigin,
     actorUserId: patientUser?.id ?? null,
     initiatedBy: "patient",
+    holdId,
   });
 
   if (!result.ok) {

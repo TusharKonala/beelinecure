@@ -35,6 +35,9 @@ import {
   acquireDoctorDateLock,
   SlotUnavailableError,
 } from "@/lib/slot-lock";
+import { assertSlotBookable } from "@/lib/slot-availability";
+import { consumeSlotHold } from "@/lib/slot-hold-server";
+import { PrismaClientKnownRequestError } from "@prisma/client/runtime/client";
 import { triggerAppointmentsChanged, triggerSlotUpdated } from "@/lib/pusher-server";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -86,6 +89,8 @@ export async function reschedulePatientAppointment(input: {
    */
   actorUserId?: string | null;
   initiatedBy?: RescheduleInitiator;
+  /** The rescheduler's own active SlotHold on the target slot, excluded from the bookable check and consumed on success. */
+  holdId?: string;
 }): Promise<
   | { ok: true }
   | {
@@ -106,6 +111,7 @@ export async function reschedulePatientAppointment(input: {
     requestOrigin,
     actorUserId,
     initiatedBy = "patient",
+    holdId,
   } = input;
 
   // Single read of the doctor, reused for slot duration and the timezone guard.
@@ -160,16 +166,20 @@ export async function reschedulePatientAppointment(input: {
         throw new SlotUnavailableError();
       }
 
-      const conflict = await tx.appointment.findFirst({
-        where: {
-          doctorId: appointment.doctorId,
-          date,
-          time,
-          status: { not: AppointmentStatus.CANCELLED },
-          id: { not: appointment.id },
-        },
+      // Reject slots already booked, held in another patient's checkout
+      // (PENDING booking session), or reserved by another user's ACTIVE
+      // SlotHold. Excludes this appointment and the rescheduler's own hold.
+      // Runs under the per-day advisory lock acquired above; the Appointment
+      // partial unique index is the hard backstop for the residual TOCTOU
+      // window (see P2002 handling in the catch below).
+      const bookable = await assertSlotBookable({
+        doctorId: appointment.doctorId,
+        dateYmd: dateParam,
+        time,
+        excludeAppointmentId: appointment.id,
+        excludeSlotHoldId: holdId,
       });
-      if (conflict) {
+      if (!bookable.ok) {
         throw new SlotUnavailableError();
       }
 
@@ -205,10 +215,35 @@ export async function reschedulePatientAppointment(input: {
     if (err instanceof SlotUnavailableError) {
       return { ok: false, code: "slot_unavailable" };
     }
+    // The move is an updateMany onto the new slot, covered by the Appointment
+    // partial unique index (one non-cancelled row per doctor/date/time). A
+    // concurrent write that landed in the TOCTOU window surfaces as P2002 here.
+    if (err instanceof PrismaClientKnownRequestError && err.code === "P2002") {
+      return { ok: false, code: "slot_unavailable" };
+    }
     if (err instanceof AppointmentNotReschedulableError) {
       return { ok: false, code: err.code };
     }
     throw err;
+  }
+
+  // Consume the rescheduler's own hold on the new slot so it doesn't linger.
+  // Best-effort: on failure the hold self-expires at its TTL and the now-booked
+  // appointment blocks the slot regardless, so a stale hold is harmless.
+  if (holdId) {
+    try {
+      await consumeSlotHold({
+        holdId,
+        doctorId: appointment.doctorId,
+        dateYmd: dateParam,
+        time,
+      });
+    } catch (err) {
+      console.error(
+        "[appointment-reschedule] Failed to consume slot hold:",
+        err,
+      );
+    }
   }
 
   await triggerSlotUpdated(appointment.doctorId, {
