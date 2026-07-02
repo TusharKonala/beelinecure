@@ -941,6 +941,12 @@ export default function BookAppointmentDoctorPage() {
           });
 
           window.scrollTo({ top: 0, behavior: "smooth" });
+
+          setSelectedSlot(null);
+          writeStoredHoldId(null);
+          void queryClient.invalidateQueries({
+            queryKey: ["slots", doctorId],
+          });
         } else {
           const bookingSessionRes = await fetch("/api/booking-session", {
             method: "POST",
@@ -1011,16 +1017,14 @@ export default function BookAppointmentDoctorPage() {
 
           const bookingSessionId = String(bookingSessionJson.bookingSessionId);
 
+          setSelectedSlot(null);
+          writeStoredHoldId(null);
+          void queryClient.invalidateQueries({
+            queryKey: ["slots", doctorId],
+          });
           router.push(`/book-appointment/review/${bookingSessionId}`);
           didRedirect = true;
         }
-
-        void queryClient.invalidateQueries({
-          queryKey: ["slots", doctorId],
-        });
-
-        writeStoredHoldId(null);
-        setSelectedSlot(null);
       } catch {
         stopRedirect();
         setSubmitError({ message: "Network error. Please try again." });
@@ -1094,6 +1098,10 @@ export default function BookAppointmentDoctorPage() {
   useEffect(() => {
     if (!selectedSlot) return;
     if (holdingSlotKey !== null || slotsLoadingOrFetching) return;
+    if (isSubmitting || bookedConfirmation) {
+      setSelectedSlot(null);
+      return;
+    }
 
     const key = bookableSlotRefKey(selectedSlot);
     const stillAvailable = durationFilteredSlots.some(
@@ -1115,6 +1123,8 @@ export default function BookAppointmentDoctorPage() {
     releaseCurrentHold,
     holdingSlotKey,
     slotsLoadingOrFetching,
+    isSubmitting,
+    bookedConfirmation,
   ]);
 
   useEffect(() => {
@@ -1595,7 +1605,7 @@ export default function BookAppointmentDoctorPage() {
                     )}
                 </div>
 
-                {slotHoldAlert ? (
+                {slotHoldAlert && !isSubmitting && !bookedConfirmation ? (
                   <p
                     className="mt-4 font-montserrat text-sm text-destructive"
                     role="alert"
