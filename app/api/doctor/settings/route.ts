@@ -225,7 +225,7 @@ export async function PATCH(request: Request) {
     try {
       await inngest.send({
         name: "doctor/timezone.sweep-stale-appointments",
-        data: { doctorId: doctor.id },
+        data: { doctorId: doctor.id, oldTimezone, newTimezone },
         ts: Date.now() + 30 * 60 * 1000,
       });
     } catch (err) {

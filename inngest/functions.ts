@@ -32,6 +32,7 @@ import { buildDoctorAppointmentsUrl } from "@/lib/doctor-appointments-link";
 import { triggerAppointmentsChanged } from "@/lib/pusher-server";
 import { cancelAppointmentByDoctor } from "@/lib/doctor-cancellations";
 import { sendDoctorHolidaySummaryEmail } from "@/lib/doctor-holiday-summary-email";
+import { sendDoctorTimezoneChangeSummaryEmail } from "@/lib/doctor-timezone-change-summary-email";
 import { findStaleTimezoneFutureAppointments } from "@/lib/stale-timezone-appointments";
 import {
   applyBulkStatusUpdate,
@@ -1367,6 +1368,8 @@ export const cancelTimezoneChangeAppointments = inngest.createFunction(
       appointmentIds,
       requestOrigin,
       actorUserId,
+      oldTimezone,
+      newTimezone,
     } = event.data as {
       doctorId: string;
       appointmentIds: string[];
@@ -1412,13 +1415,15 @@ export const cancelTimezoneChangeAppointments = inngest.createFunction(
         },
       });
 
-      await sendDoctorHolidaySummaryEmail({
+      await sendDoctorTimezoneChangeSummaryEmail({
         doctor: {
           name: doctor.name,
           timezone: doctor.timezone,
           email: doctorEmail,
         },
         appointments,
+        oldTimezone,
+        newTimezone,
       });
     });
   },
@@ -1431,7 +1436,11 @@ export const sweepStaleTimezoneAppointments = inngest.createFunction(
     triggers: [{ event: "doctor/timezone.sweep-stale-appointments" }],
   },
   async ({ event, step }) => {
-    const { doctorId } = event.data as { doctorId: string };
+    const { doctorId, oldTimezone, newTimezone } = event.data as {
+      doctorId: string;
+      oldTimezone: string;
+      newTimezone: string;
+    };
 
     const { appointmentIds } = await step.run("find-stale", async () => {
       const stale = await findStaleTimezoneFutureAppointments(doctorId);
@@ -1453,10 +1462,44 @@ export const sweepStaleTimezoneAppointments = inngest.createFunction(
       );
     }
 
-    await step.run("log-summary", () => {
+    await step.run("doctor-summary-email", async () => {
+      const doctor = await prisma.doctor.findUnique({
+        where: { id: doctorId },
+        select: {
+          name: true,
+          timezone: true,
+          user: { select: { email: true } },
+        },
+      });
+      const doctorEmail = doctor?.user?.email?.trim();
+      if (!doctor || !doctorEmail) return;
+
+      const appointments = await prisma.appointment.findMany({
+        where: { id: { in: appointmentIds }, doctorId },
+        select: {
+          date: true,
+          time: true,
+          patientName: true,
+          email: true,
+          phone: true,
+          consultationType: true,
+        },
+      });
+
       console.info(
         `[timezone-sweep] Cancelled ${appointmentIds.length} stale appointment(s) for doctor ${doctorId}`,
       );
+
+      await sendDoctorTimezoneChangeSummaryEmail({
+        doctor: {
+          name: doctor.name,
+          timezone: doctor.timezone,
+          email: doctorEmail,
+        },
+        appointments,
+        oldTimezone,
+        newTimezone,
+      });
     });
 
     return { cancelled: appointmentIds.length };
