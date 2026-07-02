@@ -138,80 +138,83 @@ export async function reschedulePatientAppointment(input: {
     doctorForSlots?.slotDurationMinutes ?? 30,
   );
 
+  const bookable = await assertSlotBookable({
+    doctorId: appointment.doctorId,
+    dateYmd: dateParam,
+    time,
+    excludeAppointmentId: appointment.id,
+    excludeSlotHoldId: holdId,
+  });
+  if (!bookable.ok) {
+    return { ok: false, code: "slot_unavailable" };
+  }
+
   let updatedAppointment;
   try {
-    updatedAppointment = await prisma.$transaction(async (tx) => {
-      await acquireDoctorDateLock(tx, appointment.doctorId, dateParam);
+    updatedAppointment = await prisma.$transaction(
+      async (tx) => {
+        await acquireDoctorDateLock(tx, appointment.doctorId, dateParam);
 
-      const current = await tx.appointment.findUnique({
-        where: { id: appointment.id },
-        select: { status: true },
-      });
-      if (
-        !current ||
-        current.status === AppointmentStatus.CANCELLED ||
-        current.status === AppointmentStatus.COMPLETED
-      ) {
-        throw new AppointmentNotReschedulableError("appointment_cancelled");
-      }
+        const current = await tx.appointment.findUnique({
+          where: { id: appointment.id },
+          select: { status: true },
+        });
+        if (
+          !current ||
+          current.status === AppointmentStatus.CANCELLED ||
+          current.status === AppointmentStatus.COMPLETED
+        ) {
+          throw new AppointmentNotReschedulableError("appointment_cancelled");
+        }
 
-      const availabilityRows = await tx.doctorAvailability.findMany({
-        where: { doctorId: appointment.doctorId, date },
-      });
-      if (
-        resolveSlotMetaForStart(availabilityRows, time, fallbackDuration) ===
-        null
-      ) {
-        throw new SlotUnavailableError();
-      }
+        const availabilityRows = await tx.doctorAvailability.findMany({
+          where: { doctorId: appointment.doctorId, date },
+        });
+        if (
+          resolveSlotMetaForStart(availabilityRows, time, fallbackDuration) ===
+          null
+        ) {
+          throw new SlotUnavailableError();
+        }
 
-      // Reject slots already booked, held in another patient's checkout
-      // (PENDING booking session), or reserved by another user's ACTIVE
-      // SlotHold. Excludes this appointment and the rescheduler's own hold.
-      // Runs under the per-day advisory lock acquired above; the Appointment
-      // partial unique index is the hard backstop for the residual TOCTOU
-      // window (see P2002 handling in the catch below).
-      const bookable = await assertSlotBookable({
-        doctorId: appointment.doctorId,
-        dateYmd: dateParam,
-        time,
-        excludeAppointmentId: appointment.id,
-        excludeSlotHoldId: holdId,
-      });
-      if (!bookable.ok) {
-        throw new SlotUnavailableError();
-      }
-
-      const { count } = await tx.appointment.updateMany({
-        where: {
-          id: appointment.id,
-          status: {
-            in: [AppointmentStatus.CONFIRMED, AppointmentStatus.PENDING],
+        // Pre-tx assertSlotBookable above; partial unique index is the hard
+        // backstop for the residual TOCTOU window (see P2002 below).
+        const { count } = await tx.appointment.updateMany({
+          where: {
+            id: appointment.id,
+            status: {
+              in: [AppointmentStatus.CONFIRMED, AppointmentStatus.PENDING],
+            },
           },
-        },
-        data: {
-          date,
-          time,
-          timezone: currentDoctorTimezone,
-          ...(patientTimezoneOverride
-            ? { patientTimezone: patientTimezoneOverride }
-            : {}),
-        },
-      });
-      if (count !== 1) {
-        throw new AppointmentNotReschedulableError("appointment_cancelled");
-      }
+          data: {
+            date,
+            time,
+            timezone: currentDoctorTimezone,
+            ...(patientTimezoneOverride
+              ? { patientTimezone: patientTimezoneOverride }
+              : {}),
+          },
+        });
+        if (count !== 1) {
+          throw new AppointmentNotReschedulableError("appointment_cancelled");
+        }
 
-      const updated = await tx.appointment.findUnique({
-        where: { id: appointment.id },
-      });
-      if (!updated) {
-        throw new AppointmentNotReschedulableError("appointment_cancelled");
-      }
-      return updated;
-    });
+        const updated = await tx.appointment.findUnique({
+          where: { id: appointment.id },
+        });
+        if (!updated) {
+          throw new AppointmentNotReschedulableError("appointment_cancelled");
+        }
+        return updated;
+      },
+      { timeout: 30_000 },
+    );
   } catch (err) {
     if (err instanceof SlotUnavailableError) {
+      return { ok: false, code: "slot_unavailable" };
+    }
+    if (err instanceof PrismaClientKnownRequestError && err.code === "P2028") {
+      console.error("[appointment-reschedule] Transaction timeout:", err);
       return { ok: false, code: "slot_unavailable" };
     }
     // The move is an updateMany onto the new slot, covered by the Appointment
