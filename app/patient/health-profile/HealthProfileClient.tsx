@@ -8,6 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Pencil } from "lucide-react";
 import PhoneInput, { isValidPhoneNumber } from "react-phone-number-input";
+import { QuickCheckStyleDateField } from "@/components/QuickCheckStyleDateField";
 import { Button } from "@/components/ui/button";
 import { Container } from "@/components/layout/Container";
 import { computeAgeYears, computeBmi } from "@/lib/health-profile-metrics";
@@ -737,20 +738,17 @@ export function HealthProfileClient({ initialProfile }: Props) {
                 )}
 
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="flex flex-col gap-2">
-                    <label
-                      htmlFor="dateOfBirth"
-                      className="font-montserrat text-sm font-medium text-[#333333]"
-                    >
-                      Date of birth
-                    </label>
-                    <input
-                      id="dateOfBirth"
-                      type="date"
-                      className={inputClassName}
-                      {...form.register("dateOfBirth")}
-                    />
-                  </div>
+                  <QuickCheckStyleDateField
+                    id="dateOfBirth"
+                    label="Date of birth"
+                    value={dobWatch}
+                    onChange={(v) =>
+                      form.setValue("dateOfBirth", v, { shouldDirty: true })
+                    }
+                    labelClassName="font-montserrat text-sm font-medium text-[#333333]"
+                    className="max-w-none"
+                    ariaLabel="Date of birth"
+                  />
                   <div className="flex flex-col gap-2">
                     <span className="font-montserrat text-sm font-medium text-[#333333]">
                       Age

@@ -4,10 +4,15 @@ import { AppointmentStatus, type Prisma } from "@/generated/prisma/client";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatDoctorDisplayName } from "@/lib/doctor-name";
+import {
+  doctorAppointmentOnDateWhere,
+  doctorAppointmentOrderByForOnDate,
+  normalizeDoctorDateFilter,
+  parseDoctorOnDate,
+} from "@/lib/doctor-appointment-filters";
 import { isDoctorTimeInPast } from "@/lib/timezone-display";
 
 type TabKey = "upcoming" | "completed" | "cancelled";
-type DateFilterValue = "asc" | "desc" | "today" | "week" | "month";
 
 function localYMD(d: Date): string {
   const y = d.getFullYear();
@@ -41,6 +46,24 @@ function ymdToDate(value: string): Date {
   return d;
 }
 
+function presetDateWhere(
+  dateFilter: ReturnType<typeof normalizeDoctorDateFilter>,
+): Prisma.DateTimeFilter | undefined {
+  if (dateFilter === "today") {
+    const today = ymdToDate(localYMD(new Date()));
+    return { gte: today, lte: today };
+  }
+  if (dateFilter === "week") {
+    const { start, end } = thisWeekBounds();
+    return { gte: ymdToDate(start), lte: ymdToDate(end) };
+  }
+  if (dateFilter === "month") {
+    const { start, end } = thisMonthBounds();
+    return { gte: ymdToDate(start), lte: ymdToDate(end) };
+  }
+  return undefined;
+}
+
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
   const email = session?.user?.email;
@@ -51,7 +74,10 @@ export async function GET(request: NextRequest) {
   const search = request.nextUrl.searchParams;
   const tab = (search.get("tab") ?? "upcoming") as TabKey;
   const doctorId = (search.get("doctorId") ?? "").trim();
-  const dateFilter = (search.get("dateFilter") ?? "desc") as DateFilterValue;
+  const onDate = parseDoctorOnDate(search.get("onDate"));
+  const dateFilter = normalizeDoctorDateFilter(
+    onDate ? null : search.get("dateFilter"),
+  );
   const page = Math.max(1, Number(search.get("page") ?? "1") || 1);
   const limit = Math.min(20, Math.max(5, Number(search.get("limit") ?? "10") || 10));
 
@@ -67,22 +93,20 @@ export async function GET(request: NextRequest) {
     status: { in: statuses },
   };
 
-  if (dateFilter === "today") {
-    const today = ymdToDate(localYMD(new Date()));
-    baseWhere.date = { gte: today, lte: today };
-  } else if (dateFilter === "week") {
-    const { start, end } = thisWeekBounds();
-    baseWhere.date = { gte: ymdToDate(start), lte: ymdToDate(end) };
-  } else if (dateFilter === "month") {
-    const { start, end } = thisMonthBounds();
-    baseWhere.date = { gte: ymdToDate(start), lte: ymdToDate(end) };
+  const dateWhere = onDate
+    ? doctorAppointmentOnDateWhere(onDate)
+    : presetDateWhere(dateFilter);
+  if (dateWhere) {
+    baseWhere.date = dateWhere;
   }
 
   const sortDesc = dateFilter !== "asc";
-  const orderBy: Prisma.AppointmentOrderByWithRelationInput[] = [
-    { date: sortDesc ? "desc" : "asc" },
-    { time: sortDesc ? "desc" : "asc" },
-  ];
+  const orderBy: Prisma.AppointmentOrderByWithRelationInput[] = onDate
+    ? doctorAppointmentOrderByForOnDate()
+    : [
+        { date: sortDesc ? "desc" : "asc" },
+        { time: sortDesc ? "desc" : "asc" },
+      ];
 
   const selectedWhere: Prisma.AppointmentWhereInput = doctorId
     ? { ...baseWhere, doctorId }

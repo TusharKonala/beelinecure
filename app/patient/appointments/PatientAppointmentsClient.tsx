@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import useInfiniteScroll from "react-infinite-scroll-hook";
+import { QuickCheckStyleDateField } from "@/components/QuickCheckStyleDateField";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MontagaCapitalN } from "@/components/ui/MontagaCapitalN";
@@ -41,6 +42,7 @@ export type PatientAppointmentItem = {
 
 type TabKey = "upcoming" | "completed" | "cancelled";
 type DateFilterValue = "asc" | "desc" | "today" | "week" | "month";
+const DEFAULT_DATE_FILTER: DateFilterValue = "asc";
 type DoctorOption = { id: string; name: string };
 
 function tabFromParam(raw: string | null): TabKey {
@@ -113,7 +115,8 @@ export default function PatientAppointmentsClient() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [tab, setTab] = useState<TabKey>(initialTab);
   const [doctorId, setDoctorId] = useState<string>("");
-  const [dateFilter, setDateFilter] = useState<DateFilterValue>("desc");
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>(DEFAULT_DATE_FILTER);
+  const [filterOnDate, setFilterOnDate] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [reviewTarget, setReviewTarget] = useState<PatientAppointmentItem | null>(null);
   const latestRequestIdRef = useRef(0);
@@ -140,10 +143,14 @@ export default function PatientAppointmentsClient() {
       try {
         const params = new URLSearchParams({
           tab,
-          dateFilter,
           page: String(nextPage),
           limit: "10",
         });
+        if (filterOnDate) {
+          params.set("onDate", filterOnDate);
+        } else {
+          params.set("dateFilter", dateFilter);
+        }
         if (effectiveDoctorId) params.set("doctorId", effectiveDoctorId);
         const res = await fetch(`/api/patient/appointments?${params.toString()}`, {
           cache: "no-store",
@@ -177,8 +184,19 @@ export default function PatientAppointmentsClient() {
         }
       }
     },
-    [dateFilter, effectiveDoctorId, tab],
+    [dateFilter, effectiveDoctorId, filterOnDate, tab],
   );
+
+  const hasActiveFilters =
+    effectiveDoctorId !== "" ||
+    dateFilter !== DEFAULT_DATE_FILTER ||
+    filterOnDate !== "";
+
+  const clearAllFilters = () => {
+    setDoctorId("");
+    setDateFilter(DEFAULT_DATE_FILTER);
+    setFilterOnDate("");
+  };
 
   useEffect(() => {
     void loadAppointments(1, false);
@@ -275,6 +293,21 @@ export default function PatientAppointmentsClient() {
         </button>
       </div>
 
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <p className="font-montserrat text-xs text-[#5E5E5E]">
+          Filter by doctor and date.
+        </p>
+        {hasActiveFilters ? (
+          <button
+            type="button"
+            onClick={clearAllFilters}
+            className="cursor-pointer font-montserrat text-xs text-[#777777] underline underline-offset-4 transition hover:text-[#2555F3]"
+          >
+            Clear all filters
+          </button>
+        ) : null}
+      </div>
+
       <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end sm:gap-x-8 sm:gap-y-4">
         {doctorOptions.length > 0 && (
           <div className="flex min-w-0 flex-1 flex-col gap-2 sm:max-w-xs">
@@ -300,15 +333,32 @@ export default function PatientAppointmentsClient() {
           </div>
         )}
         <div className="flex min-w-0 flex-1 flex-col gap-2 sm:max-w-xs">
+          <QuickCheckStyleDateField
+            id="patient-appointments-filter-on-date"
+            label="Filter by date"
+            value={filterOnDate}
+            onChange={setFilterOnDate}
+            labelClassName="font-montserrat text-sm font-medium text-[#333333]"
+            className="max-w-none"
+            ariaLabel="Filter appointments by date"
+          />
+        </div>
+        <div className="flex min-w-0 flex-1 flex-col gap-2 sm:max-w-xs">
           <label
-            htmlFor="patient-appointments-date-filter"
+            htmlFor="patient-appointments-sort"
             className="shrink-0 font-montserrat text-sm font-medium text-[#333333]"
           >
-            Date
+            Sort
           </label>
           <select
-            id="patient-appointments-date-filter"
+            id="patient-appointments-sort"
             value={dateFilter}
+            disabled={Boolean(filterOnDate)}
+            title={
+              filterOnDate
+                ? "Clear the date filter to change sort"
+                : undefined
+            }
             onChange={(e) => {
               const v = e.target.value;
               if (
@@ -321,10 +371,10 @@ export default function PatientAppointmentsClient() {
                 setDateFilter(v);
               }
             }}
-            className={`w-full min-w-0 cursor-pointer rounded-xl border border-[#e5e5e5] bg-white py-2 pl-3 pr-10 font-montserrat text-sm text-[#333333] shadow-sm outline-none focus:border-[#2555F3] focus:ring-2 focus:ring-[#2555F3]/20 ${SELECT_CHEVRON}`}
+            className={`w-full min-w-0 cursor-pointer rounded-xl border border-[#e5e5e5] bg-white py-2 pl-3 pr-10 font-montserrat text-sm text-[#333333] shadow-sm outline-none focus:border-[#2555F3] focus:ring-2 focus:ring-[#2555F3]/20 disabled:cursor-not-allowed disabled:opacity-50 ${SELECT_CHEVRON}`}
           >
-            <option value="desc">Latest first</option>
             <option value="asc">Earliest first</option>
+            <option value="desc">Latest first</option>
             <option value="today">Today</option>
             <option value="week">This week</option>
             <option value="month">This month</option>

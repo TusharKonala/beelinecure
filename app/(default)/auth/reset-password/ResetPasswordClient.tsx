@@ -276,8 +276,8 @@ export default function ResetPasswordClient({
   return (
     <div className="flex flex-1 flex-col w-full bg-[#fafafa] py-10 md:py-14 lg:py-16">
       <Container>
-        <section className="mx-auto max-w-xl">
-          <div className="rounded-xl border border-[#e5e5e5] bg-white p-6 shadow-sm md:p-8">
+        <section className="mx-auto w-full max-w-xl">
+          <div className="w-full rounded-xl border border-[#e5e5e5] bg-white p-6 shadow-sm md:p-8">
             <h1 className="mb-4 font-montaga text-2xl font-semibold leading-tight text-[#333333] md:text-3xl">
               {isSetMode ? "Set your password" : "Reset password"}
             </h1>
