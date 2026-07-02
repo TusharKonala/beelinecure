@@ -124,6 +124,11 @@ export async function reschedulePatientAppointment(input: {
     return { ok: false, code: "doctor_timezone_changed" };
   }
 
+  const currentDoctorTimezone =
+    doctorForSlots?.timezone ??
+    expectedDoctorTimezone ??
+    appointment.timezone;
+
   const fallbackDuration = coerceAllowedSlotDurationMinutes(
     doctorForSlots?.slotDurationMinutes ?? 30,
   );
@@ -178,6 +183,7 @@ export async function reschedulePatientAppointment(input: {
         data: {
           date,
           time,
+          timezone: currentDoctorTimezone,
           ...(patientTimezoneOverride
             ? { patientTimezone: patientTimezoneOverride }
             : {}),
@@ -250,7 +256,7 @@ export async function reschedulePatientAppointment(input: {
     const reminderAtMs = reminderAtMsFromPatientLocal(
       dateParam,
       time,
-      appointment.timezone,
+      updatedAppointment.timezone,
     );
 
     if (reminderAtMs !== null) {
@@ -267,7 +273,7 @@ export async function reschedulePatientAppointment(input: {
       const t15Ms = onlineT15ReminderAtMs(
         dateParam,
         time,
-        appointment.timezone,
+        updatedAppointment.timezone,
       );
       if (t15Ms !== null) {
         await inngest.send({
@@ -281,7 +287,7 @@ export async function reschedulePatientAppointment(input: {
       const t120Ms = clinicT120ReminderAtMs(
         dateParam,
         time,
-        appointment.timezone,
+        updatedAppointment.timezone,
       );
       if (t120Ms !== null) {
         await inngest.send({
@@ -296,7 +302,7 @@ export async function reschedulePatientAppointment(input: {
       appointmentId: updatedAppointment.id,
       dateParam,
       time,
-      timezone: appointment.timezone,
+      timezone: updatedAppointment.timezone,
     });
   } catch (err) {
     console.error("[appointment-reschedule] Failed to re-schedule reminder:", err);
