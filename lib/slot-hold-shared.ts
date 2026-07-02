@@ -26,6 +26,28 @@ export function doctorTimezoneChangedBannerMessage(
   return `The doctor changed their timezone from ${oldTimezone} to ${newTimezone}. Available times were refreshed. Please pick a time again.`;
 }
 
+/** Shown on patient reschedule when the doctor changes timezone live or at commit. */
+export const DOCTOR_TIMEZONE_CHANGED_RESCHEDULE_MESSAGE =
+  "The doctor changed their practice timezone. Your appointment will be cancelled shortly. If you still need a visit, please book a new appointment from the doctor's page.";
+
+export function doctorTimezoneChangedRescheduleBannerMessage(
+  oldTimezone: string,
+  newTimezone: string,
+): string {
+  return `The doctor changed their timezone from ${oldTimezone} to ${newTimezone}. Your appointment will be cancelled shortly. If you still need a visit, please book a new appointment from the doctor's page.`;
+}
+
+/** Shown on admin reschedule when the doctor changes timezone live or at commit. */
+export const DOCTOR_TIMEZONE_CHANGED_RESCHEDULE_ADMIN_MESSAGE =
+  "The doctor changed their practice timezone. This appointment will be cancelled shortly. The patient will need to book a new appointment.";
+
+export function doctorTimezoneChangedRescheduleAdminBannerMessage(
+  oldTimezone: string,
+  newTimezone: string,
+): string {
+  return `The doctor changed their timezone from ${oldTimezone} to ${newTimezone}. This appointment will be cancelled shortly. The patient will need to book a new appointment.`;
+}
+
 export type SlotUpdatedPayload = {
   date: string;
   time: string;

@@ -9,7 +9,7 @@ import { z } from "zod";
 import { headers } from "next/headers";
 import {
   DOCTOR_TIMEZONE_CHANGED_CODE,
-  DOCTOR_TIMEZONE_CHANGED_MESSAGE,
+  DOCTOR_TIMEZONE_CHANGED_RESCHEDULE_ADMIN_MESSAGE,
 } from "@/lib/slot-hold-shared";
 
 const bodySchema = z.object({
@@ -158,7 +158,7 @@ export async function POST(request: NextRequest) {
     if (result.code === "doctor_timezone_changed") {
       return NextResponse.json(
         {
-          error: DOCTOR_TIMEZONE_CHANGED_MESSAGE,
+          error: DOCTOR_TIMEZONE_CHANGED_RESCHEDULE_ADMIN_MESSAGE,
           code: DOCTOR_TIMEZONE_CHANGED_CODE,
         },
         { status: 409 },

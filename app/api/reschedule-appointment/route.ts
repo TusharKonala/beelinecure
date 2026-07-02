@@ -9,7 +9,7 @@ import {
 } from "@/lib/appointment-reschedule-eligibility";
 import {
   DOCTOR_TIMEZONE_CHANGED_CODE,
-  DOCTOR_TIMEZONE_CHANGED_MESSAGE,
+  DOCTOR_TIMEZONE_CHANGED_RESCHEDULE_MESSAGE,
 } from "@/lib/slot-hold-shared";
 
 const rescheduleTokenSchema = z.object({
@@ -225,7 +225,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           status: "timezone_changed",
-          error: DOCTOR_TIMEZONE_CHANGED_MESSAGE,
+          error: DOCTOR_TIMEZONE_CHANGED_RESCHEDULE_MESSAGE,
           code: DOCTOR_TIMEZONE_CHANGED_CODE,
         } satisfies RescheduleResponse,
         { status: 409 },

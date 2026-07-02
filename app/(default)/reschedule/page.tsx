@@ -45,8 +45,8 @@ import type {
 } from "@/lib/pusher-server";
 import {
   DOCTOR_TIMEZONE_CHANGED_CODE,
-  DOCTOR_TIMEZONE_CHANGED_MESSAGE,
-  doctorTimezoneChangedBannerMessage,
+  DOCTOR_TIMEZONE_CHANGED_RESCHEDULE_MESSAGE,
+  doctorTimezoneChangedRescheduleBannerMessage,
   type SlotUpdatedPayload,
 } from "@/lib/slot-hold-shared";
 import { TimezoneChangedNoticeBanner } from "@/components/booking/TimezoneChangedNoticeBanner";
@@ -636,7 +636,7 @@ function RescheduleContent() {
       if (state !== "idle" || !appointment) return;
       if (payload.oldTimezone && payload.newTimezone) {
         showTimezoneChangedNotice(
-          doctorTimezoneChangedBannerMessage(
+          doctorTimezoneChangedRescheduleBannerMessage(
             payload.oldTimezone,
             payload.newTimezone,
           ),
@@ -648,6 +648,7 @@ function RescheduleContent() {
           "reschedule-slots",
           appointment.doctorId,
         ]);
+        void verifyAppointmentStillActive();
         return;
       }
       const apptDate = appointment.date;
@@ -937,7 +938,7 @@ function RescheduleContent() {
         nextState === "timezone_changed"
       ) {
         void releaseCurrentHold();
-        showTimezoneChangedNotice(DOCTOR_TIMEZONE_CHANGED_MESSAGE);
+        showTimezoneChangedNotice(DOCTOR_TIMEZONE_CHANGED_RESCHEDULE_MESSAGE);
         setSelectedSlot(null);
         setSubmitError(null);
         setSlotUnavailableAlert(null);
@@ -1262,7 +1263,8 @@ function RescheduleContent() {
                           disabled={
                             !selectedSlot ||
                             isSubmitting ||
-                            isCurrentAppointmentSlot
+                            isCurrentAppointmentSlot ||
+                            !!timezoneChangedNotice
                           }
                           onClick={onConfirmReschedule}
                           className="h-11 w-full cursor-pointer rounded-xl font-montserrat text-sm font-medium sm:h-12 md:text-base"

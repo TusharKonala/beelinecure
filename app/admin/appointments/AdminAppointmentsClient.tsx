@@ -37,8 +37,8 @@ import type { AvailabilityChangedPayload } from "@/lib/pusher-server";
 import type { AppointmentsChangedPayload } from "@/lib/pusher-server";
 import {
   DOCTOR_TIMEZONE_CHANGED_CODE,
-  DOCTOR_TIMEZONE_CHANGED_MESSAGE,
-  doctorTimezoneChangedBannerMessage,
+  DOCTOR_TIMEZONE_CHANGED_RESCHEDULE_ADMIN_MESSAGE,
+  doctorTimezoneChangedRescheduleAdminBannerMessage,
   SLOT_NO_LONGER_AVAILABLE_MESSAGE,
   type SlotUpdatedPayload,
 } from "@/lib/slot-hold-shared";
@@ -836,18 +836,20 @@ export default function AdminAppointmentsClient() {
       if (!rescheduleTarget || isRescheduleTerminal) return;
       if (payload.oldTimezone && payload.newTimezone) {
         showTimezoneChangedNotice(
-          doctorTimezoneChangedBannerMessage(
+          doctorTimezoneChangedRescheduleAdminBannerMessage(
             payload.oldTimezone,
             payload.newTimezone,
           ),
         );
         setSelectedSlot(null);
         setHasSelectionInteraction(false);
+        setRescheduleStep("pick");
         await releaseCurrentHold();
         await refetchSlotsAfterTimezoneChange(queryClient, [
           "admin-reschedule-slots",
           rescheduleTarget.id,
         ]);
+        void verifyRescheduleStillActive();
         return;
       }
       const apptDate = rescheduleTarget.date;
@@ -1224,7 +1226,7 @@ export default function AdminAppointmentsClient() {
           });
           setRescheduleError(null);
           setSlotUnavailableAlert(null);
-          showTimezoneChangedNotice(DOCTOR_TIMEZONE_CHANGED_MESSAGE);
+          showTimezoneChangedNotice(DOCTOR_TIMEZONE_CHANGED_RESCHEDULE_ADMIN_MESSAGE);
           if (target && date) {
             await refetchSlotsAfterTimezoneChange(queryClient, [
               "admin-reschedule-slots",
@@ -2044,7 +2046,8 @@ export default function AdminAppointmentsClient() {
                         !selectedSlot ||
                         isCurrentAppointmentSlot ||
                         shouldBlockCurrentAppointmentSlot ||
-                        rescheduleSubmitting
+                        rescheduleSubmitting ||
+                        !!timezoneChangedNotice
                       }
                       className="cursor-pointer disabled:cursor-not-allowed"
                       onClick={() => setRescheduleStep("confirm")}
@@ -2084,7 +2087,7 @@ export default function AdminAppointmentsClient() {
                     </Button>
                     <Button
                       type="button"
-                      disabled={rescheduleSubmitting}
+                      disabled={rescheduleSubmitting || !!timezoneChangedNotice}
                       className="cursor-pointer disabled:cursor-not-allowed"
                       onClick={() => void submitAdminReschedule()}
                     >
