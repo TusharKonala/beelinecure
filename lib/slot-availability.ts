@@ -6,6 +6,10 @@ import {
   SlotHoldStatus,
 } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
+import {
+  appointmentInstantMs,
+  slotInstantMs,
+} from "@/lib/slot-instant-matching";
 
 export const SLOT_NO_LONGER_AVAILABLE_MESSAGE =
   "This time slot is no longer available";
@@ -156,7 +160,7 @@ export async function assertSlotBookable(
   if (
     await hasActiveAppointmentAtSlot({
       doctorId: input.doctorId,
-      date,
+      dateYmd: input.dateYmd,
       time: input.time,
       excludeAppointmentId: input.excludeAppointmentId,
     })
@@ -205,23 +209,43 @@ export async function assertSlotBookable(
 
 async function hasActiveAppointmentAtSlot(input: {
   doctorId: string;
-  date: Date;
+  dateYmd: string;
   time: string;
   excludeAppointmentId?: string;
 }): Promise<boolean> {
-  const existingAppointment = await prisma.appointment.findFirst({
+  const doctor = await prisma.doctor.findUnique({
+    where: { id: input.doctorId },
+    select: { timezone: true },
+  });
+  if (!doctor) return false;
+
+  const slotMs = slotInstantMs(
+    { doctorDate: input.dateYmd, startTime: input.time },
+    doctor.timezone,
+  );
+
+  const anchor = parseDateOnly(input.dateYmd);
+  if (!anchor) return false;
+  const dayBefore = new Date(anchor);
+  dayBefore.setUTCDate(dayBefore.getUTCDate() - 1);
+  const dayAfter = new Date(anchor);
+  dayAfter.setUTCDate(dayAfter.getUTCDate() + 1);
+
+  const appointments = await prisma.appointment.findMany({
     where: {
       doctorId: input.doctorId,
-      date: input.date,
-      time: input.time,
+      date: { gte: dayBefore, lte: dayAfter },
       status: { not: AppointmentStatus.CANCELLED },
       ...(input.excludeAppointmentId
         ? { id: { not: input.excludeAppointmentId } }
         : {}),
     },
-    select: { id: true },
+    select: { id: true, date: true, time: true, timezone: true },
   });
-  return existingAppointment !== null;
+
+  return appointments.some(
+    (appointment) => appointmentInstantMs(appointment) === slotMs,
+  );
 }
 
 /**
@@ -242,7 +266,7 @@ export async function assertSlotAvailableForCheckout(
   if (
     await hasActiveAppointmentAtSlot({
       doctorId: input.doctorId,
-      date,
+      dateYmd: input.dateYmd,
       time: input.time,
     })
   ) {

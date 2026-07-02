@@ -26,6 +26,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { inngest } from "@/inngest/client";
 import { triggerAvailabilityChanged } from "@/lib/pusher-server";
+import {
+  appointmentInstantMs,
+  isSlotInstantBookedByAppointment,
+  isSlotBookedByAnyAppointment,
+} from "@/lib/slot-instant-matching";
 import { acquireDoctorDateLocks, acquireDoctorDateLock } from "@/lib/slot-lock";
 
 export const dynamic = "force-dynamic";
@@ -340,15 +345,8 @@ export async function GET(request: NextRequest) {
         date: { gte: ymdToPrismaDate(today) },
         status: { in: [AppointmentStatus.CONFIRMED, AppointmentStatus.PENDING] },
       },
-      select: { date: true, time: true },
+      select: { date: true, time: true, timezone: true },
     });
-    const bookedByDate = new Map<string, Set<string>>();
-    for (const appt of upcomingAppointments) {
-      const dateKey = appt.date.toISOString().slice(0, 10);
-      const daySet = bookedByDate.get(dateKey) ?? new Set<string>();
-      daySet.add(appt.time);
-      bookedByDate.set(dateKey, daySet);
-    }
 
     const byDate = new Map<
       string,
@@ -384,12 +382,15 @@ export async function GET(request: NextRequest) {
     for (const [dateStr, windows] of byDate) {
       const details = expandAvailabilityRowsDetailed(windows, fallbackDuration);
       if (details.length === 0) continue;
-      const booked = bookedByDate.get(dateStr) ?? new Set<string>();
       const slotDetails = details.map((slot) => ({
         startTime: slot.startTime,
         slotDurationMinutes: slot.slotDurationMinutes,
         consultationType: slot.consultationType,
-        booked: booked.has(slot.startTime),
+        booked: isSlotBookedByAnyAppointment(
+          { doctorDate: dateStr, startTime: slot.startTime },
+          tz,
+          upcomingAppointments,
+        ),
       }));
       days.push({
         date: dateStr,
@@ -475,13 +476,39 @@ export async function GET(request: NextRequest) {
       consultationType: true,
     },
   });
-  const appointments = await prisma.appointment.findMany({
+  const appointmentsForDayColumn = await prisma.appointment.findMany({
     where: {
       doctorId: doctor.id,
       date: ymdToPrismaDate(dateParam),
       status: { in: [AppointmentStatus.CONFIRMED, AppointmentStatus.PENDING] },
     },
-    select: { time: true, consultationType: true, durationMinutes: true },
+    select: {
+      date: true,
+      time: true,
+      timezone: true,
+      consultationType: true,
+      durationMinutes: true,
+    },
+  });
+
+  const dayAnchor = ymdToPrismaDate(dateParam);
+  const dayBefore = new Date(dayAnchor);
+  dayBefore.setUTCDate(dayBefore.getUTCDate() - 1);
+  const dayAfter = new Date(dayAnchor);
+  dayAfter.setUTCDate(dayAfter.getUTCDate() + 1);
+  const appointmentsForMatching = await prisma.appointment.findMany({
+    where: {
+      doctorId: doctor.id,
+      date: { gte: dayBefore, lte: dayAfter },
+      status: { in: [AppointmentStatus.CONFIRMED, AppointmentStatus.PENDING] },
+    },
+    select: {
+      date: true,
+      time: true,
+      timezone: true,
+      consultationType: true,
+      durationMinutes: true,
+    },
   });
 
   const slotDurationMinutes = inferSlotDurationMinutesFromRows(
@@ -492,13 +519,7 @@ export async function GET(request: NextRequest) {
   const slotStarts = expandedSlots.map((slot) => slot.startTime);
   const consultationType = rows[0]?.consultationType ?? "BOTH";
 
-  /** Map booked start times → how the appointment was booked (video vs clinic). */
-  const appointmentsByTime = new Map<string, { consultationType: ConsultationType; durationMinutes: number }>();
-  for (const a of appointments) {
-    appointmentsByTime.set(a.time, { consultationType: a.consultationType, durationMinutes: a.durationMinutes });
-  }
-
-  const seenTimes = new Set<string>();
+  const matchedAppointmentInstants = new Set<number>();
   const slotDetailsWithBooked: {
     startTime: string;
     slotDurationMinutes: number;
@@ -507,27 +528,33 @@ export async function GET(request: NextRequest) {
   }[] = [];
 
   for (const slot of expandedSlots) {
-    const appt = appointmentsByTime.get(slot.startTime);
-    const booked = appt !== undefined;
+    const appt = appointmentsForMatching.find((a) =>
+      isSlotInstantBookedByAppointment(
+        { doctorDate: dateParam, startTime: slot.startTime },
+        tz,
+        a,
+      ),
+    );
+    if (appt) {
+      matchedAppointmentInstants.add(appointmentInstantMs(appt));
+    }
     slotDetailsWithBooked.push({
       startTime: slot.startTime,
       slotDurationMinutes: slot.slotDurationMinutes,
-      consultationType: booked ? appt.consultationType : slot.consultationType,
-      booked,
+      consultationType: appt ? appt.consultationType : slot.consultationType,
+      booked: appt !== undefined,
     });
-    seenTimes.add(slot.startTime);
   }
 
   /** Appointments on times with no persisted availability row (edge case). */
-  for (const a of appointments) {
-    if (seenTimes.has(a.time)) continue;
+  for (const a of appointmentsForDayColumn) {
+    if (matchedAppointmentInstants.has(appointmentInstantMs(a))) continue;
     slotDetailsWithBooked.push({
       startTime: a.time,
       slotDurationMinutes: a.durationMinutes || slotDurationMinutes,
       consultationType: a.consultationType,
       booked: true,
     });
-    seenTimes.add(a.time);
   }
 
   slotDetailsWithBooked.sort((x, y) =>
@@ -541,12 +568,14 @@ export async function GET(request: NextRequest) {
     slotStarts,
     slotDetails: slotDetailsWithBooked,
     consultationType,
-    bookedSlotStarts: appointments.map((appointment) => appointment.time).sort(),
+    bookedSlotStarts: appointmentsForDayColumn
+      .map((appointment) => appointment.time)
+      .sort(),
     bookedAppointmentsByType: {
-      inClinic: appointments.filter(
+      inClinic: appointmentsForDayColumn.filter(
         (appointment) => appointment.consultationType === "CLINIC",
       ).length,
-      online: appointments.filter(
+      online: appointmentsForDayColumn.filter(
         (appointment) => appointment.consultationType === "ONLINE",
       ).length,
     },

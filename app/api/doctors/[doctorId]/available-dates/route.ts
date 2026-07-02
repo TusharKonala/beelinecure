@@ -14,6 +14,7 @@ import {
 } from "@/lib/timezone-display";
 import { AppointmentStatus } from "@/generated/prisma/client";
 import { NextRequest, NextResponse } from "next/server";
+import { isSlotBookedByAnyAppointment } from "@/lib/slot-instant-matching";
 
 /** Default booking horizon when `from`/`to` are omitted (matches client initial chunk). */
 const DEFAULT_HORIZON_DAYS = 60;
@@ -75,13 +76,28 @@ function applyAvailabilityFilters(
 function bookableStartsOnDay(
   slotDetails: ExpandedSlotDetail[],
   dayKey: string,
-  booked: Set<string>,
+  appointments: {
+    id?: string;
+    date: Date;
+    time: string;
+    timezone: string;
+  }[],
+  heldTimes: Set<string>,
   tz: string,
 ): string[] {
   const seen = new Set<string>();
   const starts: string[] = [];
   for (const detail of slotDetails) {
-    if (booked.has(detail.startTime)) continue;
+    if (
+      isSlotBookedByAnyAppointment(
+        { doctorDate: dayKey, startTime: detail.startTime },
+        tz,
+        appointments,
+      )
+    ) {
+      continue;
+    }
+    if (heldTimes.has(detail.startTime)) continue;
     if (isDoctorTimeInPast(dayKey, detail.startTime, tz)) continue;
     if (seen.has(detail.startTime)) continue;
     seen.add(detail.startTime);
@@ -264,16 +280,9 @@ export async function GET(
         date: { gte: rangeStart, lte: rangeEnd },
         status: { not: AppointmentStatus.CANCELLED },
       },
-      select: { date: true, time: true },
+      select: { date: true, time: true, timezone: true },
     }),
   ]);
-
-  const bookedByDay = new Map<string, Set<string>>();
-  for (const appt of appointments) {
-    const key = dateKeyUtc(appt.date);
-    if (!bookedByDay.has(key)) bookedByDay.set(key, new Set());
-    bookedByDay.get(key)!.add(appt.time);
-  }
 
   const rowsByDay = new Map<
     string,
@@ -320,8 +329,13 @@ export async function GET(
         consultationFilter,
         durationFilterMinutes,
       );
-      const booked = bookedByDay.get(dayKey) ?? new Set<string>();
-      const available = bookableStartsOnDay(slotDetails, dayKey, booked, tz);
+      const available = bookableStartsOnDay(
+        slotDetails,
+        dayKey,
+        appointments,
+        new Set<string>(),
+        tz,
+      );
       for (const start of available) {
         const patientYmd = doctorSlotToPatientLocalYmd(
           dayKey,
@@ -347,8 +361,13 @@ export async function GET(
       consultationFilter,
       durationFilterMinutes,
     );
-    const booked = bookedByDay.get(dayKey) ?? new Set<string>();
-    const available = bookableStartsOnDay(slotDetails, dayKey, booked, tz);
+    const available = bookableStartsOnDay(
+      slotDetails,
+      dayKey,
+      appointments,
+      new Set<string>(),
+      tz,
+    );
     if (available.length > 0) datesWithSlots.push(dayKey);
   }
 

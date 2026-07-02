@@ -111,6 +111,8 @@ export async function triggerSlotUpdated(
 export type AvailabilityChangedPayload = {
   /** YYYY-MM-DD dates whose availability rows changed; empty = global regen (e.g. slot duration). */
   dates: string[];
+  oldTimezone?: string;
+  newTimezone?: string;
 };
 
 export async function triggerAvailabilityChanged(

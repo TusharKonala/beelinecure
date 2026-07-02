@@ -26,6 +26,10 @@ import {
   isDoctorGoogleCalendarConnected,
 } from "@/lib/doctor-online-booking";
 import {
+  DOCTOR_TIMEZONE_CHANGED_CODE,
+  DOCTOR_TIMEZONE_CHANGED_MESSAGE,
+} from "@/lib/slot-hold-shared";
+import {
   coerceAllowedSlotDurationMinutes,
   resolveSlotMetaForStart,
 } from "@/lib/doctor-availability-slots";
@@ -126,6 +130,7 @@ export async function POST(request: NextRequest) {
       select: {
         name: true,
         currency: true,
+        timezone: true,
         slotDurationMinutes: true,
         consultationPriceCentsByDuration: true,
         googleCalendarRefreshToken: true,
@@ -144,6 +149,17 @@ export async function POST(request: NextRequest) {
         {
           error: DOCTOR_CALENDAR_NOT_CONNECTED_MESSAGE,
           code: DOCTOR_CALENDAR_NOT_CONNECTED_CODE,
+          doctorId: bookingSession.doctorId,
+        },
+        { status: 409 },
+      );
+    }
+
+    if (bookingSession.timezone !== doctor.timezone) {
+      return NextResponse.json(
+        {
+          error: DOCTOR_TIMEZONE_CHANGED_MESSAGE,
+          code: DOCTOR_TIMEZONE_CHANGED_CODE,
           doctorId: bookingSession.doctorId,
         },
         { status: 409 },

@@ -101,18 +101,27 @@ function normaliseDoctorSnapshot(
 
 function TimezoneChangeConfirmDialog({
   open,
+  oldTimezone,
   newTimezone,
   onClose,
   onConfirm,
   confirming,
 }: {
   open: boolean;
+  oldTimezone: string;
   newTimezone: string;
   onClose: () => void;
   onConfirm: () => void | Promise<void>;
   confirming: boolean;
 }) {
   const [mounted, setMounted] = useState(false);
+  const [cancelCount, setCancelCount] = useState<number | null>(null);
+  const [cancelBreakdown, setCancelBreakdown] = useState<{
+    inClinic: number;
+    online: number;
+  } | null>(null);
+  const [cancelCountLoading, setCancelCountLoading] = useState(false);
+  const [cancelCountError, setCancelCountError] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -121,7 +130,7 @@ function TimezoneChangeConfirmDialog({
   useEffect(() => {
     if (!open) return;
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape" && !confirming) onClose();
+      if (e.key === "Escape" && !confirming && !cancelCountLoading) onClose();
     }
     window.addEventListener("keydown", onKeyDown);
     const prev = document.body.style.overflow;
@@ -130,7 +139,58 @@ function TimezoneChangeConfirmDialog({
       window.removeEventListener("keydown", onKeyDown);
       document.body.style.overflow = prev;
     };
-  }, [open, onClose, confirming]);
+  }, [open, onClose, confirming, cancelCountLoading]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!open) {
+      setCancelCount(null);
+      setCancelBreakdown(null);
+      setCancelCountError(null);
+      setCancelCountLoading(false);
+      return;
+    }
+    void (async () => {
+      setCancelCountLoading(true);
+      setCancelCountError(null);
+      setCancelCount(null);
+      setCancelBreakdown(null);
+      try {
+        const res = await fetch("/api/doctor/settings/timezone-change-preview", {
+          cache: "no-store",
+        });
+        if (!res.ok) {
+          const data = (await res.json().catch(() => ({}))) as {
+            error?: string;
+          };
+          throw new Error(data.error ?? "Could not load appointment count");
+        }
+        const data = (await res.json()) as {
+          total?: number;
+          inClinic?: number;
+          online?: number;
+        };
+        if (!cancelled) {
+          setCancelCount(typeof data.total === "number" ? data.total : 0);
+          setCancelBreakdown({
+            inClinic: data.inClinic ?? 0,
+            online: data.online ?? 0,
+          });
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setCancelCountError(
+            e instanceof Error ? e.message : "Could not load appointment count",
+          );
+        }
+      } finally {
+        if (!cancelled) setCancelCountLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
 
   if (!open || !mounted) return null;
 
@@ -141,7 +201,7 @@ function TimezoneChangeConfirmDialog({
         className="absolute inset-0 cursor-pointer bg-black/40"
         aria-label="Close"
         onClick={() => {
-          if (!confirming) onClose();
+          if (!confirming && !cancelCountLoading) onClose();
         }}
       />
       <div
@@ -156,22 +216,52 @@ function TimezoneChangeConfirmDialog({
         >
           Change practice timezone?
         </h2>
-        <ul className="mt-3 list-disc space-y-2 pl-5 font-montserrat text-sm text-[#5E5E5E]">
-          <li>
-            Existing appointments keep the timezone from when they were booked. On
-            your Appointments tab, only appointments whose timezone differs from
-            your current timezone show a timezone label next to the time.
-          </li>
-          <li>
-            Your new timezone (
-            <span className="font-medium text-[#333333]">{newTimezone}</span>)
-            will apply to your open hours and bookable slots from now on.
-          </li>
-        </ul>
+        <p className="mt-3 font-montserrat text-sm leading-relaxed text-[#5E5E5E]">
+          Your timezone will change from{" "}
+          <span className="font-medium text-[#333333]">{oldTimezone}</span> to{" "}
+          <span className="font-medium text-[#333333]">{newTimezone}</span>.
+          {" "}
+          {cancelCountLoading ? (
+            <span>Checking upcoming appointments to cancel...</span>
+          ) : cancelCountError ? (
+            <span>
+              Could not load cancellation count right now. Confirmed and pending
+              future appointments will still be cancelled if you continue.
+            </span>
+          ) : (
+            <span>
+              <span className="font-medium text-red-600">
+                {cancelCount ?? 0}{" "}
+                {(cancelCount ?? 0) === 1 ? "appointment" : "appointments"}
+              </span>{" "}
+              will be cancelled.
+              {(cancelBreakdown?.inClinic ?? 0) + (cancelBreakdown?.online ?? 0) >
+              0 ? (
+                <>
+                  {" "}
+                  (
+                  <span className="font-medium text-[#333333]">
+                    {cancelBreakdown?.inClinic ?? 0} in-clinic
+                  </span>
+                  ,{" "}
+                  <span className="font-medium text-[#333333]">
+                    {cancelBreakdown?.online ?? 0} online
+                  </span>
+                  )
+                </>
+              ) : null}
+            </span>
+          )}{" "}
+          Paid online bookings will be fully refunded, and patients will be
+          notified to rebook.
+        </p>
+        <p className="mt-3 font-montserrat text-sm text-[#5E5E5E]">
+          We recommend changing your timezone outside clinic hours when possible.
+        </p>
         <div className="mt-5 flex justify-end gap-2">
           <button
             type="button"
-            disabled={confirming}
+            disabled={confirming || cancelCountLoading}
             onClick={onClose}
             className="cursor-pointer rounded-lg border border-[#e5e5e5] px-4 py-2 font-montserrat text-sm font-medium text-[#333333] hover:bg-[#f5f5f5] disabled:cursor-not-allowed disabled:opacity-50"
           >
@@ -179,7 +269,7 @@ function TimezoneChangeConfirmDialog({
           </button>
           <button
             type="button"
-            disabled={confirming}
+            disabled={confirming || cancelCountLoading}
             onClick={() => void onConfirm()}
             className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-[#2555F3] px-4 py-2 font-montserrat text-sm font-medium text-white hover:bg-[#1e44c7] disabled:cursor-not-allowed disabled:opacity-50"
           >
@@ -962,6 +1052,7 @@ export function DoctorSettingsClient({
       </Container>
       <TimezoneChangeConfirmDialog
         open={showTimezoneConfirm}
+        oldTimezone={initialSnapshot.timezone}
         newTimezone={doctor.timezone.trim()}
         confirming={savePending}
         onClose={() => {

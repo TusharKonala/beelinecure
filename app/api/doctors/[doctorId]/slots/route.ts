@@ -16,6 +16,7 @@ import {
 import { NextRequest, NextResponse } from "next/server";
 import { AppointmentStatus } from "@/generated/prisma/client";
 import { activeBookingSessionHoldsByDate, activeSlotHoldsByDate } from "@/lib/slot-availability";
+import { isSlotBookedByAnyAppointment } from "@/lib/slot-instant-matching";
 
 function parseYmdUtc(value: string): Date | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
@@ -181,7 +182,7 @@ export async function GET(
           ? { id: { not: excludeAppointmentId } }
           : {}),
       },
-      select: { date: true, time: true },
+      select: { id: true, date: true, time: true, timezone: true },
     }),
     activeBookingSessionHoldsByDate({
       doctorId,
@@ -196,24 +197,17 @@ export async function GET(
     }),
   ]);
 
-  const bookedByDay = new Map<string, Set<string>>();
-  for (const appt of appointments) {
-    const key = dateKeyUtc(appt.date);
-    if (!bookedByDay.has(key)) bookedByDay.set(key, new Set());
-    bookedByDay.get(key)!.add(appt.time);
-  }
-
+  const heldTimesByDay = new Map<string, Set<string>>();
   for (const [dayKey, heldTimes] of sessionHoldsByDay) {
-    if (!bookedByDay.has(dayKey)) bookedByDay.set(dayKey, new Set());
+    if (!heldTimesByDay.has(dayKey)) heldTimesByDay.set(dayKey, new Set());
     for (const t of heldTimes) {
-      bookedByDay.get(dayKey)!.add(t);
+      heldTimesByDay.get(dayKey)!.add(t);
     }
   }
-
   for (const [dayKey, heldTimes] of slotHoldsByDay) {
-    if (!bookedByDay.has(dayKey)) bookedByDay.set(dayKey, new Set());
+    if (!heldTimesByDay.has(dayKey)) heldTimesByDay.set(dayKey, new Set());
     for (const t of heldTimes) {
-      bookedByDay.get(dayKey)!.add(t);
+      heldTimesByDay.get(dayKey)!.add(t);
     }
   }
 
@@ -254,9 +248,19 @@ export async function GET(
         ),
       );
     }
-    const booked = bookedByDay.get(dayKey) ?? new Set<string>();
+    const heldTimes = heldTimesByDay.get(dayKey) ?? new Set<string>();
     for (const detail of slotDetails) {
-      if (booked.has(detail.startTime)) continue;
+      if (
+        isSlotBookedByAnyAppointment(
+          { doctorDate: dayKey, startTime: detail.startTime },
+          doctorTz,
+          appointments,
+          { excludeAppointmentId: excludeAppointmentId ?? undefined },
+        )
+      ) {
+        continue;
+      }
+      if (heldTimes.has(detail.startTime)) continue;
       if (isDoctorTimeInPast(dayKey, detail.startTime, doctorTz)) continue;
       if (patientDateFilter) {
         const patientYmd = doctorSlotToPatientLocalYmd(

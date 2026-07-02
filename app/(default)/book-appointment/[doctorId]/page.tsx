@@ -53,11 +53,13 @@ import type { PatientConsultationChoice } from "@/lib/doctor-availability-slots"
 import {
   DOCTOR_TIMEZONE_CHANGED_CODE,
   DOCTOR_TIMEZONE_CHANGED_MESSAGE,
+  doctorTimezoneChangedBannerMessage,
   SLOT_HOLD_STORAGE_KEY,
   SLOT_NO_LONGER_AVAILABLE_MESSAGE,
   type SlotUpdatedPayload,
 } from "@/lib/slot-hold-shared";
 import { useDoctorSlotsPusher } from "@/lib/use-doctor-slots-pusher";
+import type { AvailabilityChangedPayload } from "@/lib/pusher-server";
 import { TimezoneChangedNoticeBanner } from "@/components/booking/TimezoneChangedNoticeBanner";
 import { useDismissibleMessage } from "@/lib/use-dismissible-message";
 import { refetchSlotsAfterTimezoneChange } from "@/lib/refetch-slots-after-timezone-change";
@@ -582,6 +584,28 @@ export default function BookAppointmentDoctorPage() {
     [slotsData?.slotDetails],
   );
 
+  const onBookAvailabilityChanged = useCallback(
+    async (payload: AvailabilityChangedPayload) => {
+      if (!payload.oldTimezone || !payload.newTimezone) return;
+      showTimezoneChangedNotice(
+        doctorTimezoneChangedBannerMessage(
+          payload.oldTimezone,
+          payload.newTimezone,
+        ),
+      );
+      setSelectedSlot(null);
+      setSelectedDurationMinutes(null);
+      await releaseCurrentHold();
+      await refetchSlotsAfterTimezoneChange(queryClient, slotsQueryKey);
+    },
+    [
+      showTimezoneChangedNotice,
+      releaseCurrentHold,
+      queryClient,
+      slotsQueryKey,
+    ],
+  );
+
   useDoctorSlotsPusher({
     doctorId,
     enabled: !!doctorId && consultationType !== null,
@@ -591,6 +615,7 @@ export default function BookAppointmentDoctorPage() {
       availableDates: ["available-dates", doctorId],
     },
     currentDoctorDates,
+    onAvailabilityChanged: onBookAvailabilityChanged,
   });
 
   const doctorTz = slotsData?.doctorTimezone ?? "UTC";

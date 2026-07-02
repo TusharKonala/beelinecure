@@ -19,6 +19,13 @@ export function doctorTimezoneMismatchMessage(
   return `The doctor has updated their timezone to ${currentDoctorTimezone} (this appointment was booked in the ${appointmentTimezone} timezone). The times below are shown in the doctor's current timezone and may look different from when you originally booked.`;
 }
 
+export function doctorTimezoneChangedBannerMessage(
+  oldTimezone: string,
+  newTimezone: string,
+): string {
+  return `The doctor changed their timezone from ${oldTimezone} to ${newTimezone}. Available times were refreshed. Please pick a time again.`;
+}
+
 export type SlotUpdatedPayload = {
   date: string;
   time: string;

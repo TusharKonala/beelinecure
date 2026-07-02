@@ -38,6 +38,7 @@ import type { AppointmentsChangedPayload } from "@/lib/pusher-server";
 import {
   DOCTOR_TIMEZONE_CHANGED_CODE,
   DOCTOR_TIMEZONE_CHANGED_MESSAGE,
+  doctorTimezoneChangedBannerMessage,
   SLOT_NO_LONGER_AVAILABLE_MESSAGE,
   type SlotUpdatedPayload,
 } from "@/lib/slot-hold-shared";
@@ -831,8 +832,24 @@ export default function AdminAppointmentsClient() {
   );
 
   const onRescheduleAvailabilityChanged = useCallback(
-    (payload: AvailabilityChangedPayload) => {
+    async (payload: AvailabilityChangedPayload) => {
       if (!rescheduleTarget || isRescheduleTerminal) return;
+      if (payload.oldTimezone && payload.newTimezone) {
+        showTimezoneChangedNotice(
+          doctorTimezoneChangedBannerMessage(
+            payload.oldTimezone,
+            payload.newTimezone,
+          ),
+        );
+        setSelectedSlot(null);
+        setHasSelectionInteraction(false);
+        await releaseCurrentHold();
+        await refetchSlotsAfterTimezoneChange(queryClient, [
+          "admin-reschedule-slots",
+          rescheduleTarget.id,
+        ]);
+        return;
+      }
       const apptDate = rescheduleTarget.date;
       const touchesOriginalDay =
         payload.dates.length === 0 || payload.dates.includes(apptDate);
@@ -840,7 +857,14 @@ export default function AdminAppointmentsClient() {
         void verifyRescheduleStillActive();
       }
     },
-    [rescheduleTarget, isRescheduleTerminal, verifyRescheduleStillActive],
+    [
+      rescheduleTarget,
+      isRescheduleTerminal,
+      showTimezoneChangedNotice,
+      releaseCurrentHold,
+      queryClient,
+      verifyRescheduleStillActive,
+    ],
   );
 
   const onRescheduleAppointmentsChanged = useCallback(

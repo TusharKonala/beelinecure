@@ -1,6 +1,7 @@
 import { UserRole } from "@/generated/prisma/client";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { getFutureCancellableAppointmentStats } from "@/lib/doctor-timezone-change";
 import {
   consultationPriceCentsByDurationSchema,
   parsePriceMap,
@@ -14,6 +15,8 @@ import {
 import { getServerSession } from "next-auth/next";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { inngest } from "@/inngest/client";
+import { triggerAvailabilityChanged } from "@/lib/pusher-server";
 
 const updateDoctorSettingsSchema = z.object({
   name: z.string().min(1).max(255),
@@ -124,7 +127,7 @@ export async function PATCH(request: Request) {
 
   const doctor = await prisma.doctor.findUnique({
     where: { userId: session.user.id },
-    select: { id: true },
+    select: { id: true, timezone: true },
   });
   if (!doctor) {
     return NextResponse.json(
@@ -132,6 +135,10 @@ export async function PATCH(request: Request) {
       { status: 404 },
     );
   }
+
+  const oldTimezone = doctor.timezone.trim();
+  const newTimezone = parsed.data.timezone.trim();
+  const timezoneChanged = oldTimezone !== newTimezone;
 
   const data = parsed.data;
   const phoneRaw = data.phone.trim();
@@ -178,6 +185,43 @@ export async function PATCH(request: Request) {
       consultationPriceCentsByDuration: true,
     },
   });
+
+  if (timezoneChanged) {
+    const stats = await getFutureCancellableAppointmentStats(doctor.id);
+    if (stats.appointmentIds.length > 0) {
+      try {
+        await inngest.send({
+          name: "doctor/timezone.cancel-appointments",
+          data: {
+            doctorId: doctor.id,
+            appointmentIds: stats.appointmentIds,
+            requestOrigin: new URL(request.url).origin,
+            actorUserId: session.user.id,
+            oldTimezone,
+            newTimezone,
+          },
+        });
+      } catch (err) {
+        console.error(
+          "[doctor/settings] Failed to queue timezone cancellations:",
+          err,
+        );
+        return NextResponse.json(
+          {
+            error:
+              "Your timezone was saved but appointment cancellations could not be started. Please try saving again or contact support.",
+          },
+          { status: 503 },
+        );
+      }
+    }
+
+    await triggerAvailabilityChanged(doctor.id, {
+      dates: [],
+      oldTimezone,
+      newTimezone,
+    });
+  }
 
   return NextResponse.json({
     ok: true,

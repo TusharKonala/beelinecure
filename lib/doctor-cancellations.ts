@@ -22,7 +22,12 @@ import { triggerAppointmentsChanged, triggerSlotUpdated } from "@/lib/pusher-ser
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-type CancelReason = "patient_no_show" | "doctor_unavailable" | "doctor_holiday" | null;
+type CancelReason =
+  | "patient_no_show"
+  | "doctor_unavailable"
+  | "doctor_holiday"
+  | "doctor_timezone_change"
+  | null;
 
 function staffCancellationNoteIntro(
   isDoctorInitiated: boolean,
@@ -59,6 +64,14 @@ function cancellationContent(reason: CancelReason, isDoctorInitiated: boolean) {
       heading: "Appointment Cancelled",
       message:
         "Your doctor has marked this date as a holiday, so your appointment has been cancelled. Please book another appointment from our website.",
+    };
+  }
+  if (reason === "doctor_timezone_change") {
+    return {
+      subject: "Appointment Cancelled",
+      heading: "Appointment Cancelled",
+      message:
+        "Your doctor has changed their practice timezone, so your appointment has been cancelled. Please book another appointment from our website.",
     };
   }
   return {

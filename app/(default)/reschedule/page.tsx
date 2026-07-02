@@ -45,6 +45,7 @@ import type {
 } from "@/lib/pusher-server";
 import {
   DOCTOR_TIMEZONE_CHANGED_MESSAGE,
+  doctorTimezoneChangedBannerMessage,
   type SlotUpdatedPayload,
 } from "@/lib/slot-hold-shared";
 import { TimezoneChangedNoticeBanner } from "@/components/booking/TimezoneChangedNoticeBanner";
@@ -447,19 +448,6 @@ function RescheduleContent() {
     }
   }, [appointmentId, token, canLoad]);
 
-  const onRescheduleAvailabilityChanged = useCallback(
-    (payload: AvailabilityChangedPayload) => {
-      if (state !== "idle" || !appointment) return;
-      const apptDate = appointment.date;
-      const touchesOriginalDay =
-        payload.dates.length === 0 || payload.dates.includes(apptDate);
-      if (touchesOriginalDay) {
-        void verifyAppointmentStillActive();
-      }
-    },
-    [state, appointment, verifyAppointmentStillActive],
-  );
-
   const onRescheduleAppointmentsChanged = useCallback(
     (payload: AppointmentsChangedPayload) => {
       if (state !== "idle" || !appointment) return;
@@ -640,6 +628,42 @@ function RescheduleContent() {
       );
     },
     [activeHoldId, selectedSlot, holdingSlotKey],
+  );
+
+  const onRescheduleAvailabilityChanged = useCallback(
+    async (payload: AvailabilityChangedPayload) => {
+      if (state !== "idle" || !appointment) return;
+      if (payload.oldTimezone && payload.newTimezone) {
+        showTimezoneChangedNotice(
+          doctorTimezoneChangedBannerMessage(
+            payload.oldTimezone,
+            payload.newTimezone,
+          ),
+        );
+        setSelectedSlot(null);
+        setHasSelectionInteraction(false);
+        await releaseCurrentHold();
+        await refetchSlotsAfterTimezoneChange(queryClient, [
+          "reschedule-slots",
+          appointment.doctorId,
+        ]);
+        return;
+      }
+      const apptDate = appointment.date;
+      const touchesOriginalDay =
+        payload.dates.length === 0 || payload.dates.includes(apptDate);
+      if (touchesOriginalDay) {
+        void verifyAppointmentStillActive();
+      }
+    },
+    [
+      state,
+      appointment,
+      showTimezoneChangedNotice,
+      releaseCurrentHold,
+      queryClient,
+      verifyAppointmentStillActive,
+    ],
   );
 
   useDoctorSlotsPusher({
