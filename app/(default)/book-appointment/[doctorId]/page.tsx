@@ -1515,6 +1515,14 @@ export default function BookAppointmentDoctorPage() {
                   <h2 className="font-montaga text-2xl font-semibold leading-tight text-[#333333] md:text-3xl">
                     Available times
                   </h2>
+                  {timezoneChangedNotice && (
+                    <div
+                      role="status"
+                      className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 font-montserrat text-sm text-amber-800"
+                    >
+                      {timezoneChangedNotice}
+                    </div>
+                  )}
                   {!slotsLoadingOrFetching && (
                     <p className="font-montserrat text-sm text-[#5E5E5E]">
                       {filteredDurationLabel}
@@ -1781,14 +1789,6 @@ export default function BookAppointmentDoctorPage() {
                       className="font-montserrat text-sm text-red-600 outline-none"
                     >
                       <p>{renderSubmitErrorMessage(submitError)}</p>
-                    </div>
-                  )}
-                  {timezoneChangedNotice && (
-                    <div
-                      role="status"
-                      className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 font-montserrat text-sm text-amber-800"
-                    >
-                      {timezoneChangedNotice}
                     </div>
                   )}
                   {consultationType !== null ? (
