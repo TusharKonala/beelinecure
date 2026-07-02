@@ -143,7 +143,7 @@ function enrichGuestBookingError(input: {
   if (input.code === "EXISTING_APPOINTMENT_SAME_DATE") {
     const label = link?.label ?? "reschedule it";
     return {
-      message: `You already have an appointment on this date. Sign up or sign in with ${emailPhrase} to reschedule or manage that appointment. Would you like to ${label} instead?`,
+      message: `You already have an upcoming appointment with this doctor. Only one visit per day is allowed. Sign up or sign in with ${emailPhrase} to reschedule or manage that appointment. Would you like to ${label} instead?`,
       link,
     };
   }

@@ -234,7 +234,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error:
-          "You already have an appointment on this date. Would you like to reschedule it instead?",
+          "You already have an upcoming appointment with this doctor. Only one visit per day is allowed. Would you like to reschedule it instead?",
         code: "EXISTING_APPOINTMENT_SAME_DATE",
         link: {
           href: "/patient/appointments",
