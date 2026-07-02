@@ -319,10 +319,11 @@ export default function AdminAppointmentsClient() {
   );
 
   const acquireSlotHold = useCallback(
-    async (ref: BookableSlotRef): Promise<boolean> => {
+    async (ref: BookableSlotRef) => {
       const target = rescheduleTarget;
-      if (!target?.doctorId) return false;
+      if (!target?.doctorId) return;
       const refKey = bookableSlotRefKey(ref);
+      setHasSelectionInteraction(true);
       setRescheduleError(null);
       setSlotUnavailableAlert(null);
       setHoldingSlotKey(refKey);
@@ -359,16 +360,16 @@ export default function AdminAppointmentsClient() {
               ? json.error
               : SLOT_NO_LONGER_AVAILABLE_MESSAGE,
           );
-          return false;
+          return;
         }
-        invalidateSlotsRef.current();
-        return true;
+
+        setSelectedSlot(ref);
+        setSlotUnavailableAlert(null);
       } catch {
         holdIdRef.current = null;
         setActiveHoldId(null);
         invalidateSlotsRef.current();
         setSlotUnavailableAlert("Network error. Please try again.");
-        return false;
       } finally {
         setHoldingSlotKey(null);
       }
@@ -938,19 +939,23 @@ export default function AdminAppointmentsClient() {
 
   const slotsEnabled =
     !!rescheduleTarget && rescheduleStep === "pick" && !!selectedDate;
+  const adminSlotsQueryKey = useMemo(
+    () =>
+      [
+        "admin-reschedule-slots",
+        rescheduleTarget?.id,
+        rescheduleTarget?.doctorId,
+        selectedDate,
+      ] as const,
+    [rescheduleTarget?.id, rescheduleTarget?.doctorId, selectedDate],
+  );
   const {
     data: slotsData,
     isLoading: slotsLoading,
     isFetching: slotsFetching,
     isPlaceholderData,
   } = useQuery({
-    queryKey: [
-      "admin-reschedule-slots",
-      rescheduleTarget?.id,
-      rescheduleTarget?.doctorId,
-      selectedDate,
-      activeHoldId,
-    ],
+    queryKey: adminSlotsQueryKey,
     enabled: slotsEnabled && !!rescheduleTarget?.doctorId,
     queryFn: () =>
       getSlots(
@@ -965,14 +970,7 @@ export default function AdminAppointmentsClient() {
   });
 
   invalidateSlotsRef.current = () => {
-    void queryClient.invalidateQueries({
-      queryKey: [
-        "admin-reschedule-slots",
-        rescheduleTarget?.id,
-        rescheduleTarget?.doctorId,
-        selectedDate,
-      ],
-    });
+    void queryClient.invalidateQueries({ queryKey: adminSlotsQueryKey });
   };
 
   const doctorTz = slotsData?.doctorTimezone ?? rescheduleTarget?.timezone ?? "UTC";
@@ -1042,7 +1040,7 @@ export default function AdminAppointmentsClient() {
     // handler. During confirm/submit the POST response is authoritative.
     if (rescheduleStep !== "pick") return;
     if (!selectedSlot) return;
-    if (slotsLoadingOrFetching) return;
+    if (holdingSlotKey !== null || slotsLoadingOrFetching) return;
     const stillAvailable = filteredSlots.some(
       (ref) =>
         ref.startTime === selectedSlot.startTime &&
@@ -1085,6 +1083,7 @@ export default function AdminAppointmentsClient() {
     rescheduleSubmitting,
     verifyRescheduleStillActive,
     releaseCurrentHold,
+    holdingSlotKey,
   ]);
 
   function openReschedule(a: AdminAppointmentItem) {
@@ -1878,8 +1877,21 @@ export default function AdminAppointmentsClient() {
                           const isCurrent =
                             ref.startTime === rescheduleTarget.time &&
                             ref.doctorDate === rescheduleTarget.date;
-                          const refKey = `${ref.doctorDate}:${ref.startTime}`;
+                          const refKey = bookableSlotRefKey(ref);
                           const isHolding = holdingSlotKey === refKey;
+                          const timeLabel =
+                            slotTzView === "patient"
+                              ? formatTimeInPatientTz(
+                                  ref.doctorDate,
+                                  ref.startTime,
+                                  doctorTz,
+                                  rescheduleTarget.patientTimezone,
+                                )
+                              : formatTimeInDoctorTz(
+                                  ref.doctorDate,
+                                  ref.startTime,
+                                  doctorTz,
+                                );
                           return (
                             <Button
                               key={refKey}
@@ -1890,10 +1902,7 @@ export default function AdminAppointmentsClient() {
                                   ? "default"
                                   : "outline"
                               }
-                              disabled={
-                                isCurrent ||
-                                (holdingSlotKey !== null && !isHolding)
-                              }
+                              disabled={isCurrent || isHolding}
                               aria-disabled={isCurrent}
                               title={isCurrent ? "Current Slot" : undefined}
                               className={`h-11 rounded-xl font-montserrat text-sm ${
@@ -1903,34 +1912,17 @@ export default function AdminAppointmentsClient() {
                               }`}
                               onClick={() => {
                                 if (isCurrent) return;
-                                setHasSelectionInteraction(true);
-                                setRescheduleError(null);
-                                setSlotUnavailableAlert(null);
-                                const slotRef = {
+                                void acquireSlotHold({
                                   doctorDate: ref.doctorDate,
                                   startTime: ref.startTime,
-                                };
-                                void acquireSlotHold(slotRef).then((ok) => {
-                                  if (ok) setSelectedSlot(slotRef);
                                 });
                               }}
                             >
                               <span className="inline-flex flex-col items-center leading-tight">
                                 <span>
-                                  {slotTzView === "patient"
-                                    ? formatTimeInPatientTz(
-                                        ref.doctorDate,
-                                        ref.startTime,
-                                        doctorTz,
-                                        rescheduleTarget.patientTimezone,
-                                      )
-                                    : formatTimeInDoctorTz(
-                                        ref.doctorDate,
-                                        ref.startTime,
-                                        doctorTz,
-                                      )}
+                                  {isHolding ? "Reserving…" : timeLabel}
                                 </span>
-                                {isCurrent ? (
+                                {isCurrent && !isHolding ? (
                                   <span className="text-[10px] uppercase tracking-wide">
                                     Current
                                   </span>

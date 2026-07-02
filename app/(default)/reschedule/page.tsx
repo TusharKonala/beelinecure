@@ -503,9 +503,10 @@ function RescheduleContent() {
   );
 
   const acquireSlotHold = useCallback(
-    async (ref: BookableSlotRef): Promise<boolean> => {
-      if (!consultationType || !selectedDoctorId) return false;
+    async (ref: BookableSlotRef) => {
+      if (!consultationType || !selectedDoctorId) return;
       const refKey = bookableSlotRefKey(ref);
+      setHasSelectionInteraction(true);
       setSubmitError(null);
       setSlotUnavailableAlert(null);
       setHoldingSlotKey(refKey);
@@ -542,16 +543,16 @@ function RescheduleContent() {
               ? json.error
               : SLOT_NO_LONGER_AVAILABLE_MESSAGE,
           );
-          return false;
+          return;
         }
-        invalidateSlotsRef.current();
-        return true;
+
+        setSelectedSlot(ref);
+        setSlotUnavailableAlert(null);
       } catch {
         holdIdRef.current = null;
         setActiveHoldId(null);
         invalidateSlotsRef.current();
         setSlotUnavailableAlert("Network error. Please try again.");
-        return false;
       } finally {
         setHoldingSlotKey(null);
       }
@@ -573,20 +574,25 @@ function RescheduleContent() {
     };
   }, [releaseCurrentHold]);
 
+  const slotsQueryKey = useMemo(
+    () =>
+      [
+        "reschedule-slots",
+        selectedDoctorId,
+        selectedDate,
+        patientTimezone,
+        appointment?.id,
+      ] as const,
+    [selectedDoctorId, selectedDate, patientTimezone, appointment?.id],
+  );
+
   const {
     data: slotsData,
     isLoading: slotsLoading,
     isFetching: slotsFetching,
     isPlaceholderData,
   } = useQuery({
-    queryKey: [
-      "reschedule-slots",
-      selectedDoctorId,
-      selectedDate,
-      patientTimezone,
-      appointment?.id,
-      activeHoldId,
-    ],
+    queryKey: slotsQueryKey,
     enabled: slotsEnabled,
     queryFn: () =>
       getSlots(
@@ -602,9 +608,7 @@ function RescheduleContent() {
   });
 
   invalidateSlotsRef.current = () => {
-    void queryClient.invalidateQueries({
-      queryKey: ["reschedule-slots", selectedDoctorId, selectedDate],
-    });
+    void queryClient.invalidateQueries({ queryKey: slotsQueryKey });
   };
 
   const doctorTz = slotsData?.doctorTimezone ?? appointment?.timezone ?? "UTC";
@@ -743,7 +747,7 @@ function RescheduleContent() {
 
   useEffect(() => {
     if (!selectedSlot) return;
-    if (slotsLoadingOrFetching) return;
+    if (holdingSlotKey !== null || slotsLoadingOrFetching) return;
     const key = bookableSlotRefKey(selectedSlot);
     const stillAvailable = filteredSlots.some(
       (ref) => bookableSlotRefKey(ref) === key,
@@ -785,6 +789,7 @@ function RescheduleContent() {
     isSubmitting,
     verifyAppointmentStillActive,
     releaseCurrentHold,
+    holdingSlotKey,
   ]);
 
   const onCalendarSelect = useCallback(
@@ -1117,10 +1122,7 @@ function RescheduleContent() {
                                 <Button
                                   key={refKey}
                                   variant={isSelected ? "default" : "outline"}
-                                  disabled={
-                                    isCurrent ||
-                                    (holdingSlotKey !== null && !isHolding)
-                                  }
+                                  disabled={isCurrent || isHolding}
                                   aria-disabled={isCurrent}
                                   title={isCurrent ? "Current Slot" : undefined}
                                   className={`h-11 rounded-xl font-montserrat text-sm font-medium sm:h-12 md:text-base ${
@@ -1130,24 +1132,21 @@ function RescheduleContent() {
                                   }`}
                                   onClick={() => {
                                     if (isCurrent) return;
-                                    setHasSelectionInteraction(true);
-                                    setSubmitError(null);
-                                    setSlotUnavailableAlert(null);
-                                    void acquireSlotHold(ref).then((ok) => {
-                                      if (ok) setSelectedSlot(ref);
-                                    });
+                                    void acquireSlotHold(ref);
                                   }}
                                 >
                                   <span className="inline-flex flex-col items-center leading-tight">
                                     <span>
-                                      {formatTimeInPatientTz(
-                                        ref.doctorDate,
-                                        ref.startTime,
-                                        doctorTz,
-                                        patientTimezone,
-                                      )}
+                                      {isHolding
+                                        ? "Reserving…"
+                                        : formatTimeInPatientTz(
+                                            ref.doctorDate,
+                                            ref.startTime,
+                                            doctorTz,
+                                            patientTimezone,
+                                          )}
                                     </span>
-                                    {isCurrent ? (
+                                    {isCurrent && !isHolding ? (
                                       <span className="text-[10px] uppercase tracking-wide">
                                         Current
                                       </span>
