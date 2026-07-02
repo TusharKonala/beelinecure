@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Container } from "@/components/layout/Container";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   formatDateInDoctorTz,
   formatTimeInDoctorTz,
@@ -37,6 +38,16 @@ const statCardClass =
   "rounded-xl border border-[#e5e5e5] bg-white p-4 shadow-sm md:p-5";
 const listCardClass =
   "rounded-xl border border-[#e5e5e5] bg-white p-4 shadow-sm";
+
+function OverviewListItemSkeleton() {
+  return (
+    <article className={listCardClass}>
+      <Skeleton className="h-4 w-36 bg-[#e5e5e5]" />
+      <Skeleton className="mt-2 h-4 w-52 bg-[#e5e5e5]" />
+      <Skeleton className="mt-2 h-3 w-28 bg-[#e5e5e5]" />
+    </article>
+  );
+}
 
 export function DoctorOverviewClient() {
   const [data, setData] = useState<OverviewPayload | null>(null);
@@ -110,7 +121,11 @@ export function DoctorOverviewClient() {
                 Today&apos;s Appointments
               </p>
               <p className="mt-2 text-center font-montaga text-3xl text-[#333333] min-[510px]:text-left">
-                {isLoading || !stats ? "-" : stats.todayAppointments}
+                {isLoading || !stats ? (
+                  <Skeleton className="mx-auto h-9 w-12 bg-[#e5e5e5] min-[510px]:mx-0" />
+                ) : (
+                  stats.todayAppointments
+                )}
               </p>
             </article>
             <article className={statCardClass}>
@@ -118,7 +133,11 @@ export function DoctorOverviewClient() {
                 Total Patients
               </p>
               <p className="mt-2 text-center font-montaga text-3xl text-[#333333] min-[510px]:text-left">
-                {isLoading || !stats ? "-" : stats.totalUniquePatients}
+                {isLoading || !stats ? (
+                  <Skeleton className="mx-auto h-9 w-12 bg-[#e5e5e5] min-[510px]:mx-0" />
+                ) : (
+                  stats.totalUniquePatients
+                )}
               </p>
             </article>
             <article className={statCardClass}>
@@ -126,7 +145,11 @@ export function DoctorOverviewClient() {
                 Pending Prescriptions
               </p>
               <p className="mt-2 text-center font-montaga text-3xl text-[#333333] min-[510px]:text-left">
-                {isLoading || !stats ? "-" : stats.pendingPrescriptions}
+                {isLoading || !stats ? (
+                  <Skeleton className="mx-auto h-9 w-12 bg-[#e5e5e5] min-[510px]:mx-0" />
+                ) : (
+                  stats.pendingPrescriptions
+                )}
               </p>
             </article>
           </div>
@@ -138,9 +161,10 @@ export function DoctorOverviewClient() {
               </h2>
               <div className="mt-4 space-y-3">
                 {isLoading ? (
-                  <p className="font-montserrat text-sm text-[#5E5E5E]">
-                    Loading appointments...
-                  </p>
+                  <>
+                    <OverviewListItemSkeleton />
+                    <OverviewListItemSkeleton />
+                  </>
                 ) : !data || data.upcomingAppointments.length === 0 ? (
                   <p className="font-montserrat text-sm text-[#5E5E5E]">
                     No upcoming appointments right now.
@@ -179,9 +203,10 @@ export function DoctorOverviewClient() {
               </h2>
               <div className="mt-4 space-y-3">
                 {isLoading ? (
-                  <p className="font-montserrat text-sm text-[#5E5E5E]">
-                    Loading patients...
-                  </p>
+                  <>
+                    <OverviewListItemSkeleton />
+                    <OverviewListItemSkeleton />
+                  </>
                 ) : !data || data.recentPatients.length === 0 ? (
                   <p className="font-montserrat text-sm text-[#5E5E5E]">
                     No recent patients found.

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Container } from "@/components/layout/Container";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   currencyForTimezone,
   formatPrice,
@@ -56,6 +57,63 @@ function formatPercent(value: number): string {
   return `${value.toFixed(1)}%`;
 }
 
+function AdminDashboardSkeleton() {
+  return (
+    <>
+      <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div
+            key={i}
+            className="rounded-xl border border-[#e5e5e5] bg-[#fafafa] p-4"
+          >
+            <Skeleton className="h-3 w-32 bg-[#e5e5e5]" />
+            <Skeleton className="mt-3 h-8 w-20 bg-[#e5e5e5]" />
+            {i === 4 ? (
+              <div className="mt-2 space-y-1.5">
+                <Skeleton className="h-3 w-28 bg-[#e5e5e5]" />
+                <Skeleton className="h-3 w-36 bg-[#e5e5e5]" />
+              </div>
+            ) : null}
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-8 overflow-x-auto rounded-xl border border-[#e5e5e5]">
+        <table className="min-w-[960px] w-full border-collapse bg-white">
+          <thead className="bg-[#fafafa]">
+            <tr>
+              {Array.from({ length: 6 }).map((_, i) => (
+                <th key={i} className="px-3 py-3 text-left">
+                  <Skeleton className="h-3 w-16 bg-[#e5e5e5]" />
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {Array.from({ length: 5 }).map((_, rowIndex) => (
+              <tr key={rowIndex} className="border-t border-[#ededed]">
+                {Array.from({ length: 6 }).map((_, colIndex) => (
+                  <td key={colIndex} className="px-3 py-3">
+                    <Skeleton
+                      className={`h-4 bg-[#e5e5e5] ${
+                        colIndex === 0
+                          ? "w-28"
+                          : colIndex === 1
+                            ? "w-24"
+                            : "w-16"
+                      }`}
+                    />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState<StatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -102,11 +160,7 @@ export default function AdminDashboardPage() {
           </p>
 
           {loading ? (
-            <div className="mt-6 rounded-xl border border-dashed border-[#e5e5e5] bg-[#fafafa] p-6 text-center">
-              <p className="font-montserrat text-sm text-[#5e5e5e]">
-                Loading dashboard...
-              </p>
-            </div>
+            <AdminDashboardSkeleton />
           ) : error ? (
             <div className="mt-6 rounded-xl border border-dashed border-[#ffd0d0] bg-[#fff6f6] p-4">
               <p className="font-montserrat text-sm text-[#b42318]">{error}</p>
