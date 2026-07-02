@@ -38,7 +38,8 @@ import {
   DOCTOR_TIMEZONE_CHANGED_MESSAGE,
   SLOT_NO_LONGER_AVAILABLE_MESSAGE,
 } from "@/lib/slot-hold-shared";
-import { useAutoDismissMessage } from "@/lib/use-auto-dismiss-message";
+import { TimezoneChangedNoticeBanner } from "@/components/booking/TimezoneChangedNoticeBanner";
+import { useDismissibleMessage } from "@/lib/use-dismissible-message";
 import { refetchSlotsAfterTimezoneChange } from "@/lib/refetch-slots-after-timezone-change";
 import type { PatientConsultationChoice } from "@/lib/doctor-availability-slots";
 import { formatDoctorDisplayName } from "@/lib/doctor-name";
@@ -271,7 +272,7 @@ export default function AdminAppointmentsClient() {
     message: timezoneChangedNotice,
     show: showTimezoneChangedNotice,
     clear: clearTimezoneChangedNotice,
-  } = useAutoDismissMessage(5000);
+  } = useDismissibleMessage();
   const [rescheduleTarget, setRescheduleTarget] = useState<AdminAppointmentItem | null>(
     null,
   );
@@ -1722,12 +1723,10 @@ export default function AdminAppointmentsClient() {
                     </p>
                   )}
                   {timezoneChangedNotice && (
-                    <div
-                      className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 font-montserrat text-sm text-amber-800"
-                      role="status"
-                    >
-                      {timezoneChangedNotice}
-                    </div>
+                    <TimezoneChangedNoticeBanner
+                      message={timezoneChangedNotice}
+                      onDismiss={clearTimezoneChangedNotice}
+                    />
                   )}
                   {(rescheduleError ?? slotUnavailableAlert) && (
                     <p className="font-montserrat text-sm text-red-600">
@@ -1764,12 +1763,10 @@ export default function AdminAppointmentsClient() {
               {rescheduleStep === "confirm" && (
                 <div className="mt-6 flex flex-col gap-4">
                   {timezoneChangedNotice && (
-                    <div
-                      className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 font-montserrat text-sm text-amber-800"
-                      role="status"
-                    >
-                      {timezoneChangedNotice}
-                    </div>
+                    <TimezoneChangedNoticeBanner
+                      message={timezoneChangedNotice}
+                      onDismiss={clearTimezoneChangedNotice}
+                    />
                   )}
                   {(rescheduleError ?? slotUnavailableAlert) && (
                     <p className="font-montserrat text-sm text-red-600">

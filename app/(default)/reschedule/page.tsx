@@ -46,7 +46,8 @@ import {
   DOCTOR_TIMEZONE_CHANGED_MESSAGE,
   SLOT_NO_LONGER_AVAILABLE_MESSAGE,
 } from "@/lib/slot-hold-shared";
-import { useAutoDismissMessage } from "@/lib/use-auto-dismiss-message";
+import { TimezoneChangedNoticeBanner } from "@/components/booking/TimezoneChangedNoticeBanner";
+import { useDismissibleMessage } from "@/lib/use-dismissible-message";
 import { refetchSlotsAfterTimezoneChange } from "@/lib/refetch-slots-after-timezone-change";
 import type { PatientConsultationChoice } from "@/lib/doctor-availability-slots";
 import {
@@ -208,7 +209,8 @@ function RescheduleContent() {
   const {
     message: timezoneChangedNotice,
     show: showTimezoneChangedNotice,
-  } = useAutoDismissMessage(5000);
+    clear: clearTimezoneChangedNotice,
+  } = useDismissibleMessage();
   const [state, setState] = useState<RescheduleUiState>("idle");
   const [isLoadingAppointment, setIsLoadingAppointment] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -983,12 +985,11 @@ function RescheduleContent() {
 
                       <section>
                         {timezoneChangedNotice && (
-                          <div
-                            className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 font-montserrat text-sm text-amber-800"
-                            role="status"
-                          >
-                            {timezoneChangedNotice}
-                          </div>
+                          <TimezoneChangedNoticeBanner
+                            message={timezoneChangedNotice}
+                            onDismiss={clearTimezoneChangedNotice}
+                            className="mb-4"
+                          />
                         )}
                         {(submitError ?? slotUnavailableAlert) && (
                           <p

@@ -58,7 +58,8 @@ import {
   type SlotUpdatedPayload,
 } from "@/lib/slot-hold-shared";
 import { useDoctorSlotsPusher } from "@/lib/use-doctor-slots-pusher";
-import { useAutoDismissMessage } from "@/lib/use-auto-dismiss-message";
+import { TimezoneChangedNoticeBanner } from "@/components/booking/TimezoneChangedNoticeBanner";
+import { useDismissibleMessage } from "@/lib/use-dismissible-message";
 import { refetchSlotsAfterTimezoneChange } from "@/lib/refetch-slots-after-timezone-change";
 
 const patientFormSchema = z.object({
@@ -273,7 +274,8 @@ export default function BookAppointmentDoctorPage() {
   const {
     message: timezoneChangedNotice,
     show: showTimezoneChangedNotice,
-  } = useAutoDismissMessage(5000);
+    clear: clearTimezoneChangedNotice,
+  } = useDismissibleMessage();
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedSlot, setSelectedSlot] = useState<BookableSlotRef | null>(null);
   const [consultationType, setConsultationType] =
@@ -1520,12 +1522,10 @@ export default function BookAppointmentDoctorPage() {
                     Available times
                   </h2>
                   {timezoneChangedNotice && (
-                    <div
-                      role="status"
-                      className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 font-montserrat text-sm text-amber-800"
-                    >
-                      {timezoneChangedNotice}
-                    </div>
+                    <TimezoneChangedNoticeBanner
+                      message={timezoneChangedNotice}
+                      onDismiss={clearTimezoneChangedNotice}
+                    />
                   )}
                   {!slotsLoadingOrFetching && (
                     <p className="font-montserrat text-sm text-[#5E5E5E]">
