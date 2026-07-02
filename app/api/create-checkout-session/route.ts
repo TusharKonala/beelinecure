@@ -27,7 +27,7 @@ import {
 } from "@/lib/doctor-online-booking";
 import {
   DOCTOR_TIMEZONE_CHANGED_CODE,
-  DOCTOR_TIMEZONE_CHANGED_MESSAGE,
+  DOCTOR_TIMEZONE_CHANGED_REVIEW_MESSAGE,
 } from "@/lib/slot-hold-shared";
 import {
   coerceAllowedSlotDurationMinutes,
@@ -158,7 +158,7 @@ export async function POST(request: NextRequest) {
     if (bookingSession.timezone !== doctor.timezone) {
       return NextResponse.json(
         {
-          error: DOCTOR_TIMEZONE_CHANGED_MESSAGE,
+          error: DOCTOR_TIMEZONE_CHANGED_REVIEW_MESSAGE,
           code: DOCTOR_TIMEZONE_CHANGED_CODE,
           doctorId: bookingSession.doctorId,
         },

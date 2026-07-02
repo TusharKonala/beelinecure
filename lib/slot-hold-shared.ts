@@ -12,6 +12,10 @@ export const DOCTOR_TIMEZONE_CHANGED_CODE = "DOCTOR_TIMEZONE_CHANGED";
 export const DOCTOR_TIMEZONE_CHANGED_MESSAGE =
   "The doctor updated their timezone, so the available times changed. We refreshed the slots. Please pick a time again.";
 
+/** Shown on the booking review / checkout page when the session timezone is stale. */
+export const DOCTOR_TIMEZONE_CHANGED_REVIEW_MESSAGE =
+  "The doctor updated their timezone. Please go back and choose a new time.";
+
 export function doctorTimezoneMismatchMessage(
   currentDoctorTimezone: string,
   appointmentTimezone: string,

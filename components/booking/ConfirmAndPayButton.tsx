@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useRedirectOverlay } from "@/components/nav/RedirectOverlayProvider";
 import {
   DOCTOR_TIMEZONE_CHANGED_CODE,
-  DOCTOR_TIMEZONE_CHANGED_MESSAGE,
+  DOCTOR_TIMEZONE_CHANGED_REVIEW_MESSAGE,
 } from "@/lib/slot-hold-shared";
 
 type ConfirmAndPayButtonProps = {
@@ -113,7 +113,7 @@ export function ConfirmAndPayButton({
       {showTimezoneChanged && (
         <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50/80 p-4">
           <p className="font-montserrat text-sm text-[#333333]">
-            {DOCTOR_TIMEZONE_CHANGED_MESSAGE}
+            {DOCTOR_TIMEZONE_CHANGED_REVIEW_MESSAGE}
           </p>
           <Link
             href={`/book-appointment/${doctorId}`}
