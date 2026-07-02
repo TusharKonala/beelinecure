@@ -1,3 +1,4 @@
+import { getAppointmentStartMsFromParts } from "@/lib/appointment-reschedule-eligibility";
 import { coerceAllowedSlotDurationMinutes } from "@/lib/doctor-availability-slots";
 import { isDoctorTimeInPast } from "@/lib/timezone-display";
 
@@ -8,6 +9,30 @@ export type BookableSlotRef = { doctorDate: string; startTime: string };
 
 export function bookableSlotRefKey(ref: BookableSlotRef): string {
   return `${ref.doctorDate}:${ref.startTime}`;
+}
+
+/**
+ * True when a grid slot and a stored appointment refer to the same instant.
+ * Slot coords use the doctor's current timezone; booked coords use the
+ * appointment's booking-time timezone (they differ after a doctor TZ change).
+ */
+export function isSameAppointmentInstant(
+  slot: BookableSlotRef,
+  slotDoctorTimezone: string,
+  booked: { date: string; time: string; timezone: string },
+): boolean {
+  return (
+    getAppointmentStartMsFromParts(
+      slot.doctorDate,
+      slot.startTime,
+      slotDoctorTimezone,
+    ) ===
+    getAppointmentStartMsFromParts(
+      booked.date,
+      booked.time,
+      booked.timezone,
+    )
+  );
 }
 
 export type RescheduleSlotDetail = {

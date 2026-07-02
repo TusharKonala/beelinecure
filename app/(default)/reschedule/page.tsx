@@ -32,6 +32,7 @@ import {
 import {
   bookableSlotRefKey,
   filterReschedulableSlots,
+  isSameAppointmentInstant,
   type BookableSlotRef,
 } from "@/lib/reschedule-slots";
 import { scrollIntoViewIfMobile } from "@/lib/scroll-into-view-mobile";
@@ -422,14 +423,6 @@ function RescheduleContent() {
   const slotsEnabled =
     state === "idle" && !!selectedDoctorId && !!selectedDate && !!appointment;
 
-  const isCurrentAppointmentSlot =
-    !!appointment &&
-    !!selectedSlot &&
-    selectedSlot.doctorDate === appointment.date &&
-    selectedSlot.startTime === appointment.time;
-  const shouldBlockCurrentAppointmentSlot =
-    hasSelectionInteraction && isCurrentAppointmentSlot;
-
   /**
    * Background eligibility re-check (holiday cancellation is async via Inngest,
    * so retry a few times). Runs silently without blocking the reschedule UI;
@@ -726,13 +719,28 @@ function RescheduleContent() {
       slotExpiryTick,
     ],
   );
+  const isCurrentAppointmentSlot = useMemo(
+    () =>
+      !!appointment &&
+      !!selectedSlot &&
+      isSameAppointmentInstant(selectedSlot, doctorTz, {
+        date: appointment.date,
+        time: appointment.time,
+        timezone: appointment.timezone,
+      }),
+    [appointment, selectedSlot, doctorTz],
+  );
+  const shouldBlockCurrentAppointmentSlot =
+    hasSelectionInteraction && isCurrentAppointmentSlot;
+
   const hasSelectableSlots = filteredSlots.some(
     (ref) =>
-      !(
-        appointment &&
-        ref.startTime === appointment.time &&
-        ref.doctorDate === appointment.date
-      ),
+      !appointment ||
+      !isSameAppointmentInstant(ref, doctorTz, {
+        date: appointment.date,
+        time: appointment.time,
+        timezone: appointment.timezone,
+      }),
   );
 
   const isDestinationWithin24h = useMemo(() => {
@@ -770,8 +778,11 @@ function RescheduleContent() {
     }
     const wasCurrentAppointment =
       !!appointment &&
-      selectedSlot.doctorDate === appointment.date &&
-      selectedSlot.startTime === appointment.time;
+      isSameAppointmentInstant(selectedSlot, doctorTz, {
+        date: appointment.date,
+        time: appointment.time,
+        timezone: appointment.timezone,
+      });
     if (wasCurrentAppointment) {
       // Holiday verification must run even during submit — not a slot-unavailable alert.
       void verifyAppointmentStillActive();
@@ -801,6 +812,7 @@ function RescheduleContent() {
     verifyAppointmentStillActive,
     releaseCurrentHold,
     holdingSlotKey,
+    doctorTz,
   ]);
 
   const onCalendarSelect = useCallback(
@@ -1136,8 +1148,11 @@ function RescheduleContent() {
                               const refKey = bookableSlotRefKey(ref);
                               const isCurrent =
                                 !!appointment &&
-                                ref.startTime === appointment.time &&
-                                ref.doctorDate === appointment.date;
+                                isSameAppointmentInstant(ref, doctorTz, {
+                                  date: appointment.date,
+                                  time: appointment.time,
+                                  timezone: appointment.timezone,
+                                });
                               const isSelected =
                                 selectedSlot !== null &&
                                 bookableSlotRefKey(selectedSlot) === refKey;

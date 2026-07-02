@@ -26,6 +26,7 @@ import {
 import {
   bookableSlotRefKey,
   filterReschedulableSlots,
+  isSameAppointmentInstant,
   type BookableSlotRef,
 } from "@/lib/reschedule-slots";
 import { useDoctorSlotsPusher } from "@/lib/use-doctor-slots-pusher";
@@ -1020,18 +1021,22 @@ export default function AdminAppointmentsClient() {
   );
   const hasSelectableSlots = filteredSlots.some(
     (ref) =>
-      !(
-        rescheduleTarget &&
-        ref.startTime === rescheduleTarget.time &&
-        ref.doctorDate === rescheduleTarget.date
-      ),
+      !rescheduleTarget ||
+      !isSameAppointmentInstant(ref, doctorTz, {
+        date: rescheduleTarget.date,
+        time: rescheduleTarget.time,
+        timezone: rescheduleTarget.timezone,
+      }),
   );
 
   const isCurrentAppointmentSlot =
     !!rescheduleTarget &&
     !!selectedSlot &&
-    selectedSlot.doctorDate === rescheduleTarget.date &&
-    selectedSlot.startTime === rescheduleTarget.time;
+    isSameAppointmentInstant(selectedSlot, doctorTz, {
+      date: rescheduleTarget.date,
+      time: rescheduleTarget.time,
+      timezone: rescheduleTarget.timezone,
+    });
   const shouldBlockCurrentAppointmentSlot =
     hasSelectionInteraction && isCurrentAppointmentSlot;
 
@@ -1065,8 +1070,11 @@ export default function AdminAppointmentsClient() {
     }
     const wasCurrentAppointment =
       !!rescheduleTarget &&
-      selectedSlot.doctorDate === rescheduleTarget.date &&
-      selectedSlot.startTime === rescheduleTarget.time;
+      isSameAppointmentInstant(selectedSlot, doctorTz, {
+        date: rescheduleTarget.date,
+        time: rescheduleTarget.time,
+        timezone: rescheduleTarget.timezone,
+      });
     if (wasCurrentAppointment) {
       // Holiday verification must run even during submit — not a slot-unavailable alert.
       void verifyRescheduleStillActive();
@@ -1096,6 +1104,7 @@ export default function AdminAppointmentsClient() {
     verifyRescheduleStillActive,
     releaseCurrentHold,
     holdingSlotKey,
+    doctorTz,
   ]);
 
   function openReschedule(a: AdminAppointmentItem) {
@@ -1913,9 +1922,15 @@ export default function AdminAppointmentsClient() {
                     {!slotsLoadingOrFetching && filteredSlots.length > 0 && (
                       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
                         {filteredSlots.map((ref) => {
-                          const isCurrent =
-                            ref.startTime === rescheduleTarget.time &&
-                            ref.doctorDate === rescheduleTarget.date;
+                          const isCurrent = isSameAppointmentInstant(
+                            ref,
+                            doctorTz,
+                            {
+                              date: rescheduleTarget.date,
+                              time: rescheduleTarget.time,
+                              timezone: rescheduleTarget.timezone,
+                            },
+                          );
                           const refKey = bookableSlotRefKey(ref);
                           const isHolding = holdingSlotKey === refKey;
                           const timeLabel =
