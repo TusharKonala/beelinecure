@@ -44,6 +44,7 @@ import type {
   AvailabilityChangedPayload,
 } from "@/lib/pusher-server";
 import {
+  DOCTOR_TIMEZONE_CHANGED_CODE,
   DOCTOR_TIMEZONE_CHANGED_MESSAGE,
   doctorTimezoneChangedBannerMessage,
   type SlotUpdatedPayload,
@@ -918,6 +919,7 @@ function RescheduleContent() {
 
       const json = (await res.json().catch(() => null)) as {
         status?: string;
+        code?: string;
       } | null;
 
       const nextState = json?.status;
@@ -930,7 +932,10 @@ function RescheduleContent() {
         return;
       }
 
-      if (nextState === "timezone_changed") {
+      if (
+        json?.code === DOCTOR_TIMEZONE_CHANGED_CODE ||
+        nextState === "timezone_changed"
+      ) {
         void releaseCurrentHold();
         showTimezoneChangedNotice(DOCTOR_TIMEZONE_CHANGED_MESSAGE);
         setSelectedSlot(null);

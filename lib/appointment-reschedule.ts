@@ -79,8 +79,8 @@ export async function reschedulePatientAppointment(input: {
   date: Date;
   time: string;
   patientTimezoneOverride?: string;
-  /** Doctor timezone the client displayed when the slot was picked. */
-  expectedDoctorTimezone?: string;
+  /** Doctor timezone the client displayed when the slot was picked (required). */
+  expectedDoctorTimezone: string;
   requestOrigin: string;
   /**
    * User id who initiated the reschedule. Stored on the resulting
@@ -123,8 +123,7 @@ export async function reschedulePatientAppointment(input: {
   // Race guard: if the doctor changed timezone after the client rendered slots,
   // reject so the client can refetch. Whichever change lands first wins.
   if (
-    expectedDoctorTimezone &&
-    doctorForSlots &&
+    !doctorForSlots ||
     doctorForSlots.timezone !== expectedDoctorTimezone
   ) {
     return { ok: false, code: "doctor_timezone_changed" };

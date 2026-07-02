@@ -7,6 +7,10 @@ import {
   evaluateRescheduleEligibility,
   type RescheduleEligibilityCode,
 } from "@/lib/appointment-reschedule-eligibility";
+import {
+  DOCTOR_TIMEZONE_CHANGED_CODE,
+  DOCTOR_TIMEZONE_CHANGED_MESSAGE,
+} from "@/lib/slot-hold-shared";
 
 const rescheduleTokenSchema = z.object({
   appointmentId: z.string().min(1),
@@ -19,7 +23,7 @@ const rescheduleSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   time: z.string().regex(/^\d{2}:\d{2}$/),
   patientTimezone: z.string().min(1).max(128).optional(),
-  expectedDoctorTimezone: z.string().min(1).max(128).optional(),
+  expectedDoctorTimezone: z.string().min(1).max(128),
   holdId: z.string().uuid().optional(),
 });
 
@@ -38,7 +42,7 @@ type RescheduleResponse =
   | { status: "appointment_passed" }
   | { status: "too_close_to_reschedule" }
   | { status: "slot_unavailable" }
-  | { status: "timezone_changed" };
+  | { status: "timezone_changed"; error: string; code: string };
 
 function formatDateOnly(date: Date): string {
   return date.toISOString().slice(0, 10);
@@ -46,7 +50,7 @@ function formatDateOnly(date: Date): string {
 
 function patientStatusFromEligibility(
   code: RescheduleEligibilityCode,
-): RescheduleResponse["status"] {
+): Exclude<RescheduleResponse["status"], "timezone_changed"> {
   switch (code) {
     case "eligible":
       return "success";
@@ -218,9 +222,14 @@ export async function POST(request: NextRequest) {
       } satisfies RescheduleResponse);
     }
     if (result.code === "doctor_timezone_changed") {
-      return NextResponse.json({
-        status: "timezone_changed",
-      } satisfies RescheduleResponse);
+      return NextResponse.json(
+        {
+          status: "timezone_changed",
+          error: DOCTOR_TIMEZONE_CHANGED_MESSAGE,
+          code: DOCTOR_TIMEZONE_CHANGED_CODE,
+        } satisfies RescheduleResponse,
+        { status: 409 },
+      );
     }
     return NextResponse.json({
       status: "slot_unavailable",
