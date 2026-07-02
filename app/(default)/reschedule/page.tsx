@@ -44,7 +44,6 @@ import type {
 } from "@/lib/pusher-server";
 import {
   DOCTOR_TIMEZONE_CHANGED_MESSAGE,
-  SLOT_NO_LONGER_AVAILABLE_MESSAGE,
   type SlotUpdatedPayload,
 } from "@/lib/slot-hold-shared";
 import { TimezoneChangedNoticeBanner } from "@/components/booking/TimezoneChangedNoticeBanner";
@@ -56,7 +55,10 @@ import {
   getAppointmentStartMsFromParts,
   RESCHEDULE_MIN_LEAD_TIME_MS,
 } from "@/lib/appointment-reschedule-eligibility";
-import { RESCHEDULE_DESTINATION_WITHIN_24H_WARNING } from "@/lib/reschedule-policy-copy";
+import {
+  RESCHEDULE_DESTINATION_WITHIN_24H_WARNING,
+  RESCHEDULE_SLOT_TAKEN_MESSAGE,
+} from "@/lib/reschedule-policy-copy";
 
 type RescheduleUiState =
   | "idle"
@@ -538,11 +540,7 @@ function RescheduleContent() {
           holdIdRef.current = null;
           setActiveHoldId(null);
           invalidateSlotsRef.current();
-          setSlotUnavailableAlert(
-            typeof json.error === "string"
-              ? json.error
-              : SLOT_NO_LONGER_AVAILABLE_MESSAGE,
-          );
+          setSlotUnavailableAlert(RESCHEDULE_SLOT_TAKEN_MESSAGE);
           return;
         }
 
@@ -754,7 +752,7 @@ function RescheduleContent() {
     );
     if (stillAvailable) {
       setSlotUnavailableAlert((prev) =>
-        prev === SLOT_NO_LONGER_AVAILABLE_MESSAGE ? null : prev,
+        prev === RESCHEDULE_SLOT_TAKEN_MESSAGE ? null : prev,
       );
       return;
     }
@@ -777,7 +775,7 @@ function RescheduleContent() {
     // now-defunct hold so it doesn't linger until TTL.
     void releaseCurrentHold();
     if (hasSelectionInteraction) {
-      setSlotUnavailableAlert(SLOT_NO_LONGER_AVAILABLE_MESSAGE);
+      setSlotUnavailableAlert(RESCHEDULE_SLOT_TAKEN_MESSAGE);
     }
     setSelectedSlot(null);
   }, [
@@ -913,8 +911,8 @@ function RescheduleContent() {
       if (nextState === "slot_unavailable") {
         void releaseCurrentHold();
         setSelectedSlot(null);
-        setSubmitError(SLOT_NO_LONGER_AVAILABLE_MESSAGE);
-        setSlotUnavailableAlert(null);
+        setSubmitError(null);
+        setSlotUnavailableAlert(RESCHEDULE_SLOT_TAKEN_MESSAGE);
         return;
       }
 
@@ -1089,6 +1087,15 @@ function RescheduleContent() {
                           Available times
                         </h2>
 
+                        {slotUnavailableAlert ? (
+                          <p
+                            className="mt-4 font-montserrat text-sm text-red-600"
+                            role="alert"
+                          >
+                            {slotUnavailableAlert}
+                          </p>
+                        ) : null}
+
                         {slotsLoadingOrFetching && (
                           <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:gap-4">
                             {Array.from({ length: 8 }).map((_, i) => (
@@ -1167,12 +1174,12 @@ function RescheduleContent() {
                             className="mb-4"
                           />
                         )}
-                        {(submitError ?? slotUnavailableAlert) && (
+                        {submitError && (
                           <p
                             className="mb-4 font-montserrat text-sm text-red-600"
                             role="alert"
                           >
-                            {submitError ?? slotUnavailableAlert}
+                            {submitError}
                           </p>
                         )}
                         {shouldBlockCurrentAppointmentSlot && (

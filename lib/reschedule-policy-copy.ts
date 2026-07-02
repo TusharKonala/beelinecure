@@ -15,6 +15,10 @@ export const RESCHEDULE_ONLY_MORE_THAN_24H =
 export const RESCHEDULE_DESTINATION_WITHIN_24H_WARNING =
   "Heads up: This new slot is within 24 hours. You can confirm once, but you won't be able to reschedule again afterward.";
 
+/** Shown when another patient/admin/booker takes the slot during reschedule (hold race, Pusher, or confirm). */
+export const RESCHEDULE_SLOT_TAKEN_MESSAGE =
+  "This time slot is no longer available — someone else just reserved it. Please choose another slot.";
+
 /** Confirmation surfaces: payment success (online), clinic booking confirmed. */
 export const RESCHEDULE_POLICY_CONFIRMATION_LINE = `${RESCHEDULE_ONLY_MORE_THAN_24H} If it is less than 24 hours before your visit, cancel and book again to choose a new time.`;
 

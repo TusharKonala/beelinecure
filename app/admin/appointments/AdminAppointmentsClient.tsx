@@ -51,7 +51,7 @@ import { currencyForTimezone } from "@/lib/currency";
 import { useAppointmentsListPoll } from "@/lib/use-appointments-list-poll";
 import { APPOINTMENT_CANCELLATION_NOTE_MAX_CHARS } from "@/lib/appointment-schemas";
 import { isAppointmentReschedulableFromParts } from "@/lib/appointment-reschedule-eligibility";
-import { RESCHEDULE_ONLY_MORE_THAN_24H } from "@/lib/reschedule-policy-copy";
+import { RESCHEDULE_ONLY_MORE_THAN_24H, RESCHEDULE_SLOT_TAKEN_MESSAGE } from "@/lib/reschedule-policy-copy";
 import {
   alreadyCancelledCancelMessage,
   isAlreadyCancelledCancelResponse,
@@ -355,11 +355,7 @@ export default function AdminAppointmentsClient() {
           holdIdRef.current = null;
           setActiveHoldId(null);
           invalidateSlotsRef.current();
-          setSlotUnavailableAlert(
-            typeof json.error === "string"
-              ? json.error
-              : SLOT_NO_LONGER_AVAILABLE_MESSAGE,
-          );
+          setSlotUnavailableAlert(RESCHEDULE_SLOT_TAKEN_MESSAGE);
           return;
         }
 
@@ -1048,7 +1044,7 @@ export default function AdminAppointmentsClient() {
     );
     if (stillAvailable) {
       setSlotUnavailableAlert((prev) =>
-        prev === SLOT_NO_LONGER_AVAILABLE_MESSAGE ? null : prev,
+        prev === RESCHEDULE_SLOT_TAKEN_MESSAGE ? null : prev,
       );
       return;
     }
@@ -1069,7 +1065,7 @@ export default function AdminAppointmentsClient() {
     // The held slot vanished from availability — drop the now-defunct hold.
     void releaseCurrentHold();
     if (hasSelectionInteraction) {
-      setSlotUnavailableAlert(SLOT_NO_LONGER_AVAILABLE_MESSAGE);
+      setSlotUnavailableAlert(RESCHEDULE_SLOT_TAKEN_MESSAGE);
     }
     setSelectedSlot(null);
   }, [
@@ -1185,6 +1181,19 @@ export default function AdminAppointmentsClient() {
               date,
             ]);
           }
+          return;
+        }
+        if (
+          res.status === 409 &&
+          data.error === SLOT_NO_LONGER_AVAILABLE_MESSAGE
+        ) {
+          void releaseCurrentHold();
+          flushSync(() => {
+            setSelectedSlot(null);
+            setRescheduleStep("pick");
+          });
+          setRescheduleError(null);
+          setSlotUnavailableAlert(RESCHEDULE_SLOT_TAKEN_MESSAGE);
           return;
         }
         void releaseCurrentHold();
@@ -1856,6 +1865,14 @@ export default function AdminAppointmentsClient() {
                           : doctorTz}
                       </p>
                     )}
+                    {slotUnavailableAlert ? (
+                      <p
+                        className="mt-4 font-montserrat text-sm text-red-600"
+                        role="alert"
+                      >
+                        {slotUnavailableAlert}
+                      </p>
+                    ) : null}
                     {slotsLoadingOrFetching && (
                       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
                         {Array.from({ length: 8 }).map((_, i) => (
@@ -1945,9 +1962,9 @@ export default function AdminAppointmentsClient() {
                       onDismiss={clearTimezoneChangedNotice}
                     />
                   )}
-                  {(rescheduleError ?? slotUnavailableAlert) && (
+                  {rescheduleError && (
                     <p className="font-montserrat text-sm text-red-600">
-                      {rescheduleError ?? slotUnavailableAlert}
+                      {rescheduleError}
                     </p>
                   )}
                   <div className="flex flex-wrap gap-2">
@@ -1985,9 +2002,9 @@ export default function AdminAppointmentsClient() {
                       onDismiss={clearTimezoneChangedNotice}
                     />
                   )}
-                  {(rescheduleError ?? slotUnavailableAlert) && (
+                  {rescheduleError && (
                     <p className="font-montserrat text-sm text-red-600">
-                      {rescheduleError ?? slotUnavailableAlert}
+                      {rescheduleError}
                     </p>
                   )}
                   <div className="flex flex-wrap gap-2">
