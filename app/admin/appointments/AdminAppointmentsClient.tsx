@@ -1290,7 +1290,7 @@ export default function AdminAppointmentsClient() {
                             )}{" "}
                             ({a.patientTimezone})
                           </span>
-                          <span>
+                          <span className="whitespace-nowrap">
                             <span className="font-medium">Duration:</span>{" "}
                             {a.durationMinutes} min
                           </span>
@@ -1317,7 +1317,7 @@ export default function AdminAppointmentsClient() {
                           >
                             |
                           </span>
-                          <span>
+                          <span className="whitespace-nowrap">
                             <span className="font-medium">Duration:</span>{" "}
                             {a.durationMinutes} min
                           </span>

@@ -831,7 +831,7 @@ export default function BookAppointmentDoctorPage() {
           return;
         }
 
-        startRedirect({ manualDismiss: true, showDelayMs: 300 });
+        startRedirect({ manualDismiss: true, showDelayMs: 500 });
 
         const doctorTimezone = slotsData?.doctorTimezone ?? "UTC";
         const doctorDate = selectedSlot.doctorDate;

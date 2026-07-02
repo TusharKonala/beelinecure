@@ -25,7 +25,7 @@ export function ConfirmAndPayButton({
     setShowExpired(false);
     setShowCalendarUnavailable(false);
     setIsLoading(true);
-    startRedirect({ manualDismiss: true, showDelayMs: 300 });
+    startRedirect({ manualDismiss: true, showDelayMs: 500 });
 
     try {
       const res = await fetch("/api/create-checkout-session", {

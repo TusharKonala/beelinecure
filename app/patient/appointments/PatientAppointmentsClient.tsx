@@ -401,7 +401,7 @@ export default function PatientAppointmentsClient() {
                       >
                         |
                       </span>
-                      <span>
+                      <span className="whitespace-nowrap">
                         <span className="font-medium">Duration:</span>{" "}
                         {a.durationMinutes} min
                       </span>
