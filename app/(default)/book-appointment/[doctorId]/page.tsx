@@ -59,6 +59,7 @@ import {
 } from "@/lib/slot-hold-shared";
 import { useDoctorSlotsPusher } from "@/lib/use-doctor-slots-pusher";
 import { useAutoDismissMessage } from "@/lib/use-auto-dismiss-message";
+import { refetchSlotsAfterTimezoneChange } from "@/lib/refetch-slots-after-timezone-change";
 
 const patientFormSchema = z.object({
   patientName: z.string().min(1, "Full name is required"),
@@ -226,6 +227,7 @@ async function getSlots(
   }
   const res = await fetch(
     `/api/doctors/${doctorId}/slots?${params.toString()}`,
+    { cache: "no-store" },
   );
   if (!res.ok) throw new Error("Failed to fetch slots");
   return res.json();
@@ -875,11 +877,11 @@ export default function BookAppointmentDoctorPage() {
                 : "Failed to book appointment";
             if (code === DOCTOR_TIMEZONE_CHANGED_CODE) {
               stopRedirect();
-              void releaseCurrentHold();
+              showTimezoneChangedNotice(DOCTOR_TIMEZONE_CHANGED_MESSAGE);
               setSelectedSlot(null);
               setSelectedDurationMinutes(null);
-              invalidateSlotsRef.current();
-              showTimezoneChangedNotice(DOCTOR_TIMEZONE_CHANGED_MESSAGE);
+              await releaseCurrentHold();
+              await refetchSlotsAfterTimezoneChange(queryClient, slotsQueryKey);
               return;
             }
             const enriched = enrichGuestBookingError({
@@ -956,11 +958,11 @@ export default function BookAppointmentDoctorPage() {
                 : "Failed to create booking session";
             if (code === DOCTOR_TIMEZONE_CHANGED_CODE) {
               stopRedirect();
-              void releaseCurrentHold();
+              showTimezoneChangedNotice(DOCTOR_TIMEZONE_CHANGED_MESSAGE);
               setSelectedSlot(null);
               setSelectedDurationMinutes(null);
-              invalidateSlotsRef.current();
-              showTimezoneChangedNotice(DOCTOR_TIMEZONE_CHANGED_MESSAGE);
+              await releaseCurrentHold();
+              await refetchSlotsAfterTimezoneChange(queryClient, slotsQueryKey);
               return;
             }
             const enriched = enrichGuestBookingError({
@@ -1010,6 +1012,8 @@ export default function BookAppointmentDoctorPage() {
       slotsData?.doctorTimezone,
       patientTimezone,
       queryClient,
+      slotsQueryKey,
+      showTimezoneChangedNotice,
       startRedirect,
       stopRedirect,
       router,

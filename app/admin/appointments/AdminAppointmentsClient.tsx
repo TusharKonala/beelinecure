@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import useInfiniteScroll from "react-infinite-scroll-hook";
 import {
   useQueries,
@@ -39,6 +39,7 @@ import {
   SLOT_NO_LONGER_AVAILABLE_MESSAGE,
 } from "@/lib/slot-hold-shared";
 import { useAutoDismissMessage } from "@/lib/use-auto-dismiss-message";
+import { refetchSlotsAfterTimezoneChange } from "@/lib/refetch-slots-after-timezone-change";
 import type { PatientConsultationChoice } from "@/lib/doctor-availability-slots";
 import { formatDoctorDisplayName } from "@/lib/doctor-name";
 import { SELECT_CHEVRON } from "@/lib/select-styles";
@@ -213,6 +214,7 @@ async function getSlots(
     `/api/doctors/${doctorId}/slots?date=${encodeURIComponent(
       date,
     )}&excludeAppointmentId=${encodeURIComponent(excludeAppointmentId)}`,
+    { cache: "no-store" },
   );
   if (!res.ok) throw new Error("Failed to fetch slots");
   return res.json();
@@ -997,14 +999,23 @@ export default function AdminAppointmentsClient() {
           return;
         }
         if (data.code === DOCTOR_TIMEZONE_CHANGED_CODE) {
-          setSelectedSlot(null);
+          const target = rescheduleTarget;
+          const date = selectedDate;
+          flushSync(() => {
+            setSelectedSlot(null);
+            setRescheduleStep("pick");
+          });
           setRescheduleError(null);
           setSlotUnavailableAlert(null);
-          setRescheduleStep("pick");
           showTimezoneChangedNotice(DOCTOR_TIMEZONE_CHANGED_MESSAGE);
-          void queryClient.invalidateQueries({
-            queryKey: ["admin-reschedule-slots"],
-          });
+          if (target && date) {
+            await refetchSlotsAfterTimezoneChange(queryClient, [
+              "admin-reschedule-slots",
+              target.id,
+              target.doctorId,
+              date,
+            ]);
+          }
           return;
         }
         setRescheduleError(

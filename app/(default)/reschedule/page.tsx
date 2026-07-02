@@ -47,6 +47,7 @@ import {
   SLOT_NO_LONGER_AVAILABLE_MESSAGE,
 } from "@/lib/slot-hold-shared";
 import { useAutoDismissMessage } from "@/lib/use-auto-dismiss-message";
+import { refetchSlotsAfterTimezoneChange } from "@/lib/refetch-slots-after-timezone-change";
 import type { PatientConsultationChoice } from "@/lib/doctor-availability-slots";
 import {
   getAppointmentStartMsFromParts,
@@ -177,6 +178,7 @@ async function getSlots(
   });
   const res = await fetch(
     `/api/doctors/${doctorId}/slots?${params.toString()}`,
+    { cache: "no-store" },
   );
   if (!res.ok) throw new Error("Failed to fetch slots");
   return res.json();
@@ -714,13 +716,17 @@ function RescheduleContent() {
       }
 
       if (nextState === "timezone_changed") {
+        showTimezoneChangedNotice(DOCTOR_TIMEZONE_CHANGED_MESSAGE);
         setSelectedSlot(null);
         setSubmitError(null);
         setSlotUnavailableAlert(null);
-        showTimezoneChangedNotice(DOCTOR_TIMEZONE_CHANGED_MESSAGE);
-        void queryClient.invalidateQueries({
-          queryKey: ["reschedule-slots"],
-        });
+        await refetchSlotsAfterTimezoneChange(queryClient, [
+          "reschedule-slots",
+          selectedDoctorId,
+          selectedDate,
+          patientTimezone,
+          appointment?.id,
+        ]);
         return;
       }
 
