@@ -251,9 +251,16 @@ function TimezoneChangeConfirmDialog({
                 </>
               ) : null}
             </span>
-          )}{" "}
-          Paid online bookings will be fully refunded, and patients will be
-          notified to rebook.
+          )}
+          {!cancelCountLoading &&
+            !cancelCountError &&
+            (cancelCount ?? 0) > 0 && (
+              <>
+                {" "}
+                Paid bookings will be fully refunded, and patients will be
+                notified to rebook.
+              </>
+            )}
         </p>
         <p className="mt-3 font-montserrat text-sm text-[#5E5E5E]">
           We recommend changing your timezone outside clinic hours when possible.
