@@ -380,13 +380,13 @@ export default function PatientAppointmentsClient() {
                         {a.doctor.specialization}
                       </p>
                     )}
-                    <div className="mt-3 flex flex-col gap-1 font-montserrat text-sm text-[#333333] min-[400px]:flex-row min-[400px]:flex-wrap min-[400px]:items-center">
+                    <div className="mt-3 flex flex-col gap-1 font-montserrat text-sm text-[#333333] sm:flex-row sm:flex-wrap sm:items-center">
                       <span>
                         <span className="font-medium">Date:</span>{" "}
                         {formatDateInPatientTz(a.date, a.time, a.timezone)}
                       </span>
                       <span
-                        className="hidden text-[#e5e5e5] min-[400px]:mx-2 min-[400px]:inline"
+                        className="hidden text-[#e5e5e5] sm:mx-2 sm:inline"
                         aria-hidden
                       >
                         |
@@ -396,7 +396,7 @@ export default function PatientAppointmentsClient() {
                         {formatTimeInPatientTz(a.date, a.time, a.timezone)}
                       </span>
                       <span
-                        className="hidden text-[#e5e5e5] min-[400px]:mx-2 min-[400px]:inline"
+                        className="hidden text-[#e5e5e5] sm:mx-2 sm:inline"
                         aria-hidden
                       >
                         |
