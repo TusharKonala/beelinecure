@@ -32,6 +32,7 @@ import { buildDoctorAppointmentsUrl } from "@/lib/doctor-appointments-link";
 import { triggerAppointmentsChanged } from "@/lib/pusher-server";
 import { cancelAppointmentByDoctor } from "@/lib/doctor-cancellations";
 import { sendDoctorHolidaySummaryEmail } from "@/lib/doctor-holiday-summary-email";
+import { findStaleTimezoneFutureAppointments } from "@/lib/stale-timezone-appointments";
 import {
   applyBulkStatusUpdate,
   loadBulkPendingTargets,
@@ -1420,5 +1421,44 @@ export const cancelTimezoneChangeAppointments = inngest.createFunction(
         appointments,
       });
     });
+  },
+);
+
+export const sweepStaleTimezoneAppointments = inngest.createFunction(
+  {
+    id: "sweep-stale-timezone-appointments",
+    retries: 1,
+    triggers: [{ event: "doctor/timezone.sweep-stale-appointments" }],
+  },
+  async ({ event, step }) => {
+    const { doctorId } = event.data as { doctorId: string };
+
+    const { appointmentIds } = await step.run("find-stale", async () => {
+      const stale = await findStaleTimezoneFutureAppointments(doctorId);
+      return { appointmentIds: stale.map((row) => row.id) };
+    });
+
+    if (appointmentIds.length === 0) {
+      return { cancelled: 0 };
+    }
+
+    for (const appointmentId of appointmentIds) {
+      await step.run(`cancel-${appointmentId}`, () =>
+        cancelAppointmentByDoctor({
+          appointmentId,
+          doctorId,
+          reason: "doctor_timezone_change",
+          actorUserId: null,
+        }),
+      );
+    }
+
+    await step.run("log-summary", () => {
+      console.info(
+        `[timezone-sweep] Cancelled ${appointmentIds.length} stale appointment(s) for doctor ${doctorId}`,
+      );
+    });
+
+    return { cancelled: appointmentIds.length };
   },
 );

@@ -221,6 +221,19 @@ export async function PATCH(request: Request) {
       oldTimezone,
       newTimezone,
     });
+
+    try {
+      await inngest.send({
+        name: "doctor/timezone.sweep-stale-appointments",
+        data: { doctorId: doctor.id },
+        ts: Date.now() + 30 * 60 * 1000,
+      });
+    } catch (err) {
+      console.error(
+        "[doctor/settings] Failed to schedule stale timezone sweep:",
+        err,
+      );
+    }
   }
 
   return NextResponse.json({
