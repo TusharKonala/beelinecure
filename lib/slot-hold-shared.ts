@@ -16,7 +16,7 @@ export function doctorTimezoneMismatchMessage(
   currentDoctorTimezone: string,
   appointmentTimezone: string,
 ): string {
-  return `This doctor now uses ${currentDoctorTimezone}. This appointment was booked in ${appointmentTimezone}, so the available times below may look different from when you originally booked.`;
+  return `The doctor has updated their timezone to ${currentDoctorTimezone} (this appointment was booked in the ${appointmentTimezone} timezone). The times below are shown in the doctor's current timezone and may look different from when you originally booked.`;
 }
 
 export type SlotUpdatedPayload = {

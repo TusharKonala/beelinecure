@@ -257,6 +257,12 @@ function RescheduleContent() {
   }, []);
 
   useEffect(() => {
+    if (state === "success") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, [state]);
+
+  useEffect(() => {
     if (!canLoad) return;
 
     setIsLoadingAppointment(true);
