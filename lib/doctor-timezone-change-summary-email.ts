@@ -49,12 +49,12 @@ export async function sendDoctorTimezoneChangeSummaryEmail(input: {
       const dateLabel = formatDateInDoctorTz(
         ymdStr,
         appt.time,
-        doctor.timezone,
+        oldTimezone,
       );
       const timeLabel = formatTimeInDoctorTz(
         ymdStr,
         appt.time,
-        doctor.timezone,
+        oldTimezone,
       );
       const list = grouped[dateLabel] ?? (grouped[dateLabel] = []);
       list.push({
@@ -72,12 +72,11 @@ export async function sendDoctorTimezoneChangeSummaryEmail(input: {
     const { error: emailError } = await resend.emails.send({
       from: getEmailFrom(),
       to: doctorEmail,
-      subject: `Timezone change cancellation summary — ${appointments.length} appointment${appointments.length === 1 ? "" : "s"}`,
+      subject: `Timezone change cancellation summary: ${appointments.length} appointment${appointments.length === 1 ? "" : "s"}`,
       react: DoctorTimezoneChangeSummaryEmailTemplate({
         doctorName: doctor.name,
         oldTimezone,
         newTimezone,
-        doctorTimezone: doctor.timezone,
         appointmentsByDate: grouped,
       }),
     });

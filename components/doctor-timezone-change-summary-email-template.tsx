@@ -6,7 +6,6 @@ export interface DoctorTimezoneChangeSummaryEmailProps {
   doctorName: string;
   oldTimezone: string;
   newTimezone: string;
-  doctorTimezone: string;
   appointmentsByDate: Record<string, DoctorHolidaySummaryItem[]>;
 }
 
@@ -18,7 +17,6 @@ export function DoctorTimezoneChangeSummaryEmailTemplate({
   doctorName,
   oldTimezone,
   newTimezone,
-  doctorTimezone,
   appointmentsByDate,
 }: DoctorTimezoneChangeSummaryEmailProps) {
   const displayDoctorName = formatDoctorDisplayName(doctorName);
@@ -32,19 +30,25 @@ export function DoctorTimezoneChangeSummaryEmailTemplate({
       style={{ fontFamily: "sans-serif", maxWidth: "640px", margin: "0 auto" }}
     >
       <h1 style={{ color: "#111111", marginBottom: "1rem" }}>
-        Timezone change — appointments cancelled
+        Timezone change: appointments cancelled
       </h1>
-      <p style={{ color: "#333333", lineHeight: 1.6 }}>Hello {displayDoctorName},</p>
+      <p style={{ color: "#333333", lineHeight: 1.6 }}>
+        Hello {displayDoctorName},
+      </p>
       <p style={{ color: "#333333", lineHeight: 1.6 }}>
         You changed your practice timezone from <strong>{oldTimezone}</strong>{" "}
         to <strong>{newTimezone}</strong>.
       </p>
       <p style={{ color: "#333333", lineHeight: 1.6 }}>
         We cancelled <strong>{totalCount}</strong> upcoming appointment
-        {totalCount === 1 ? "" : "s"}, notified the affected patient
-        {totalCount === 1 ? "" : "s"} by email, and initiated refunds where
-        applicable. Times below are shown in your current timezone (
-        {doctorTimezone}).
+        {totalCount === 1 ? "" : "s"} that {totalCount === 1 ? "was" : "were"}{" "}
+        booked in <strong>{oldTimezone}</strong>. Those times cannot be carried
+        over after a timezone change, so patients were notified to book again in
+        your new timezone. Refunds were initiated where applicable.
+      </p>
+      <p style={{ color: "#333333", lineHeight: 1.6 }}>
+        Appointment times below are shown exactly as they were booked (
+        {oldTimezone}).
       </p>
 
       {Object.entries(appointmentsByDate).map(([dateLabel, items]) => (
@@ -69,10 +73,16 @@ export function DoctorTimezoneChangeSummaryEmailTemplate({
             {dateLabel} · {items.length} appointment
             {items.length === 1 ? "" : "s"}
           </p>
-          <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem", color: "#333333" }}>
+          <ul
+            style={{
+              marginTop: "0.5rem",
+              paddingLeft: "1.25rem",
+              color: "#333333",
+            }}
+          >
             {items.map((item, idx) => (
               <li key={idx} style={{ marginBottom: "0.4rem", lineHeight: 1.5 }}>
-                <strong>{item.appointmentTime}</strong> — {item.patientName} (
+                <strong>{item.appointmentTime}</strong> · {item.patientName} (
                 {item.consultationLabel})
                 <br />
                 <span style={{ color: "#5E5E5E", fontSize: "0.9rem" }}>
@@ -88,7 +98,7 @@ export function DoctorTimezoneChangeSummaryEmailTemplate({
       <p
         style={{ color: "#5E5E5E", fontSize: "0.875rem", marginTop: "1.5rem" }}
       >
-        You don&apos;t need to do anything — this is for your records.
+        You don&apos;t need to do anything. This email is for your records.
       </p>
     </div>
   );
