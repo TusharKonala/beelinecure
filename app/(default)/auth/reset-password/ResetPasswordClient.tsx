@@ -26,6 +26,7 @@ export default function ResetPasswordClient({
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [confirmPasswordMismatch, setConfirmPasswordMismatch] = useState(false);
+  const [passwordTooShort, setPasswordTooShort] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -76,7 +77,7 @@ export default function ResetPasswordClient({
     setError(null);
 
     if (password.length < 8) {
-      setError("Password must be at least 8 characters.");
+      setPasswordTooShort(true);
       return;
     }
 
@@ -114,6 +115,10 @@ export default function ResetPasswordClient({
   const inputClassName =
     "h-11 w-full rounded-xl border border-[#e5e5e5] bg-white px-3 text-sm font-montserrat text-[#333333] shadow-sm outline-none placeholder:text-[#5E5E5E]/70 focus-visible:border-[#2555F3] focus-visible:ring-[3px] focus-visible:ring-[#2555F3]/20";
 
+  const passwordInputClassName = passwordTooShort
+    ? `${inputClassName} border-red-300 pr-11 focus-visible:border-red-400 focus-visible:ring-red-200`
+    : `${inputClassName} pr-11`;
+
   const confirmInputClassName = passwordsMismatch
     ? `${inputClassName} border-red-300 pr-11 focus-visible:border-red-400 focus-visible:ring-red-200`
     : `${inputClassName} pr-11`;
@@ -147,9 +152,20 @@ export default function ResetPasswordClient({
               value={password}
               onChange={(e) => {
                 setPassword(e.target.value);
+                setPasswordTooShort(false);
                 setError(null);
               }}
-              className={`${inputClassName} pr-11`}
+              onBlur={(e) => {
+                const nextValue = e.target.value;
+                setPasswordTooShort(
+                  nextValue.length > 0 && nextValue.length < 8,
+                );
+              }}
+              className={passwordInputClassName}
+              aria-invalid={passwordTooShort}
+              aria-describedby={
+                passwordTooShort ? "reset-password-too-short" : undefined
+              }
             />
             <button
               type="button"
@@ -165,6 +181,15 @@ export default function ResetPasswordClient({
               )}
             </button>
           </div>
+          {passwordTooShort && (
+            <p
+              id="reset-password-too-short"
+              className="font-montserrat text-xs text-red-800"
+              role="alert"
+            >
+              Password must be at least 8 characters.
+            </p>
+          )}
         </div>
 
         <div className="flex flex-col gap-2">
@@ -229,7 +254,7 @@ export default function ResetPasswordClient({
 
         <Button
           type="submit"
-          disabled={pending || passwordsMismatch}
+          disabled={pending || passwordsMismatch || passwordTooShort}
           className="h-11 w-full cursor-pointer rounded-xl bg-[#2555F3] font-montserrat text-sm font-medium hover:bg-[#1e44c7] md:h-12 md:text-base"
         >
           {pending ? "Updating…" : isSetMode ? "Set password" : "Reset password"}
