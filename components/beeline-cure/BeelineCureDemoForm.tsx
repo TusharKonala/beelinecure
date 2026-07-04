@@ -14,6 +14,16 @@ function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
 
+function validateEmail(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return "Email is required.";
+  return isValidEmail(trimmed) ? null : "Please enter a valid email address.";
+}
+
+function isEmailRelatedError(message: string) {
+  return /email/i.test(message);
+}
+
 export function BeelineCureDemoForm() {
   const [fullName, setFullName] = useState("");
   const [clinicName, setClinicName] = useState("");
@@ -22,7 +32,12 @@ export function BeelineCureDemoForm() {
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
+
+  const emailInputClassName = emailError
+    ? `${inputClassName} border-red-400/60 focus:border-red-400 focus:ring-red-400/20`
+    : inputClassName;
 
   const canSubmit =
     !submitting &&
@@ -35,8 +50,15 @@ export function BeelineCureDemoForm() {
     const form = e.currentTarget;
     if (!form.reportValidity()) return;
 
+    const nextEmailError = validateEmail(email);
+    if (nextEmailError) {
+      setEmailError(nextEmailError);
+      return;
+    }
+
     setSubmitting(true);
     setError(null);
+    setEmailError(null);
 
     try {
       const res = await fetch("/api/demo-request", {
@@ -52,13 +74,22 @@ export function BeelineCureDemoForm() {
       });
       const data = (await res.json()) as { error?: string };
       if (!res.ok) {
-        throw new Error(data.error ?? "Failed to submit request");
+        const message = data.error ?? "Failed to submit request";
+        if (isEmailRelatedError(message)) {
+          setEmailError(message);
+          return;
+        }
+        throw new Error(message);
       }
       setSubmitted(true);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to submit request",
-      );
+      const message =
+        err instanceof Error ? err.message : "Failed to submit request";
+      if (isEmailRelatedError(message)) {
+        setEmailError(message);
+        return;
+      }
+      setError(message);
     } finally {
       setSubmitting(false);
     }
@@ -138,11 +169,26 @@ export function BeelineCureDemoForm() {
             type="email"
             required
             aria-required
+            aria-invalid={!!emailError}
+            aria-describedby={emailError ? "demo-email-error" : undefined}
             autoComplete="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className={inputClassName}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              setEmailError(null);
+            }}
+            onBlur={() => setEmailError(validateEmail(email))}
+            className={emailInputClassName}
           />
+          {emailError ? (
+            <p
+              id="demo-email-error"
+              className="mt-1.5 font-montserrat text-xs text-red-300"
+              role="alert"
+            >
+              {emailError}
+            </p>
+          ) : null}
         </div>
 
         <div>
