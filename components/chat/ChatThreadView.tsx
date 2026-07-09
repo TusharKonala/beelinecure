@@ -336,8 +336,11 @@ export function ChatThreadView({
     const cluster = process.env.NEXT_PUBLIC_PUSHER_CLUSTER;
     if (!key || !cluster) return;
 
-    const pusher = new Pusher(key, { cluster });
-    const channel = pusher.subscribe(`conversation-${conversationId}`);
+    const pusher = new Pusher(key, {
+      cluster,
+      authEndpoint: "/api/pusher/auth",
+    });
+    const channel = pusher.subscribe(`private-conversation-${conversationId}`);
 
     const onNewMessage = (payload: {
       id: string;
@@ -402,7 +405,7 @@ export function ChatThreadView({
     return () => {
       channel.unbind("new-message", onNewMessage);
       channel.unbind("message-deleted", onMessageDeleted);
-      pusher.unsubscribe(`conversation-${conversationId}`);
+      pusher.unsubscribe(`private-conversation-${conversationId}`);
       pusher.disconnect();
     };
   }, [thread?.id, session?.user?.id, syncUnreadBadge, scrollToBottom]);

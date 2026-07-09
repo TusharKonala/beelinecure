@@ -1,13 +1,42 @@
 import { getServerSession } from "next-auth/next";
 import { NextRequest, NextResponse } from "next/server";
 import { authOptions } from "@/lib/auth";
-import { getPusherServer, userPrivateChannel } from "@/lib/pusher-server";
+import { canSubscribeToConversation } from "@/lib/chat";
+import {
+  getPusherServer,
+  userPrivateChannel,
+} from "@/lib/pusher-server";
+import { UserRole } from "@/generated/prisma/client";
+
+const CONVERSATION_CHANNEL_PREFIX = "private-conversation-";
+
+async function isChannelAuthorized(
+  channelName: string,
+  user: { id: string; role: UserRole; email?: string | null },
+): Promise<boolean> {
+  if (channelName === userPrivateChannel(user.id)) {
+    return true;
+  }
+
+  if (channelName.startsWith(CONVERSATION_CHANNEL_PREFIX)) {
+    const conversationId = channelName.slice(CONVERSATION_CHANNEL_PREFIX.length);
+    if (!conversationId) return false;
+    return canSubscribeToConversation(conversationId, {
+      userId: user.id,
+      role: user.role,
+      userEmail: user.email,
+    });
+  }
+
+  return false;
+}
 
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
   const userId = session?.user?.id;
+  const role = session?.user?.role;
 
-  if (!userId) {
+  if (!userId || !role) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -20,8 +49,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 
-  const allowedChannel = userPrivateChannel(userId);
-  if (channelName !== allowedChannel) {
+  const authorized = await isChannelAuthorized(channelName, {
+    id: userId,
+    role,
+    email: session.user.email,
+  });
+
+  if (!authorized) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

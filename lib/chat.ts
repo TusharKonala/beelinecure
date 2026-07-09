@@ -263,6 +263,47 @@ export async function linkPatientUserOnConversation(
   });
 }
 
+/** Read-only access check for Pusher subscription auth (no side effects). */
+export async function canSubscribeToConversation(
+  conversationId: string,
+  params: { userId: string; role: UserRole; userEmail?: string | null },
+): Promise<boolean> {
+  const conversation = await prisma.chatConversation.findUnique({
+    where: { id: conversationId },
+    select: {
+      doctorUserId: true,
+      patientUserId: true,
+      appointment: { select: { email: true } },
+    },
+  });
+
+  if (!conversation) return false;
+
+  let userEmail = params.userEmail;
+  if (
+    params.role === UserRole.PATIENT &&
+    conversation.patientUserId !== params.userId &&
+    userEmail === undefined
+  ) {
+    const user = await prisma.user.findUnique({
+      where: { id: params.userId },
+      select: { email: true },
+    });
+    userEmail = user?.email ?? null;
+  }
+
+  const access = resolveConversationAccess(
+    {
+      doctorUserId: conversation.doctorUserId,
+      patientUserId: conversation.patientUserId,
+      appointmentEmail: conversation.appointment.email,
+    },
+    { userId: params.userId, role: params.role, userEmail },
+  );
+
+  return access.allowed;
+}
+
 export async function assertConversationAccess(
   conversationId: string,
   userId: string,

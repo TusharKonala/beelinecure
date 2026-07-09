@@ -43,12 +43,20 @@ export function userPrivateChannel(userId: string) {
   return `private-user-${userId}`;
 }
 
+export function conversationPrivateChannel(conversationId: string) {
+  return `private-conversation-${conversationId}`;
+}
+
 export async function triggerNewChatMessage(
   conversationId: string,
   message: ChatMessagePushPayload,
 ) {
   const pusher = getPusherServer();
-  await pusher.trigger(`conversation-${conversationId}`, "new-message", message);
+  await pusher.trigger(
+    conversationPrivateChannel(conversationId),
+    "new-message",
+    message,
+  );
 }
 
 export async function triggerMessageDeleted(
@@ -56,7 +64,11 @@ export async function triggerMessageDeleted(
   payload: ChatMessageDeletedPayload,
 ) {
   const pusher = getPusherServer();
-  await pusher.trigger(`conversation-${conversationId}`, "message-deleted", payload);
+  await pusher.trigger(
+    conversationPrivateChannel(conversationId),
+    "message-deleted",
+    payload,
+  );
 }
 
 export async function triggerChatInboxUpdate(
