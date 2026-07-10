@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Users, Stethoscope, TrendingUp, X, Check, Play, type LucideIcon } from "lucide-react";
+import { Users, Stethoscope, TrendingUp, X, Check, type LucideIcon } from "lucide-react";
 
 const comparisonRows = [
   {
@@ -174,9 +174,9 @@ export default function BeelineCureHomepage() {
         </div>
       </section>
 
-      {/* 6. VIDEO SECTION */}
+      {/* 6. SEE IT IN ACTION */}
       <section
-        id="video-section"
+        id="see-it-in-action"
         className="border-t border-white/5 bg-[#1a2332] px-6 py-16 md:py-24"
       >
         <div className="mx-auto max-w-6xl">
@@ -188,19 +188,32 @@ export default function BeelineCureHomepage() {
           <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
             {[
               {
-                title: "Patient Experience",
-                desc: "Watch how a patient finds, books, and returns to your clinic without ever touching a marketplace.",
+                title: "Doctor Dashboard",
+                desc: "Track today's appointments, total patients, and pending prescriptions. See upcoming visits and recent patients at a glance.",
+                src: "/marketing/doctor-dashboard.png",
+                alt: "BeelineCure doctor dashboard showing appointments, patients, and prescriptions",
+                width: 1024,
+                height: 414,
               },
               {
-                title: "Clinic Dashboard",
-                desc: "See how clinic owners manage bookings, doctors, revenue, and patient relationships in one place.",
+                title: "Admin Dashboard",
+                desc: "Monitor platform metrics in one place: approved doctors, registered patients, bookings, revenue, and recent activity.",
+                src: "/marketing/admin-dashboard.png",
+                alt: "BeelineCure admin dashboard showing platform metrics and recent bookings",
+                width: 1024,
+                height: 429,
               },
             ].map((card) => (
               <div key={card.title} className="flex flex-col">
-                <div className="relative flex aspect-video items-center justify-center rounded-xl bg-gradient-to-br from-[#3a3f4b] to-[#2d3340]">
-                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white/90 transition-all hover:scale-105">
-                    <Play className="ml-1 h-7 w-7 fill-[#1a2332] text-[#1a2332]" />
-                  </div>
+                <div className="relative w-full overflow-hidden rounded-xl shadow-sm ring-1 ring-white/10">
+                  <Image
+                    src={card.src}
+                    alt={card.alt}
+                    width={card.width}
+                    height={card.height}
+                    className="h-auto w-full object-contain"
+                    sizes="(max-width: 768px) 100vw, 50vw"
+                  />
                 </div>
                 <h3 className={`${sectionHeading} mt-4 text-xl text-white`}>
                   {card.title}
@@ -208,12 +221,6 @@ export default function BeelineCureHomepage() {
                 <p className="mt-2 font-montserrat text-sm leading-relaxed text-white/70">
                   {card.desc}
                 </p>
-                <a
-                  href="#video-section"
-                  className="mt-3 font-montserrat text-sm text-white/70 transition-colors hover:text-white"
-                >
-                  Watch full walkthrough →
-                </a>
               </div>
             ))}
           </div>
@@ -416,12 +423,6 @@ export default function BeelineCureHomepage() {
             >
               Try the Demo
             </Link>
-            <a
-              href="#video-section"
-              className={`min-w-[200px] rounded-lg border-2 border-white bg-white/10 px-8 py-4 text-lg text-white hover:bg-white/20 ${ctaButtonClass}`}
-            >
-              Watch the Video
-            </a>
             <Link
               href="/demo"
               className={`min-w-[200px] rounded-lg border-2 border-white bg-white/10 px-8 py-4 text-lg text-white hover:bg-white/20 ${ctaButtonClass}`}

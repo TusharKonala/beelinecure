@@ -38,7 +38,7 @@ const seeItLiveRoles = [
   },
   {
     label: "As a clinic owner",
-    text: "The admin panel is best seen with a guided walkthrough. Watch our full demo video or book a quick call and we will walk you through everything live.",
+    text: "The admin panel is best seen with a guided walkthrough. See the doctor and admin dashboards on our homepage, or book a quick call and we will walk you through everything live.",
   },
 ];
 
@@ -175,9 +175,6 @@ export default function AboutPage() {
           <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
             <Link href="/auth/signin" className={filledButtonClass}>
               Try the Demo →
-            </Link>
-            <Link href="/#video-section" className={outlineButtonClass}>
-              Watch the Video →
             </Link>
             <Link href="/demo" className={outlineButtonClass}>
               Book a Call →
