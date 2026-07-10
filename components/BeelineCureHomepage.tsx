@@ -174,16 +174,16 @@ export default function BeelineCureHomepage() {
         </div>
       </section>
 
-      {/* 6. SEE IT IN ACTION */}
+      {/* 6. PLATFORM PREVIEW */}
       <section
-        id="see-it-in-action"
+        id="platform-preview"
         className="border-t border-white/5 bg-[#1a2332] px-6 py-16 md:py-24"
       >
         <div className="mx-auto max-w-6xl">
           <h2
             className={`${sectionHeading} mb-12 text-center text-3xl text-white md:mb-16 md:text-[44px]`}
           >
-            See It In Action
+            See the Platform
           </h2>
           <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
             {[
